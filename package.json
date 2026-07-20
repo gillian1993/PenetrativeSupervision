@@ -1,0 +1,26 @@
+{
+  "name": "penetrative-supervision",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node server.js --dev",
+    "build": "tsc --noEmit -p tsconfig.app.json && vite build",
+    "preview": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "mysql2": "^3.23.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "react-router-dom": "^7.8.2",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.10",
+    "@types/react-dom": "^19.1.7",
+    "@vitejs/plugin-react": "^5.0.2",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.4"
+  }
+}
