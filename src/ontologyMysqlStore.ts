@@ -17,6 +17,7 @@ interface OntologyState {
   loadOntologies: () => Promise<Result>
   createOntology: (payload: OntologyCreatePayload) => Promise<Result>
   updateOntology: (id: string, patch: OntologyUpdatePayload) => Promise<Result>
+  deleteOntology: (id: string) => Promise<Result>
   copyOntology: (id: string) => Promise<Result>
   publishOntology: (id: string) => Promise<Result>
   validateOntology: (id: string) => Promise<Result>
@@ -61,6 +62,16 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
       const ontology = await ontologyApi.update(id, patch)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
       return { ok: true, message: '本体草稿已保存到MySQL' }
+    } catch (error) {
+      return { ok: false, message: errorMessage(error) }
+    }
+  },
+  deleteOntology: async (id) => {
+    const ontology = get().ontologies.find((row) => row.id === id)
+    try {
+      const result = await ontologyApi.delete(id)
+      set((state) => ({ ontologies: state.ontologies.filter((row) => row.id !== id) }))
+      return { ok: true, message: result.message || `${ontology?.name || '本体草稿'}已从MySQL删除` }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }

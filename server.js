@@ -298,6 +298,21 @@ async function deleteElementV2(res,id,elementId){
   }catch(error){await connection.rollback();throw error}finally{connection.release()}
 }
 
+async function deleteOntologyV2(res,id){
+  const current=await getOntology(id)
+  if(!current)return sendJson(res,404,{message:'本体不存在'})
+  if(current.status==='已发布')return sendJson(res,409,{message:'已发布本体不可删除，请保留版本追溯链路'})
+  const [[ruleRefs],[graphRefs]]=await Promise.all([
+    pool.query('SELECT COUNT(*) AS total FROM rule_asset_versions WHERE ontology_id=?',[id]),
+    pool.query('SELECT COUNT(*) AS total FROM graph_versions WHERE ontology_id=?',[id]),
+  ])
+  const references=Number(ruleRefs[0].total)+Number(graphRefs[0].total)
+  if(references>0)return sendJson(res,409,{message:`该本体仍被${references}个规则或图谱版本引用，不能删除`})
+  await ontologyAudit(pool,id,'删除本体草稿',`${current.name} ${current.version}`)
+  await pool.query('DELETE FROM ontologies WHERE id=?',[id])
+  sendJson(res,200,{ok:true,message:'本体草稿已删除'})
+}
+
 async function handleApi(req,res,url){
   if(url.pathname==='/api/health'&&req.method==='GET')return sendJson(res,200,{ok:true,database})
   if(await handleSceneRuleApi(req,res,url,{pool,sendJson,readBody}))return
@@ -306,7 +321,7 @@ async function handleApi(req,res,url){
   if(url.pathname==='/api/ontologies'&&req.method==='POST')return createOntology(req,res)
   const element=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/elements(?:\/([^/]+))?$/);if(element){const id=decodeURIComponent(element[1]);if(req.method==='POST'&&!element[2])return addElementV2(req,res,id);if(req.method==='PUT'&&element[2])return updateElementV2(req,res,id,decodeURIComponent(element[2]));if(req.method==='DELETE'&&element[2])return deleteElementV2(res,id,decodeURIComponent(element[2]))}
   const action=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/(copy|publish|validate)$/);if(action&&req.method==='POST')return action[2]==='copy'?copyOntologyV2(res,decodeURIComponent(action[1])):action[2]==='validate'?validateOntologyV2(res,decodeURIComponent(action[1])):publishOntologyV2(res,decodeURIComponent(action[1]))
-  const item=url.pathname.match(/^\/api\/ontologies\/([^/]+)$/);if(item){const id=decodeURIComponent(item[1]);if(req.method==='GET'){const result=await getOntology(id);return sendJson(res,result?200:404,result||{message:'本体不存在'})}if(req.method==='PUT')return updateOntologyV2(req,res,id)}
+  const item=url.pathname.match(/^\/api\/ontologies\/([^/]+)$/);if(item){const id=decodeURIComponent(item[1]);if(req.method==='GET'){const result=await getOntology(id);return sendJson(res,result?200:404,result||{message:'本体不存在'})}if(req.method==='PUT')return updateOntologyV2(req,res,id);if(req.method==='DELETE')return deleteOntologyV2(res,id)}
   sendJson(res,404,{message:'接口不存在'})
 }
 

@@ -1,7 +1,8 @@
-import { assertSemanticReferences, collectSemanticReferenceIssues, editableSceneStatuses, getCurrentSceneRow, getSceneAggregate, makeBusinessId, mapRuleRow, parseJson, toJson, validateRuleRecord, writeSceneAudit } from './sceneRuleRepo.js'
+import { assertSemanticReferences, collectAdvancedExpressionReferenceIssues, collectSemanticReferenceIssues, editableSceneStatuses, getCurrentSceneRow, getSceneAggregate, makeBusinessId, mapRuleRow, parseJson, toJson, validateRuleRecord, writeSceneAudit } from './sceneRuleRepo.js'
 
 const defaultOutputs=['主体名称与编码','命中条件及实际值','来源记录与版本','规则执行时间']
-const defaultEvidence=['业务来源记录','主体信息','规则运行明细']
+const outputsForRuleType=(type)=>[...defaultOutputs,...(type==='关系路径'?['关系路径']:type==='时序'?['事件时间']:type==='聚合'?['聚合结果']:type==='高级表达式'?['表达式计算明细']:[])]
+const defaultEvidence=[{id:'evidence-source',name:'业务来源记录',source:'ERP/采购业务系统',sourceField:'业务单据编号',attachmentRequirement:'可选附件',completeness:'必须保存来源系统、记录编号和取数批次',description:''},{id:'evidence-subject',name:'主体信息',source:'本体主数据',sourceField:'主体编码',attachmentRequirement:'无需附件',completeness:'必须包含主体编码和来源版本',description:''},{id:'evidence-run',name:'规则运行明细',source:'规则运行服务',sourceField:'命中条件及实际值',attachmentRequirement:'无需附件',completeness:'必须保存规则版本、命中值和执行时间',description:''}]
 
 const ruleSelect=[
   'SELECT rav.*,ra.code,',
@@ -12,9 +13,11 @@ const ruleSelect=[
 ].join(' ')
 
 function summarize(payload){
-  const count=(payload.conditions?.items||[]).length
-  const typeText=payload.type==='关系路径'?'按'+(payload.pathConfig?.hops||[]).length+'跳关系路径判断':payload.type==='时序'?'在'+(payload.timeConfig?.windowValue||0)+(payload.timeConfig?.windowUnit||'天')+'窗口内判断':payload.type==='聚合'?'按'+(payload.aggregateConfig?.function||'COUNT')+'聚合并比较阈值':'按属性与字段条件判断'
-  return typeText+'，组合'+count+'个一级条件项；命中后生成'+(payload.level||'高')+'风险线索并固化'+(payload.outputs||[]).length+'项输出。'
+  const count=payload.type==='高级表达式'?(payload.conditions?.expression?1:0):payload.type==='关系路径'?(payload.pathConfig?.constraints||[]).length||Math.min(1,(payload.pathConfig?.hops||[]).length):payload.type==='时序'?(payload.timeConfig?.conditions||[]).length:payload.type==='聚合'?(payload.aggregateConfig?.metrics||[]).length:(payload.conditions?.items||[]).length
+  const logic=payload.type==='高级表达式'?'EXPRESSION':payload.type==='关系路径'?payload.pathConfig?.logic:payload.type==='时序'?payload.timeConfig?.logic:payload.type==='聚合'?payload.aggregateConfig?.logic:payload.conditions?.logic
+  const typeText=payload.type==='高级表达式'?'执行受控高级表达式':payload.type==='关系路径'?`按${(payload.pathConfig?.hops||[]).length}跳关系路径和${count}个约束判断`:payload.type==='时序'?`围绕目标事件组合${count}个时序条件`:payload.type==='聚合'?`组合${count}个聚合指标`:'按属性与字段条件判断'
+  const levelText=(payload.level||'继承场景')==='继承场景'?'继承场景默认等级':(payload.level||'高')+'风险'
+  return typeText+'，'+(logic==='EXPRESSION'?'按表达式计算':logic==='OR'?'满足任一':'满足全部')+'；命中后'+levelText+'并固化'+(payload.outputs||[]).length+'项输出。'
 }
 
 async function getRule(pool,id){
@@ -45,6 +48,13 @@ async function uniqueCode(pool,preferred){
   return 'RULE-'+Date.now().toString().slice(-8)
 }
 
+async function graphSemanticContext(pool,graphVersion){
+  if(!String(graphVersion||'').trim())throw Object.assign(new Error('请选择已发布图谱版本'),{status:400})
+  const [rows]=await pool.query('SELECT id,ontology_id,status FROM graph_versions WHERE id=?',[graphVersion])
+  if(!rows.length)throw Object.assign(new Error('图谱版本不存在'),{status:404})
+  if(rows[0].status!=='已发布')throw Object.assign(new Error('规则只能引用已发布图谱版本'),{status:409})
+  return{graphVersion:rows[0].id,ontologyId:rows[0].ontology_id}
+}
 async function createRule(pool,payload,scene=null){
   if(!String(payload.name||'').trim())throw Object.assign(new Error('规则名称不能为空'),{status:400})
   const code=await uniqueCode(pool,payload.code)
@@ -56,15 +66,16 @@ async function createRule(pool,payload,scene=null){
   const objectName=payload.objectName||context.object_name||'供应商'
   const eventCode=payload.eventCode??context.event_code??'PROC.BidConfirmed'
   const eventName=payload.eventName??context.event_name??'中标确认'
-  const ontologyId=payload.ontologyId||context.ontology_id||'ONT-PROC'
+  let ontologyId=payload.ontologyId||context.ontology_id||'ONT-PROC'
   const graphVersion=payload.graphVersion||context.graph_version||'GRAPH-20260717.2'
-  const level=payload.level||context.risk_level||'高'
+  ontologyId=(await graphSemanticContext(pool,graphVersion)).ontologyId
+  const level=payload.level||'继承场景'
   const connection=await pool.getConnection()
   await assertSemanticReferences(pool,{ontologyId,objectCode,eventCode,graphVersion})
   try{
     await connection.beginTransaction()
     await connection.query("INSERT INTO rule_assets (id,code,current_version_id,status) VALUES (?,?,?,'草稿')",[ruleId,code,versionId])
-    await connection.query('INSERT INTO rule_asset_versions (id,rule_id,version,name,domain,object_code,object_name,event_code,event_name,ontology_id,graph_version,rule_type,risk_level,status,condition_json,path_json,time_json,aggregate_json,exception_json,output_json,evidence_json,policy_json,failure_strategy,summary) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[versionId,ruleId,'v0.1',String(payload.name).trim(),domain,objectCode,objectName,eventCode,eventName,ontologyId,graphVersion,payload.type||'属性',level,'草稿',toJson({id:'group-root',logic:'AND',items:[]}),toJson({hops:[]}),toJson({eventCode,windowValue:Number(payload.windowValue||180),windowUnit:payload.windowUnit||'天',direction:'之前'}),toJson({function:'COUNT',fieldCode:'',groupBy:'',operator:'大于等于',threshold:2}),toJson({enabled:false,description:'',whitelist:[]}),toJson(defaultOutputs),toJson(defaultEvidence),toJson({name:'',version:'',clause:''}),'进入异常队列','尚未生成规则摘要'])
+    await connection.query('INSERT INTO rule_asset_versions (id,rule_id,version,name,domain,object_code,object_name,event_code,event_name,ontology_id,graph_version,rule_type,risk_level,status,condition_json,path_json,time_json,aggregate_json,exception_json,output_json,evidence_json,policy_json,failure_strategy,summary) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',[versionId,ruleId,'v0.1',String(payload.name).trim(),domain,objectCode,objectName,eventCode,eventName,ontologyId,graphVersion,payload.type||'属性',level,'草稿',toJson({id:'group-root',logic:'AND',items:[]}),toJson({hops:[],logic:'AND',constraints:[]}),toJson({baseline:'runtime',logic:'AND',conditions:[],eventCode:'',windowValue:Number(payload.windowValue||30),windowUnit:payload.windowUnit||'天',direction:'之前'}),toJson({logic:'AND',metrics:[],function:'COUNT',fieldCode:'',groupBy:'',operator:'大于等于',threshold:0}),toJson({enabled:false,description:'',whitelist:[]}),toJson(outputsForRuleType(payload.type||'属性')),toJson(defaultEvidence),toJson([]),'进入异常队列','尚未生成规则摘要'])
     if(scene){
       await connection.query('INSERT INTO scene_rule_bindings (scene_version_id,rule_version_id,enabled,risk_level_override,parameters_json,priority) VALUES (?,?,1,NULL,JSON_OBJECT(),100)',[scene.id,versionId])
       await connection.query("UPDATE scene_versions SET status='草稿',validation_json=NULL,last_trial_id=NULL,dependency_hash='',lock_version=lock_version+1 WHERE id=?",[scene.id])
@@ -83,9 +94,13 @@ async function updateRule(pool,id,payload){
   if(Number(payload.lockVersion)!==Number(row.lock_version))throw Object.assign(new Error('规则已被其他人更新，请刷新后重试'),{status:409})
   const [published]=await pool.query("SELECT COUNT(*) AS total FROM scene_rule_bindings b JOIN scene_versions sv ON sv.id=b.scene_version_id WHERE b.rule_version_id=? AND sv.status IN ('已发布','已停用')",[id])
   if(Number(published[0].total)>0)throw Object.assign(new Error('该规则版本已被已发布场景引用，不能直接修改'),{status:409})
-  const outputs=payload.outputs??parseJson(row.output_json,defaultOutputs)
-  await assertSemanticReferences(pool,{ontologyId:payload.ontologyId??row.ontology_id,objectCode:payload.objectCode??row.object_code,eventCode:payload.eventCode??row.event_code,graphVersion:payload.graphVersion??row.graph_version})
-  const [result]=await pool.query("UPDATE rule_asset_versions SET name=?,domain=?,object_code=?,object_name=?,event_code=?,event_name=?,ontology_id=?,graph_version=?,rule_type=?,risk_level=?,status='草稿',condition_json=?,path_json=?,time_json=?,aggregate_json=?,exception_json=?,output_json=?,evidence_json=?,policy_json=?,failure_strategy=?,summary=?,lock_version=lock_version+1 WHERE id=? AND lock_version=?",[payload.name??row.name,payload.domain??row.domain,payload.objectCode??row.object_code,payload.objectName??row.object_name,payload.eventCode??row.event_code,payload.eventName??row.event_name,payload.ontologyId??row.ontology_id,payload.graphVersion??row.graph_version,payload.type??row.rule_type,payload.level??row.risk_level,toJson(payload.conditions??parseJson(row.condition_json,{})),toJson(payload.pathConfig??parseJson(row.path_json,{})),toJson(payload.timeConfig??parseJson(row.time_json,{})),toJson(payload.aggregateConfig??parseJson(row.aggregate_json,{})),toJson(payload.exceptions??parseJson(row.exception_json,{})),toJson(outputs),toJson(payload.evidence??parseJson(row.evidence_json,defaultEvidence)),toJson(payload.policy??parseJson(row.policy_json,{})),payload.failureStrategy??row.failure_strategy,summarize({...payload,outputs}),id,row.lock_version])
+  const outputs=outputsForRuleType(payload.type??row.rule_type)
+  const evidenceRequirements=payload.evidenceRequirements??payload.evidence??parseJson(row.evidence_json,defaultEvidence)
+  const policies=payload.policies??(payload.policy?[payload.policy]:parseJson(row.policy_json,[]))
+  await assertSemanticReferences(pool,{ontologyId:(await graphSemanticContext(pool,payload.graphVersion??row.graph_version)).ontologyId,objectCode:payload.objectCode??row.object_code,eventCode:payload.eventCode??row.event_code,graphVersion:payload.graphVersion??row.graph_version})
+  const graphContext=await graphSemanticContext(pool,payload.graphVersion??row.graph_version)
+  payload={...payload,graphVersion:graphContext.graphVersion,ontologyId:graphContext.ontologyId}
+  const [result]=await pool.query("UPDATE rule_asset_versions SET name=?,domain=?,object_code=?,object_name=?,event_code=?,event_name=?,ontology_id=?,graph_version=?,rule_type=?,risk_level=?,status='草稿',condition_json=?,path_json=?,time_json=?,aggregate_json=?,exception_json=?,output_json=?,evidence_json=?,policy_json=?,failure_strategy=?,summary=?,lock_version=lock_version+1 WHERE id=? AND lock_version=?",[payload.name??row.name,payload.domain??row.domain,payload.objectCode??row.object_code,payload.objectName??row.object_name,payload.eventCode??row.event_code,payload.eventName??row.event_name,payload.ontologyId??row.ontology_id,payload.graphVersion??row.graph_version,payload.type??row.rule_type,payload.level??row.risk_level,toJson(payload.conditions??parseJson(row.condition_json,{})),toJson(payload.pathConfig??parseJson(row.path_json,{})),toJson(payload.timeConfig??parseJson(row.time_json,{})),toJson(payload.aggregateConfig??parseJson(row.aggregate_json,{})),toJson(payload.exceptions??parseJson(row.exception_json,{})),toJson(outputs),toJson(evidenceRequirements),toJson(policies),payload.failureStrategy??row.failure_strategy,summarize({...payload,outputs}),id,row.lock_version])
   if(!result.affectedRows)throw Object.assign(new Error('规则版本冲突，请刷新后重试'),{status:409})
   await pool.query("UPDATE rule_assets SET status='草稿' WHERE id=?",[row.rule_id])
   const [scenes]=await pool.query("SELECT sv.id FROM scene_rule_bindings b JOIN scene_versions sv ON sv.id=b.scene_version_id WHERE b.rule_version_id=? AND sv.status IN ('草稿','待试跑','待发布')",[id])
@@ -103,6 +118,11 @@ async function validateRule(pool,id){
   const refs=await collectSemanticReferenceIssues(pool,{ontologyId:rows[0].ontology_id,objectCode:rows[0].object_code,eventCode:rows[0].event_code,graphVersion:rows[0].graph_version},'basic')
   result.blockers.push(...refs.blockers)
   result.warnings.push(...refs.warnings)
+  if(rows[0].rule_type==='高级表达式'){
+    const advanced=await collectAdvancedExpressionReferenceIssues(pool,rows[0].ontology_id,parseJson(rows[0].condition_json,{}).expression,'conditions')
+    result.blockers.push(...advanced.blockers)
+    result.warnings.push(...advanced.warnings)
+  }
   return result
 }
 
@@ -122,7 +142,7 @@ async function listLibrary(pool,url){
   const target=sceneId?await getCurrentSceneRow(pool,sceneId):null
   const params=[]
   let where=''
-  if(target){where=' WHERE rav.ontology_id=? AND rav.graph_version=? AND NOT EXISTS (SELECT 1 FROM scene_rule_bindings bx WHERE bx.scene_version_id=? AND bx.rule_version_id=rav.id)';params.push(target.ontology_id,target.graph_version,target.id)}
+  if(target){where=' WHERE NOT EXISTS (SELECT 1 FROM scene_rule_bindings bx WHERE bx.scene_version_id=? AND bx.rule_version_id=rav.id)';params.push(target.id)}
   const [rows]=await pool.query(ruleSelect+where+' ORDER BY rav.updated_at DESC',params)
   return rows.map(mapRuleRow)
 }
@@ -138,9 +158,8 @@ async function bindRules(pool,sceneId,payload){
   try{
     await connection.beginTransaction()
     for(const id of ids){
-      const [exists]=await connection.query('SELECT id,ontology_id,graph_version FROM rule_asset_versions WHERE id=? LIMIT 1',[id])
+      const [exists]=await connection.query('SELECT id FROM rule_asset_versions WHERE id=? LIMIT 1',[id])
       if(!exists.length)continue
-      if(exists[0].ontology_id!==target.ontology_id||exists[0].graph_version!==target.graph_version)throw Object.assign(new Error('所选规则与当前场景的本体或图谱版本不一致'),{status:409})
       const [result]=await connection.query('INSERT IGNORE INTO scene_rule_bindings (scene_version_id,rule_version_id,enabled,risk_level_override,parameters_json,priority) VALUES (?,?,1,NULL,JSON_OBJECT(),100)',[target.id,id])
       linked+=Number(result.affectedRows||0)
     }

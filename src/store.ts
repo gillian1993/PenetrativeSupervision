@@ -60,8 +60,8 @@ interface AppState {
   observeWarning: (id: string, reason: string, followAt: string) => OperationResult
   releaseWarning: (id: string, reason: string, evidence: string) => OperationResult
   submitVerification: (id: string, conclusion: string, facts: string, materials: string[]) => OperationResult
-  reviewWarning: (id: string, result: '退回补充' | '持续观察' | '解除预警' | '升级风险事件', reason: string) => OperationResult
-  escalateWarning: (id: string, reason?: string) => string
+  reviewWarning: (id: string, result: '退回补充' | '持续观察' | '解除预警' | '升级风险事件', reason: string, owner?: string, dueAt?: string, requirement?: string) => OperationResult
+  escalateWarning: (id: string, owner: string, dueAt: string, requirement: string, reason?: string, source?: 'direct' | 'review') => OperationResult
   assignRiskEvent: (id: string, owner: string, dueAt: string, requirement: string) => OperationResult
   transferRiskEvent: (id: string, owner: string, reason: string) => OperationResult
   submitRectification: (id: string, result: string, measures: string, materials: string[]) => OperationResult
@@ -81,9 +81,11 @@ interface AppState {
   publishGraph: (id: string) => OperationResult
   governEntity: (taskId: string, result: '合并' | '保持独立' | '拆分', reason: string) => OperationResult
   updateUser: (id: string, patch: Partial<UserItem>) => OperationResult
+  deleteUser: (id: string) => OperationResult
   createUser: (payload: Pick<UserItem, 'name' | 'account' | 'organization' | 'position' | 'roles' | 'status'>) => OperationResult
   transferUserTodos: (id: string, owner: string, reason: string) => OperationResult
   updateRole: (id: string, permissions: string[]) => OperationResult
+  deleteRole: (id: string) => OperationResult
   createRole: (payload: Pick<RoleItem, 'id' | 'name' | 'scope'> & { permissions?: string[] }) => OperationResult
   addAudit: (entry: Omit<AuditItem, 'id' | 'time' | 'traceId'>) => void
   resetDemo: () => void
@@ -199,7 +201,7 @@ export const useAppStore = create<AppState>()(
           appendAudit({ operator: warning.owner, organization: warning.organization, action: '提交核查反馈', objectType: '核查任务', objectId: id, summary: `${conclusion}；材料${materials.length}项`, result: '成功', risk: '普通' })
           return { ok: true, message: '核查反馈已提交，预警进入待复核' }
         },
-        reviewWarning: (id, result, reason) => {
+        reviewWarning: (id, result, reason, owner = '', dueAt = '', requirement = '') => {
           if (!reason.trim()) return { ok: false, message: '复核说明不能为空' }
           const warning = get().warnings.find((item) => item.id === id)
           if (!warning || warning.status !== '待复核') return { ok: false, message: '预警不是待复核状态' }
@@ -211,23 +213,30 @@ export const useAppStore = create<AppState>()(
           } else if (result === '解除预警') {
             return get().releaseWarning(id, reason, '核查反馈及补充材料')
           } else {
-            const eventId = get().escalateWarning(id, reason)
-            return { ok: true, message: `已升级为风险事件${eventId}`, objectId: eventId }
+            return get().escalateWarning(id, owner, dueAt, requirement, reason, 'review')
           }
           appendAudit({ operator: '赵明', organization: '集团监管部', action: result, objectType: '预警', objectId: id, summary: reason, result: '成功', risk: '高危' })
           return { ok: true, message: result === '退回补充' ? '已退回原责任人补充' : '复核完成' }
         },
-        escalateWarning: (id, reason = '经监管研判确认风险') => {
+        escalateWarning: (id, owner, dueAt, requirement, reason = '经监管研判确认风险', source = 'direct') => {
           const warning = get().warnings.find((item) => item.id === id)
-          if (!warning) return ''
+          if (!warning) return { ok: false, message: '预警不存在' }
           const existing = get().riskEvents.find((item) => item.warningId === id)
-          if (existing) return existing.id
+          if (existing) return { ok: true, message: `该预警已升级为风险事件${existing.id}`, objectId: existing.id }
+          const statusAllowed = source === 'review' ? warning.status === '待复核' : ['待处理', '持续观察'].includes(warning.status)
+          if (!statusAllowed) return { ok: false, message: warning.status === '核查中' ? '核查中的预警须先提交核查反馈，不能直接升级' : warning.status === '待复核' ? '待复核预警只能通过监管复核升级' : '预警状态已变化，当前不能升级' }
+          if (!owner || !dueAt || requirement.trim().length < 8) return { ok: false, message: '请选择责任人，并填写完成时限和明确处置要求' }
+          if (reason.trim().length < 8) return { ok: false, message: '请填写至少8个字的风险确认说明' }
           const eventId = `RE-${todayCode()}-${String(get().riskEvents.length + 10).padStart(3, '0')}`
-          const event: RiskEvent = { id: eventId, warningId: warning.id, title: warning.title, level: warning.level, scene: warning.scene, target: warning.target, organization: warning.organization, owner: '', status: '待派发', dueAt: '2026-07-24 18:00', overdue: false, updatedAt: '刚刚' }
-          set((state) => ({ warnings: state.warnings.map((item) => item.id === id ? { ...item, status: '已升级', updatedAt: '刚刚' } : item), riskEvents: [event, ...state.riskEvents], todos: [{ id: `TODO-${Date.now()}`, title: `派发风险事件：${event.title}`, type: '风险事件', level: event.level, stage: '待处理', dueAt: '今天 18:00', owner: '赵明', timeState: '正常', route: `/risk/events/${eventId}` }, ...state.todos.filter((todo) => !todo.route.endsWith(id))] }))
-          notify('预警', `预警已升级为风险事件${eventId}`, id, `/risk/events/${eventId}`)
-          appendAudit({ operator: '赵明', organization: '集团监管部', action: '升级风险事件', objectType: '预警', objectId: id, summary: reason, result: '成功', risk: '高危' })
-          return eventId
+          const event: RiskEvent = { id: eventId, warningId: warning.id, title: warning.title, level: warning.level, scene: warning.scene, target: warning.target, organization: warning.organization, owner, status: '核查整改中', dueAt, overdue: false, updatedAt: '刚刚' }
+          set((state) => ({
+            warnings: state.warnings.map((item) => item.id === id ? { ...item, status: '已升级', updatedAt: '刚刚' } : item),
+            riskEvents: [event, ...state.riskEvents],
+            todos: [{ id: `TODO-${Date.now()}`, title: `整改：${event.title}`, type: '风险事件', level: event.level, stage: '核查整改中', dueAt, owner, timeState: '正常', route: `/risk/events/${eventId}` }, ...state.todos.filter((todo) => !todo.route.endsWith(id))],
+          }))
+          notify('派发', `收到风险事件整改任务：${event.title}`, eventId, `/risk/events/${eventId}`)
+          appendAudit({ operator: '赵明', organization: '集团监管部', action: '升级风险事件', objectType: '预警', objectId: id, summary: `生成${eventId}；责任人：${owner}；完成时限：${dueAt}；处置要求：${requirement}；风险确认：${reason}`, result: '成功', risk: '高危' })
+          return { ok: true, message: `已升级为风险事件${eventId}并指派给${owner}`, objectId: eventId }
         },
         assignRiskEvent: (id, owner, dueAt, requirement) => {
           if (!owner || !dueAt || requirement.trim().length < 8) return { ok: false, message: '责任人、时限和整改要求均为必填项' }
@@ -364,6 +373,15 @@ export const useAppStore = create<AppState>()(
           appendAudit({ operator: '安全管理员', organization: '信息化部', action: '更新用户', objectType: '用户', objectId: id, summary: `修改：${Object.keys(patch).join('、')}`, result: '成功', risk: '高危' })
           return { ok: true, message: '用户信息已保存' }
         },
+        deleteUser: (id) => {
+          const user = get().users.find((item) => item.id === id)
+          if (!user) return { ok: false, message: '用户不存在' }
+          if (user.todos > 0) return { ok: false, message: '该用户仍有未完成待办，请先完成转派' }
+          if (user.lastLogin !== '从未登录') return { ok: false, message: '已产生登录与操作记录的用户不能删除，请改为停用账号' }
+          set((state) => ({ users: state.users.filter((item) => item.id !== id) }))
+          appendAudit({ operator: '安全管理员', organization: '信息化部', action: '删除未启用用户', objectType: '用户', objectId: id, summary: `${user.name} / ${user.account}`, result: '成功', risk: '高危' })
+          return { ok: true, message: '未登录用户已删除' }
+        },
         transferUserTodos: (id, owner, reason) => {
           const user = get().users.find((item) => item.id === id)
           if (!user || !owner || !reason.trim()) return { ok: false, message: '请选择接收人并填写转派原因' }
@@ -385,6 +403,16 @@ export const useAppStore = create<AppState>()(
           set((state) => ({ roles: state.roles.map((item) => item.id === id ? { ...item, permissions, updatedAt: '刚刚' } : item) }))
           appendAudit({ operator: '安全管理员', organization: '信息化部', action: '调整角色权限', objectType: '角色', objectId: id, summary: `权限项：${permissions.join('、')}`, result: '成功', risk: '高危' })
           return { ok: true, message: '角色权限已保存并即时生效' }
+        },
+        deleteRole: (id) => {
+          const role = get().roles.find((item) => item.id === id)
+          if (!role) return { ok: false, message: '角色不存在' }
+          if (role.type !== '自定义') return { ok: false, message: '预置角色不能删除' }
+          if (role.users > 0) return { ok: false, message: `该角色仍分配给${role.users}名用户，请先解除角色分配` }
+          if (get().currentRole === role.name) return { ok: false, message: '当前正在使用该角色，请先切换到其他角色' }
+          set((state) => ({ roles: state.roles.filter((item) => item.id !== id) }))
+          appendAudit({ operator: '安全管理员', organization: '信息化部', action: '删除自定义角色', objectType: '角色', objectId: id, summary: role.name, result: '成功', risk: '高危' })
+          return { ok: true, message: '自定义角色已删除' }
         },
         addAudit: appendAudit,
         resetDemo: () => set({ warnings: initialWarnings, riskEvents: initialRiskEvents, messages: initialMessages, todos: initialTodos, scenes: initialScenes, ontologies: initialOntologies, dataSources: initialDataSources, graphVersions: initialGraphVersions, users: initialUsers, roles: initialRoles, audits: initialAudits, currentScope: '中国电子云集团', currentRole: '监管负责人' }),

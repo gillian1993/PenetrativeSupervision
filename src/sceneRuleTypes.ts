@@ -1,7 +1,7 @@
 import type { RiskLevel } from './types'
 
 export type SceneStatus='草稿'|'待试跑'|'待发布'|'已发布'|'已停用'
-export type RuleType='属性'|'字段比对'|'关系路径'|'时序'|'聚合'
+export type RuleType='属性'|'字段比对'|'关系路径'|'时序'|'聚合'|'高级表达式'
 export type Logic='AND'|'OR'
 
 export interface ValidationIssue{field:string;tab:string;message:string;ruleId?:string}
@@ -12,17 +12,25 @@ export interface RuleCondition{
   id:string;fieldCode:string;fieldName:string;fieldType:string;operator:string;
   valueMode:'literal'|'field';value:string;valueFieldCode?:string;valueFieldName?:string
 }
-export interface ConditionGroup{id:string;logic:Logic;items:Array<RuleCondition|ConditionGroup>}
+export interface ConditionGroup{id:string;logic:Logic;items:Array<RuleCondition|ConditionGroup>;expression?:string;expressionLanguage?:'DSL'}
 export const isConditionGroup=(item:RuleCondition|ConditionGroup):item is ConditionGroup=>'items'in item
 
 export interface PathHop{from:string;relation:string;to:string}
+export interface TimeCondition{id:string;eventCode:string;eventName:string;requirement:'必须发生'|'不得发生'}
+export interface AggregateMetric{id:string;function:string;fieldCode:string;fieldName:string;operator:string;threshold:number}
+export interface PathConfig{hops:PathHop[];logic?:Logic;constraints?:RuleCondition[]}
+export interface TimeConfig{baseline?:'event'|'runtime';logic?:Logic;conditions?:TimeCondition[];eventCode:string;windowValue:number;windowUnit:string;direction:string}
+export interface AggregateConfig{logic?:Logic;metrics?:AggregateMetric[];function:string;fieldCode:string;groupBy:string;operator:string;threshold:number}
+export interface PolicyBasis{id?:string;name:string;version:string;clause:string;text?:string}
+export interface EvidenceRequirement{id?:string;name:string;source:string;sourceField:string;attachmentRequirement:string;completeness:string;description:string}
 export interface RuleItem{
   id:string;versionId:string;sceneId:string;sceneVersionId:string;code:string;name:string;version:string;
   type:RuleType;level:RiskLevel;defaultLevel?:RiskLevel;enabled:boolean;status:SceneStatus;conditions:ConditionGroup;
-  pathConfig:{hops:PathHop[]};timeConfig:{eventCode:string;windowValue:number;windowUnit:string;direction:string};
-  aggregateConfig:{function:string;fieldCode:string;groupBy:string;operator:string;threshold:number};
+  pathConfig:PathConfig;timeConfig:TimeConfig;
+  aggregateConfig:AggregateConfig;
   exceptions:{enabled:boolean;description:string;whitelist:string[]};outputs:string[];evidence:string[];
   policy:{name:string;version:string;clause:string};failureStrategy:string;summary:string;lockVersion:number;updatedAt:string;
+  policies?:PolicyBasis[];evidenceRequirements?:EvidenceRequirement[];levelMode?:'inherit'|'override';
   domain?:string;objectCode?:string;objectName?:string;eventCode?:string;eventName?:string;
   sceneName?:string;sceneNames?:string[];sceneIds?:string[];bindingCount?:number;sceneStatus?:SceneStatus;ontologyId?:string;graphVersion?:string;priority?:number
 }
@@ -35,7 +43,7 @@ export interface SceneItem{
   exceptions:{description:string;validUntil:string};evidence:string[];policies:Array<{name:string;version:string;clause:string}>;
   checkTemplate:{requirements:string;materials:string[];deadlineHours:number};validation:ValidationResult;
   lastTrialId:string;lastTrialStatus:string;runCount:number;lockVersion:number;updatedBy:string;updatedAt:string;
-  publishedAt:string;stopReason:string;rules:RuleItem[];ruleCount:number;enabledRuleCount:number;versions:SceneVersionSummary[]
+  publishedAt:string;stopReason:string;rules:RuleItem[];ruleCount:number;enabledRuleCount:number;versions:SceneVersionSummary[];canDelete:boolean
 }
 
 export interface TrialSample{id:number;code:string;objectName:string;outcome:'命中'|'未命中'|'错误';level:RiskLevel;evidenceStatus:string;detail:{ruleName?:string;relationHops?:number;matchedFields?:string[];message?:string}}

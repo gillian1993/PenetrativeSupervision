@@ -103,10 +103,14 @@ export interface DataSourceItem {
 
 export interface GraphVersion {
   id: string
+  graphCode: string
+  graphName: string
   ontologyId: string
   ontologyVersion: string
   mappingVersion: string
   range: string
+  sourceIds: string[]
+  sourceNames: string[]
   entities: number
   relations: number
   events: number

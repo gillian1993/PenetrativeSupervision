@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { AuditPage, DataAccessPage, GraphManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
+import { AuditPage, DataAccessPage, DataSourceDetailPage, GraphManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
+import { GraphCreatePage } from './pages/GraphCreateWizard'
 import { SceneListPage } from './pages/SceneRulePages'
 import { SceneEditorWithRuleSelection } from './pages/RuleClosurePages'
 import { RuleAssetEditorPage, RuleAssetManagementPage } from './pages/RuleAssetPages'
@@ -29,6 +30,7 @@ const scopeOptions = ['中国电子云集团', '集团监管部', '集团采购�
 function AppEnhanced() {
   const navigate = useNavigate()
   const location = useLocation()
+  const graphWorkspace = location.pathname === '/graphs/new' || /^\/graphs\/[^/]+\/edit$/.test(location.pathname)
   const messages = useAppStore((state) => state.messages)
   const warnings = useAppStore((state) => state.warnings)
   const riskEvents = useAppStore((state) => state.riskEvents)
@@ -84,6 +86,7 @@ function AppEnhanced() {
   }, [currentRole, rolePermissions])
 
   const visibleNavGroups = navGroups.filter((group) => permittedGroups.has(group.id)).map((group) => {
+    if (group.id === 'ontology' && group.children) return { ...group, children: group.children.filter((item) => item.path !== '/data-access') }
     if (!group.children || currentRole === '监管负责人') return group
     if (group.id === 'system' && (currentRole.includes('本体') || currentRole.includes('数据'))) return { ...group, children: group.children.filter((item) => item.path === '/system/audit') }
     return group
@@ -105,7 +108,7 @@ function AppEnhanced() {
   const chooseScope = (scope: string) => { setScope(scope); setScopeOpen(false); setToast(`监管范围已切换为：${scope}`) }
   const chooseRole = (role: string) => { setCurrentRole(role); setRoleOpen(false); setToast(`当前角色已切换为：${role}`); navigate('/workbench') }
 
-  return <div className={`app-shell ${collapsed ? 'collapsed' : ''}`} onClick={() => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false) }}>
+  return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''}`} onClick={() => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false) }}>
     <header className="topbar">
       <button className="brand" onClick={() => navigate('/workbench')} aria-label="返回监管工作台"><img className="brand-logo" src={cloudLogo} alt="中国电子云"/><em/><span>穿透式监管智能应用平台</span></button>
       <nav className="platform-nav"><button>应用开发平台</button><button>模型开发平台</button><button className="active">穿透式监管</button></nav>
@@ -139,8 +142,12 @@ function AppEnhanced() {
       <Route path="/rules/:id" element={<RuleAssetEditorPage/>}/>
       <Route path="/ontology" element={<OntologyListPage/>}/>
       <Route path="/ontology/:id" element={<OntologyEditorPage/>}/>
-      <Route path="/data-access" element={<DataAccessPage/>}/>
+      <Route path="/data-access" element={<Navigate to="/graphs?tab=sources" replace/>}/>
+      <Route path="/data-access/:id" element={<DataSourceDetailPage/>}/>
       <Route path="/graphs" element={<GraphManagementPage/>}/>
+      <Route path="/graphs/new" element={<GraphCreatePage/>}/>
+      <Route path="/graphs/:id/edit" element={<GraphCreatePage/>}/>
+      <Route path="/graphs/sources/:id" element={<DataSourceDetailPage/>}/>
       <Route path="/system/users" element={<UsersPage/>}/>
       <Route path="/system/roles" element={<RolesPage/>}/>
       <Route path="/system/audit" element={<AuditPage/>}/>
