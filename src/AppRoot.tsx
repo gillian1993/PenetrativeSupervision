@@ -5,7 +5,16 @@ import './ruleClosure.css'
 import './simpleRuleFlow.css'
 
 export default function AppRoot(){
-  return <><EffectSampleBridge/><LegacyApp/></>
+  return <><DatabaseWorkflowBridge/><EffectSampleBridge/><LegacyApp/></>
+}
+
+
+function DatabaseWorkflowBridge(){
+  const warningSource=useAppStore((state)=>state.warningSource)
+  const loadWarningsFromDatabase=useAppStore((state)=>state.loadWarningsFromDatabase)
+  const refreshed=useRef(false)
+  useEffect(()=>{if(warningSource!=='database'||refreshed.current)return;refreshed.current=true;void loadWarningsFromDatabase()},[warningSource,loadWarningsFromDatabase])
+  return null
 }
 
 function EffectSampleBridge(){

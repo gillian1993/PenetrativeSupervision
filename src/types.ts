@@ -1,6 +1,6 @@
 export type RiskLevel = '重大' | '高' | '中' | '低'
 export type WarningStage = '事前' | '事中' | '事后'
-export type WarningStatus = '待处理' | '核查中' | '待复核' | '持续观察' | '已解除' | '已升级'
+export type WarningStatus = '待研判' | '已解除' | '已升级'
 export type EvidenceStatus = '完整' | '部分缺失' | '权限受限' | '快照异常'
 
 export interface Warning {
@@ -23,7 +23,7 @@ export interface Warning {
   updatedAt: string
 }
 
-export type RiskEventStatus = '待派发' | '核查整改中' | '待复核' | '已关闭'
+export type RiskEventStatus = '待整改' | '待复核' | '已关闭'
 
 export interface RiskEvent {
   id: string
@@ -34,18 +34,22 @@ export interface RiskEvent {
   target: string
   organization: string
   owner: string
+  rectificationOwner?: string
   status: RiskEventStatus
   dueAt: string
   overdue: boolean
   updatedAt: string
 }
 
+export type TodoObjectType = '预警' | '事件'
+export type TodoStatus = Exclude<WarningStatus, '已解除' | '已升级'> | Exclude<RiskEventStatus, '已关闭'>
+
 export interface TodoItem {
   id: string
   title: string
-  type: '预警' | '核查任务' | '风险事件' | '整改复核'
+  objectType: TodoObjectType
   level: RiskLevel
-  stage: string
+  status: TodoStatus
   dueAt: string
   owner: string
   timeState: '正常' | '临期' | '已逾期'

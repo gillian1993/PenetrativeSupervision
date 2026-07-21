@@ -50,7 +50,7 @@ export function OntologyListPage() {
     const result = await createOntology(form)
     setToast(result.message)
     if (!result.ok || !result.objectId) return
-    addAudit({ operator: '赵明', organization: '集团监管部', action: '新建本体', objectType: '本体', objectId: result.objectId, summary: `${form.name} / ${form.domain}`, result: '成功', risk: '普通' })
+    addAudit({ operator: '尹晨阳', organization: '集团监管部', action: '新建本体', objectType: '本体', objectId: result.objectId, summary: `${form.name} / ${form.domain}`, result: '成功', risk: '普通' })
     setCreateOpen(false)
     setForm(createInitial)
     navigate(`/ontology/${result.objectId}`)

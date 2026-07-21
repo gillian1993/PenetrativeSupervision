@@ -165,7 +165,7 @@ async function migrateRuleAssets(pool) {
     id VARCHAR(64) PRIMARY KEY,
     code VARCHAR(64) NOT NULL UNIQUE,
     current_version_id VARCHAR(80) NULL,
-    created_by VARCHAR(80) NOT NULL DEFAULT '赵明',
+    created_by VARCHAR(80) NOT NULL DEFAULT '尹晨阳',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
 
@@ -199,7 +199,7 @@ async function migrateRuleAssets(pool) {
     source_version_id VARCHAR(80) NULL,
     published_at DATETIME NULL,
     stop_reason VARCHAR(500) NOT NULL DEFAULT '',
-    updated_by VARCHAR(80) NOT NULL DEFAULT '赵明',
+    updated_by VARCHAR(80) NOT NULL DEFAULT '尹晨阳',
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_scene_version (scene_id, version),
@@ -250,7 +250,7 @@ async function migrateRuleAssets(pool) {
     code VARCHAR(64) NOT NULL UNIQUE,
     current_version_id VARCHAR(80) NULL,
     status VARCHAR(24) NOT NULL DEFAULT '草稿',
-    created_by VARCHAR(80) NOT NULL DEFAULT '赵明',
+    created_by VARCHAR(80) NOT NULL DEFAULT '尹晨阳',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
 
@@ -365,7 +365,7 @@ async function migrateRuleAssets(pool) {
     scene_version_id VARCHAR(80) NOT NULL,
     action VARCHAR(80) NOT NULL,
     summary VARCHAR(500) NOT NULL,
-    operator_name VARCHAR(80) NOT NULL DEFAULT '赵明',
+    operator_name VARCHAR(80) NOT NULL DEFAULT '尹晨阳',
     risk_level VARCHAR(16) NOT NULL DEFAULT '普通',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_scene_audit (scene_version_id, created_at)

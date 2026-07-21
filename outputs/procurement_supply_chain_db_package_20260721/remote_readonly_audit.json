@@ -1,0 +1,2590 @@
+{
+  "auditedAt": "2026-07-20T16:48:57.274Z",
+  "target": {
+    "host": "47.94.226.107",
+    "port": 3306,
+    "database": "penetrative_supervision",
+    "user": "root"
+  },
+  "server": {
+    "version": "8.4.10",
+    "database_name": "penetrative_supervision",
+    "server_hostname": "iZ0iq34w0pzbagZ",
+    "read_only": 0,
+    "sql_mode": "IGNORE_SPACE,ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,NO_ZERO_IN_DATE,NO_ZERO_DATE,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION",
+    "server_time": "2026-07-20T16:48:51.000Z"
+  },
+  "tableCount": 33,
+  "tables": [
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "data_source_metadata",
+      "TABLE_ROWS": 12,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "TABLE_ROWS": 5,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "graph_governance_tasks",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "graph_quality_issues",
+      "TABLE_ROWS": 2,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "graph_version_mapping_snapshots",
+      "TABLE_ROWS": 5,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "graph_version_sources",
+      "TABLE_ROWS": 5,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "TABLE_ROWS": 5,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "TABLE_ROWS": 6,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "ontology_audits",
+      "TABLE_ROWS": 12,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "TABLE_ROWS": 23,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "risk_rules",
+      "TABLE_ROWS": 5,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "risk_scenes",
+      "TABLE_ROWS": 3,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "TABLE_ROWS": 6,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "rule_assets",
+      "TABLE_ROWS": 5,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "rule_effect_samples",
+      "TABLE_ROWS": 6,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "TABLE_ROWS": 5,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "rule_trial_samples",
+      "TABLE_ROWS": 8,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "rule_trial_tasks",
+      "TABLE_ROWS": 1,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "rule_versions",
+      "TABLE_ROWS": 6,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "scene_rule_audits",
+      "TABLE_ROWS": 22,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "TABLE_ROWS": 7,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "TABLE_ROWS": 4,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "semantic_mapping_sets",
+      "TABLE_ROWS": 9,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "TABLE_ROWS": 52,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "sync_records",
+      "TABLE_ROWS": 3,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "TABLE_ROWS": 0,
+      "ENGINE": "InnoDB",
+      "TABLE_COLLATION": "utf8mb4_0900_ai_ci"
+    }
+  ],
+  "requiredTableStatus": [
+    {
+      "table": "ontologies",
+      "exists": true,
+      "columnCount": 16
+    },
+    {
+      "table": "ontology_elements",
+      "exists": true,
+      "columnCount": 11
+    },
+    {
+      "table": "data_sources",
+      "exists": true,
+      "columnCount": 10
+    },
+    {
+      "table": "semantic_mappings",
+      "exists": true,
+      "columnCount": 10
+    },
+    {
+      "table": "semantic_mapping_sets",
+      "exists": true,
+      "columnCount": 6
+    },
+    {
+      "table": "graph_versions",
+      "exists": true,
+      "columnCount": 16
+    },
+    {
+      "table": "graph_version_sources",
+      "exists": true,
+      "columnCount": 3
+    },
+    {
+      "table": "risk_scenes",
+      "exists": true,
+      "columnCount": 5
+    },
+    {
+      "table": "scene_versions",
+      "exists": true,
+      "columnCount": 32
+    },
+    {
+      "table": "rule_assets",
+      "exists": true,
+      "columnCount": 6
+    },
+    {
+      "table": "rule_asset_versions",
+      "exists": true,
+      "columnCount": 27
+    },
+    {
+      "table": "scene_rule_bindings",
+      "exists": true,
+      "columnCount": 8
+    },
+    {
+      "table": "rule_run_records",
+      "exists": true,
+      "columnCount": 10
+    },
+    {
+      "table": "demo_import_batches",
+      "exists": true,
+      "columnCount": 9
+    },
+    {
+      "table": "graph_entities",
+      "exists": true,
+      "columnCount": 14
+    },
+    {
+      "table": "graph_relations",
+      "exists": true,
+      "columnCount": 14
+    },
+    {
+      "table": "graph_events",
+      "exists": true,
+      "columnCount": 15
+    },
+    {
+      "table": "risk_warnings",
+      "exists": true,
+      "columnCount": 21
+    },
+    {
+      "table": "risk_evidence",
+      "exists": true,
+      "columnCount": 13
+    },
+    {
+      "table": "bid_evaluation_scores",
+      "exists": true,
+      "columnCount": 15
+    },
+    {
+      "table": "trade_cycle_records",
+      "exists": true,
+      "columnCount": 17
+    }
+  ],
+  "columns": [
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "evaluation_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "case_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "project_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "bid_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "supplier_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "supplier_name",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "technical_score",
+      "COLUMN_TYPE": "decimal(8,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "commercial_score",
+      "COLUMN_TYPE": "decimal(8,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "price_score",
+      "COLUMN_TYPE": "decimal(8,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "relation_risk_deduction",
+      "COLUMN_TYPE": "decimal(8,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "total_score",
+      "COLUMN_TYPE": "decimal(8,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "risk_score",
+      "COLUMN_TYPE": "decimal(8,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "rating",
+      "COLUMN_TYPE": "varchar(8)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "recommendation",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "bid_evaluation_scores",
+      "COLUMN_NAME": "batch_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "mode",
+      "COLUMN_TYPE": "varchar(40)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "data_range",
+      "COLUMN_TYPE": "varchar(300)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "owner",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "sync_mode",
+      "COLUMN_TYPE": "varchar(40)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "last_success",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "data_sources",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "batch_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "package_version",
+      "COLUMN_TYPE": "varchar(40)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "source_file",
+      "COLUMN_TYPE": "varchar(260)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "source_sha256",
+      "COLUMN_TYPE": "char(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "row_counts_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "started_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "finished_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "demo_import_batches",
+      "COLUMN_NAME": "notes",
+      "COLUMN_TYPE": "varchar(500)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "graph_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "ontology_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "class_code",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "case_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "organization_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "source_system",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "source_record",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "valid_from",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "valid_to",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "properties_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_entities",
+      "COLUMN_NAME": "batch_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "graph_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "event_code",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "case_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "object_entity_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "actor_entity_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "organization_entity_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "event_time",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "amount",
+      "COLUMN_TYPE": "decimal(20,4)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "source_system",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "source_record",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "properties_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_events",
+      "COLUMN_NAME": "batch_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "graph_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "relation_code",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "from_entity_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "to_entity_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "case_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "source_system",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "source_record",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "evidence_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "confidence",
+      "COLUMN_TYPE": "decimal(7,6)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "valid_from",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "valid_to",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "properties_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_relations",
+      "COLUMN_NAME": "batch_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_version_sources",
+      "COLUMN_NAME": "graph_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_version_sources",
+      "COLUMN_NAME": "source_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_version_sources",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "graph_code",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "graph_name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "ontology_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "ontology_version",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "mapping_version",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "data_range",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "entity_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "relation_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "event_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "blockers",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "warnings",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "published_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "graph_versions",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "scope",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "domain",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "version",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "source_version_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "class_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "property_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "relation_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "event_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "validation_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "published_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "ontologies",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "element_id",
+      "COLUMN_TYPE": "bigint unsigned",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "ontology_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "element_type",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "code",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "owner_code",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "target_code",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "data_type",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "constraint_desc",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "ontology_elements",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "evidence_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "warning_code",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "case_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "evidence_type",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "source_system",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "source_record",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "field_or_relation",
+      "COLUMN_TYPE": "varchar(200)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "evidence_value",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "collected_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "validity",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "evidence_hash",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "varchar(500)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_evidence",
+      "COLUMN_NAME": "batch_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_scenes",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_scenes",
+      "COLUMN_NAME": "code",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "UNI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_scenes",
+      "COLUMN_NAME": "current_version_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_scenes",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_scenes",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "warning_code",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "case_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "scene_code",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "scene_version_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "title",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "object_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "object_name",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "stage",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "risk_level",
+      "COLUMN_TYPE": "varchar(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(32)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "hit_rule_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "evidence_count",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "risk_score",
+      "COLUMN_TYPE": "decimal(8,2)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "evidence_status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "owner_name",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "organization_name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "generated_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "due_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "graph_version",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "trace_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "risk_warnings",
+      "COLUMN_NAME": "batch_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "rule_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "version",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "domain",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "object_code",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "object_name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "event_code",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "event_name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "ontology_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "graph_version",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "rule_type",
+      "COLUMN_TYPE": "varchar(32)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "risk_level",
+      "COLUMN_TYPE": "varchar(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "condition_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "path_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "time_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "aggregate_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "exception_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "output_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "evidence_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "policy_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "failure_strategy",
+      "COLUMN_TYPE": "varchar(40)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "summary",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "lock_version",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "rule_asset_versions",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "rule_assets",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_assets",
+      "COLUMN_NAME": "code",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "UNI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_assets",
+      "COLUMN_NAME": "current_version_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_assets",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_assets",
+      "COLUMN_NAME": "created_by",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_assets",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "scene_version_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "rule_version_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "trial_sample_id",
+      "COLUMN_TYPE": "bigint unsigned",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "object_code",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "object_name",
+      "COLUMN_TYPE": "varchar(200)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "outcome",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "evidence_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "warning_code",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "rule_run_records",
+      "COLUMN_NAME": "executed_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "COLUMN_NAME": "scene_version_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "COLUMN_NAME": "rule_version_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "COLUMN_NAME": "enabled",
+      "COLUMN_TYPE": "tinyint(1)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "COLUMN_NAME": "risk_level_override",
+      "COLUMN_TYPE": "varchar(16)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "COLUMN_NAME": "parameters_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "COLUMN_NAME": "priority",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "scene_rule_bindings",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "scene_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "version",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "domain",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "description",
+      "COLUMN_TYPE": "text",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "object_code",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "object_name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "event_code",
+      "COLUMN_TYPE": "varchar(120)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "event_name",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "risk_level",
+      "COLUMN_TYPE": "varchar(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "observation_value",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "observation_unit",
+      "COLUMN_TYPE": "varchar(16)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "ontology_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "graph_version",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "organization_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "object_scope_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "exception_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "evidence_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "policy_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "check_template_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "validation_json",
+      "COLUMN_TYPE": "json",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "dependency_hash",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "last_trial_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "lock_version",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "source_version_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "published_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "stop_reason",
+      "COLUMN_TYPE": "varchar(500)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "updated_by",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "scene_versions",
+      "COLUMN_NAME": "created_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED"
+    },
+    {
+      "TABLE_NAME": "semantic_mapping_sets",
+      "COLUMN_NAME": "source_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mapping_sets",
+      "COLUMN_NAME": "ontology_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mapping_sets",
+      "COLUMN_NAME": "revision",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mapping_sets",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mapping_sets",
+      "COLUMN_NAME": "last_validated_at",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mapping_sets",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "bigint unsigned",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": "auto_increment"
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "source_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "ontology_id",
+      "COLUMN_TYPE": "varchar(64)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "mapping_type",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "source_field",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "transform_rule",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "target_code",
+      "COLUMN_TYPE": "varchar(160)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "confidence",
+      "COLUMN_TYPE": "int",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "semantic_mappings",
+      "COLUMN_NAME": "updated_at",
+      "COLUMN_TYPE": "timestamp",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "business_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "PRI",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "case_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "business_type",
+      "COLUMN_TYPE": "varchar(40)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "internal_org_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "counterparty_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "item_name",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "specification",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "quantity",
+      "COLUMN_TYPE": "decimal(20,4)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "unit_price",
+      "COLUMN_TYPE": "decimal(20,4)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "amount",
+      "COLUMN_TYPE": "decimal(20,4)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "direction",
+      "COLUMN_TYPE": "varchar(24)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "business_time",
+      "COLUMN_TYPE": "datetime",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "source_account_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "MUL",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "target_account_id",
+      "COLUMN_TYPE": "varchar(100)",
+      "IS_NULLABLE": "YES",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "mode_codes",
+      "COLUMN_TYPE": "varchar(240)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "evidence_conclusion",
+      "COLUMN_TYPE": "varchar(500)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    },
+    {
+      "TABLE_NAME": "trade_cycle_records",
+      "COLUMN_NAME": "batch_id",
+      "COLUMN_TYPE": "varchar(80)",
+      "IS_NULLABLE": "NO",
+      "COLUMN_KEY": "",
+      "EXTRA": ""
+    }
+  ],
+  "demoIdCounts": {
+    "ontology": {
+      "table": "ontologies",
+      "exists": true,
+      "total": 0
+    },
+    "graph": {
+      "table": "graph_versions",
+      "exists": true,
+      "total": 0
+    },
+    "scenes": {
+      "table": "risk_scenes",
+      "exists": true,
+      "total": 0
+    },
+    "rules": {
+      "table": "rule_assets",
+      "exists": true,
+      "total": 0
+    },
+    "runs": {
+      "table": "rule_run_records",
+      "exists": true,
+      "total": 0
+    },
+    "warnings": {
+      "table": "risk_warnings",
+      "exists": true,
+      "total": 0
+    },
+    "batches": {
+      "table": "demo_import_batches",
+      "exists": true,
+      "total": 0
+    }
+  },
+  "passwordLogged": false,
+  "writePerformed": false
+}

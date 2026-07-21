@@ -7,7 +7,9 @@
     "dev": "node server.js --dev",
     "build": "tsc --noEmit -p tsconfig.app.json && vite build",
     "preview": "node server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "rule-catalog:preview": "node scripts/importRuleCatalog.js",
+    "rule-catalog:import": "node scripts/importRuleCatalog.js --apply"
   },
   "dependencies": {
     "mysql2": "^3.23.0",

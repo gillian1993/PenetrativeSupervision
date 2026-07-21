@@ -1,0 +1,103 @@
+{
+  "generatedAt": "2026-07-20T16:34:03.985Z",
+  "sourceFile": "D:/中国电子云/PenetrativeSupervision/outputs/procurement_supply_chain_demo_20260720/采购与供应链穿透式监管演示数据_案例包完善版_20260720.xlsx",
+  "sourceSha256": "c01e2ba2c4d8905679f04f9ca64a580ca7608db981666212079c00253151c59c",
+  "demoDatabase": "penetrative_supervision_demo",
+  "batchId": "DEMO-20260720-PKG-V1",
+  "graphId": "GRAPH-PROC-DEMO-20260720.1",
+  "ontologyId": "ONT-PROC-DEMO",
+  "rowCounts": {
+    "ontology_elements": 182,
+    "data_sources": 12,
+    "semantic_mappings": 25,
+    "graph_versions": 1,
+    "graph_entities": 171,
+    "graph_relations": 249,
+    "graph_events": 69,
+    "risk_scenes": 7,
+    "rule_assets": 14,
+    "scene_rule_bindings": 14,
+    "rule_run_records": 18,
+    "risk_warnings": 7,
+    "risk_evidence": 33,
+    "bid_evaluation_scores": 6,
+    "trade_cycle_records": 8
+  },
+  "ontologyCounts": {
+    "class": 33,
+    "property": 71,
+    "relation": 54,
+    "event": 24
+  },
+  "integrity": {
+    "nodeClassMissing": [],
+    "relationCodeMissing": [],
+    "relationEndpointMissing": [],
+    "eventCodeMissing": [],
+    "eventObjectMissing": [],
+    "bindingSceneMissing": [],
+    "bindingRuleMissing": [],
+    "evidenceWarningMissing": []
+  },
+  "sqlValidation": {
+    "00_create_demo_database.sql": {
+      "bytes": 328,
+      "containsUndefined": false,
+      "containsNaN": false,
+      "statementTerminators": 4
+    },
+    "01_schema_compat.sql": {
+      "bytes": 15413,
+      "containsUndefined": false,
+      "containsNaN": false,
+      "statementTerminators": 23
+    },
+    "02_master_graph_data.sql": {
+      "bytes": 165811,
+      "containsUndefined": false,
+      "containsNaN": false,
+      "statementTerminators": 22
+    },
+    "03_risk_case_data.sql": {
+      "bytes": 64086,
+      "containsUndefined": false,
+      "containsNaN": false,
+      "statementTerminators": 15
+    },
+    "04_validation.sql": {
+      "bytes": 6135,
+      "containsUndefined": false,
+      "containsNaN": false,
+      "statementTerminators": 7
+    },
+    "05_rollback.sql": {
+      "bytes": 2260,
+      "containsUndefined": false,
+      "containsNaN": false,
+      "statementTerminators": 20
+    }
+  },
+  "mappingWorkbook": "D:/中国电子云/PenetrativeSupervision/outputs/procurement_supply_chain_db_package_20260721/采购与供应链演示数据_入库映射与验收清单_20260721.xlsx",
+  "databaseTouched": true,
+  "onlineImport": {
+    "status": "success",
+    "target": {
+      "host": "47.94.226.107",
+      "port": 3306,
+      "database": "penetrative_supervision",
+      "user": "root"
+    },
+    "startedAt": "2026-07-20T16:49:33.724Z",
+    "finishedAt": "2026-07-20T16:49:34.618Z",
+    "stage": {
+      "schema": true,
+      "master": true,
+      "risk": true,
+      "validated": true,
+      "rollback": false
+    },
+    "existingSourcesPreserved": true,
+    "postImportVerified": true,
+    "verifiedAt": "2026-07-20T16:50:50.709Z"
+  }
+}

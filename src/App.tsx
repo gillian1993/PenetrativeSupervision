@@ -41,6 +41,7 @@ function AppEnhanced() {
   const currentRole = useAppStore((state) => state.currentRole)
   const toast = useAppStore((state) => state.toast)
   const setToast = useAppStore((state) => state.setToast)
+  const loadWarningsFromDatabase = useAppStore((state) => state.loadWarningsFromDatabase)
   const setScope = useAppStore((state) => state.setScope)
   const setCurrentRole = useAppStore((state) => state.setCurrentRole)
   const resetDemo = useAppStore((state) => state.resetDemo)
@@ -56,6 +57,9 @@ function AppEnhanced() {
   useEffect(() => {
     void loadOntologies().then((result) => { if (!result.ok) setToast(`MySQL本体数据加载失败：${result.message}`) })
   }, [loadOntologies, setToast])
+  useEffect(() => {
+    void loadWarningsFromDatabase().then((result) => { if (!result.ok) setToast(`MySQL演示预警加载失败，已保留本地数据：${result.message}`) })
+  }, [loadWarningsFromDatabase, setToast])
 
   useEffect(() => {
     if (!toast) return
@@ -115,7 +119,7 @@ function AppEnhanced() {
       <div className="top-tools">
         <div className="global-search-wrap"><label className="global-search"><Icon name="search" size={17}/><input value={search} onFocus={() => setSearchOpen(true)} onChange={(event) => { setSearch(event.target.value); setSearchOpen(true) }} onKeyDown={(event) => { if (event.key === 'Enter' && searchResults[0]) navigate(searchResults[0].path); if (event.key === 'Escape') setSearchOpen(false) }} placeholder="搜索预警、风险事件、场景、用户"/></label>{searchOpen && search && <div className="global-search-results">{searchResults.length ? <>{searchResults.map((item) => <button key={`${item.type}-${item.id}`} onClick={() => { navigate(item.path); setSearch('') }}><span><b>{item.type}</b><strong>{item.title}</strong></span><small>{item.id} · {item.meta}</small></button>)}<div className="search-result-footer">共显示 {searchResults.length} 条最相关结果</div></> : <div className="search-empty"><Icon name="search"/><span>未找到“{search}”相关内容</span></div>}</div>}</div>
         <button className="top-icon" onClick={() => navigate('/workbench')} aria-label="查看消息"><Icon name="bell"/>{unread > 0 && <b>{unread}</b>}</button>
-        <div className="role-switcher" onClick={(event) => event.stopPropagation()}><button className="user-entry" onClick={() => setRoleOpen((value) => !value)}><span>赵</span><div><strong>赵明</strong><small>{currentRole}</small></div><Icon name="chevron" size={14}/></button>{roleOpen && <div className="context-menu role-menu"><header><strong>切换当前角色</strong><span>菜单和高危按钮将按权限刷新</span></header>{roles.filter((item) => item.status === '启用').map((item) => <button key={item.id} className={currentRole === item.name ? 'active' : ''} onClick={() => chooseRole(item.name)}><div><strong>{item.name}</strong><small>{item.scope}</small></div>{currentRole === item.name && <Icon name="check" size={15}/>}</button>)}</div>}</div>
+        <div className="role-switcher" onClick={(event) => event.stopPropagation()}><button className="user-entry" onClick={() => setRoleOpen((value) => !value)}><span>尹</span><div><strong>尹晨阳</strong><small>{currentRole}</small></div><Icon name="chevron" size={14}/></button>{roleOpen && <div className="context-menu role-menu"><header><strong>切换当前角色</strong><span>菜单和高危按钮将按权限刷新</span></header>{roles.filter((item) => item.status === '启用').map((item) => <button key={item.id} className={currentRole === item.name ? 'active' : ''} onClick={() => chooseRole(item.name)}><div><strong>{item.name}</strong><small>{item.scope}</small></div>{currentRole === item.name && <Icon name="check" size={15}/>}</button>)}</div>}</div>
       </div>
     </header>
     <aside className="sidebar">

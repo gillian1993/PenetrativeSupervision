@@ -6,6 +6,9 @@ import mysql from 'mysql2/promise'
 import { initializeSceneRuleDatabase } from './sceneRuleService.js'
 import { handleSceneRuleApi } from './sceneRuleRouter.js'
 import { initializeDataGraphDatabase, handleDataGraphApi } from './dataGraphApi.js'
+import { handleDemoReadApi } from './demoReadApi.js'
+import { initializeRuleCatalogDatabase } from './ruleCatalogService.js'
+import { handleRuleCatalogApi } from './ruleCatalogRouter.js'
 
 const root=fileURLToPath(new URL('.',import.meta.url))
 
@@ -79,7 +82,7 @@ async function initializeDatabase(){
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await pool.query(`CREATE TABLE IF NOT EXISTS ontology_audits (
     audit_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,ontology_id VARCHAR(64) NOT NULL,action VARCHAR(80) NOT NULL,summary VARCHAR(500) NOT NULL,
-    operator_name VARCHAR(80) NOT NULL DEFAULT '赵明',created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,KEY idx_ontology_audit (ontology_id,created_at)
+    operator_name VARCHAR(80) NOT NULL DEFAULT '尹晨阳',created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,KEY idx_ontology_audit (ontology_id,created_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await ensureColumn('ontologies','source_version_id','source_version_id VARCHAR(64) NULL AFTER version')
   await ensureColumn('ontologies','validation_json','validation_json JSON NULL AFTER description')
@@ -99,6 +102,7 @@ async function initializeDatabase(){
   await syncOntologyCounts()
   await pool.query("UPDATE ontologies SET status='草稿',validation_json=NULL,published_at=NULL WHERE status IN ('待校验','已发布') AND class_count=0")
   await initializeSceneRuleDatabase(pool)
+  await initializeRuleCatalogDatabase(pool)
   await initializeDataGraphDatabase(pool)
 }
 
@@ -315,6 +319,8 @@ async function deleteOntologyV2(res,id){
 
 async function handleApi(req,res,url){
   if(url.pathname==='/api/health'&&req.method==='GET')return sendJson(res,200,{ok:true,database})
+  if(await handleDemoReadApi(req,res,url,{pool,sendJson}))return
+  if(await handleRuleCatalogApi(req,res,url,{pool,sendJson,readBody}))return
   if(await handleSceneRuleApi(req,res,url,{pool,sendJson,readBody}))return
   if(await handleDataGraphApi(req,res,url,{pool,sendJson,readBody}))return
   if(url.pathname==='/api/ontologies'&&req.method==='GET')return sendJson(res,200,await listOntologies())

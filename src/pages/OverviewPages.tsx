@@ -7,6 +7,20 @@ import { Button, Drawer, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, P
 const pageSize = 4
 type SituationTone = 'blue' | 'red' | 'orange' | 'purple' | 'green'
 
+const todoActionLabel = (item: TodoItem) => {
+  if (item.objectType === '事件') return item.status === '待复核' ? '复核' : '整改'
+  return '研判'
+}
+
+const messageIcon = (item: WorkMessage): IconName => {
+  if (item.type === '逾期') return 'clock'
+  if (item.type === '预警') return 'warning'
+  if (item.type === '升级') return 'shield'
+  if (item.type === '解除' || item.type === '复核') return 'check'
+  if (item.type === '转派') return 'user'
+  if (item.type === '整改' || item.type === '退回') return 'file'
+  return 'bell'
+}
 
 export function WorkbenchPage() {
   const navigate = useNavigate()
@@ -18,7 +32,7 @@ export function WorkbenchPage() {
   const markAllMessagesRead = useAppStore((state) => state.markAllMessagesRead)
   const setToast = useAppStore((state) => state.setToast)
   const [cardFilter, setCardFilter] = useState('全部')
-  const [draft, setDraft] = useState({ keyword: '', type: '全部', stage: '全部', time: '全部' })
+  const [draft, setDraft] = useState({ keyword: '', objectType: '全部', status: '全部', time: '全部' })
   const [filters, setFilters] = useState(draft)
   const [page, setPage] = useState(1)
   const [transferTarget, setTransferTarget] = useState<TodoItem | null>(null)
@@ -29,23 +43,21 @@ export function WorkbenchPage() {
   const [loading, setLoading] = useState(false)
 
   const filteredTodos = useMemo(() => todos.filter((item) => {
-    if (cardFilter === '待处理预警' && !(item.type === '预警' && item.stage === '待处理')) return false
-    if (cardFilter === '待处理核查' && !(item.type === '核查任务' && item.stage === '核查中')) return false
-    if (cardFilter === '核查整改中' && !['风险事件'].includes(item.type)) return false
-    if (cardFilter === '待复核' && item.stage !== '待复核') return false
+    if (cardFilter === '待研判预警' && !(item.objectType === '预警' && item.status === '待研判')) return false
+    if (cardFilter === '待整改事件' && !(item.objectType === '事件' && item.status === '待整改')) return false
+    if (cardFilter === '待复核事件' && !(item.objectType === '事件' && item.status === '待复核')) return false
     if (cardFilter === '已逾期' && item.timeState !== '已逾期') return false
-    if (filters.type !== '全部' && item.type !== filters.type) return false
-    if (filters.stage !== '全部' && item.stage !== filters.stage) return false
+    if (filters.objectType !== '全部' && item.objectType !== filters.objectType) return false
+    if (filters.status !== '全部' && item.status !== filters.status) return false
     if (filters.time !== '全部' && item.timeState !== filters.time) return false
-    return !filters.keyword || `${item.id}${item.title}${item.owner}`.toLowerCase().includes(filters.keyword.toLowerCase())
+    return !filters.keyword || `${item.id}${item.title}${item.objectType}${item.status}${item.owner}`.toLowerCase().includes(filters.keyword.toLowerCase())
   }), [todos, cardFilter, filters])
   const totalPages = Math.max(1, Math.ceil(filteredTodos.length / pageSize))
   const rows = filteredTodos.slice((page - 1) * pageSize, page * pageSize)
   const counts = {
-    warning: todos.filter((item) => item.type === '预警' && item.stage === '待处理').length,
-    verify: todos.filter((item) => item.type === '核查任务').length,
-    risk: todos.filter((item) => item.type === '风险事件').length,
-    review: todos.filter((item) => item.stage === '待复核').length,
+    warning: todos.filter((item) => item.objectType === '预警' && item.status === '待研判').length,
+    rectify: todos.filter((item) => item.objectType === '事件' && item.status === '待整改').length,
+    review: todos.filter((item) => item.objectType === '事件' && item.status === '待复核').length,
     overdue: todos.filter((item) => item.timeState === '已逾期').length,
   }
 
@@ -59,7 +71,7 @@ export function WorkbenchPage() {
     }, 260)
   }
   const reset = () => {
-    const defaults = { keyword: '', type: '全部', stage: '全部', time: '全部' }
+    const defaults = { keyword: '', objectType: '全部', status: '全部', time: '全部' }
     setDraft(defaults)
     setFilters(defaults)
     setCardFilter('全部')
@@ -77,34 +89,33 @@ export function WorkbenchPage() {
   }
 
   return <>
-    <PageHeader eyebrow="监管工作台 / 我的工作" title="监管工作台" description="聚合本人待办、处理统计与业务消息，集中回答“我现在需要处理什么”。" actions={<><span className="updated-time">同一统计快照 · 12:08:32</span><Button icon="refresh" onClick={() => { setLoading(true); window.setTimeout(() => { setLoading(false); setToast('工作台各区域已独立刷新') }, 320) }}>刷新</Button></>}/>
-    <section className="stats-grid five workbench-stats">
-      <StatCard label="待处理预警" value={counts.warning} helper="点击筛选预警待办" tone="red" icon="warning" active={cardFilter === '待处理预警'} onClick={() => { setCardFilter(cardFilter === '待处理预警' ? '全部' : '待处理预警'); setPage(1) }}/>
-      <StatCard label="待处理核查" value={counts.verify} helper="责任人待反馈" tone="orange" icon="clock" active={cardFilter === '待处理核查'} onClick={() => { setCardFilter(cardFilter === '待处理核查' ? '全部' : '待处理核查'); setPage(1) }}/>
-      <StatCard label="核查整改中" value={counts.risk} helper="风险事件整改任务" tone="purple" icon="shield" active={cardFilter === '核查整改中'} onClick={() => { setCardFilter(cardFilter === '核查整改中' ? '全部' : '核查整改中'); setPage(1) }}/>
-      <StatCard label="待复核" value={counts.review} helper="等待监管复核" tone="blue" icon="check" active={cardFilter === '待复核'} onClick={() => { setCardFilter(cardFilter === '待复核' ? '全部' : '待复核'); setPage(1) }}/>
-      <StatCard label="已逾期" value={counts.overdue} helper="需要优先处置" tone="red" icon="clock" active={cardFilter === '已逾期'} onClick={() => { setCardFilter(cardFilter === '已逾期' ? '全部' : '已逾期'); setPage(1) }}/>
+    <PageHeader eyebrow="监管工作台 / 我的工作" title="监管工作台" description="聚合待研判预警、待整改事件和待复核事件；转派会同步变更来源对象的当前处理人。" actions={<><span className="updated-time">同一工作流快照 · 12:08:32</span><Button icon="refresh" onClick={() => { setLoading(true); window.setTimeout(() => { setLoading(false); setToast('工作台各区域已独立刷新') }, 320) }}>刷新</Button></>}/>
+    <section className="stats-grid four workbench-stats">
+      <StatCard label="待研判预警" value={counts.warning} helper="需要完成查看、转派、解除或升级" tone="red" icon="warning" active={cardFilter === '待研判预警'} onClick={() => { setCardFilter(cardFilter === '待研判预警' ? '全部' : '待研判预警'); setPage(1) }}/>
+      <StatCard label="待整改事件" value={counts.rectify} helper="等待责任人提交整改结果" tone="purple" icon="shield" active={cardFilter === '待整改事件'} onClick={() => { setCardFilter(cardFilter === '待整改事件' ? '全部' : '待整改事件'); setPage(1) }}/>
+      <StatCard label="待复核事件" value={counts.review} helper="等待监管人员完成复核" tone="blue" icon="check" active={cardFilter === '待复核事件'} onClick={() => { setCardFilter(cardFilter === '待复核事件' ? '全部' : '待复核事件'); setPage(1) }}/>
+      <StatCard label="已逾期" value={counts.overdue} helper="需要优先处置的当前任务" tone="red" icon="clock" active={cardFilter === '已逾期'} onClick={() => { setCardFilter(cardFilter === '已逾期' ? '全部' : '已逾期'); setPage(1) }}/>
     </section>
     <section className="workbench-layout">
       <Panel title="我的待办" subtitle={`查询结果 ${filteredTodos.length} 项，当前第 ${page}/${totalPages} 页`} actions={cardFilter !== '全部' && <button className="filter-chip" onClick={() => setCardFilter('全部')}>{cardFilter}<Icon name="close" size={13}/></button>} className="workbench-todo-panel">
         <div className="workbench-filter">
           <FilterGrid onReset={reset} onSearch={runQuery}>
-          <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && runQuery()} placeholder="编号、标题、对象或处理人"/></Field>
-          <Field label="对象类型"><select value={draft.type} onChange={(event) => setDraft({ ...draft, type: event.target.value })}><option>全部</option><option>预警</option><option>核查任务</option><option>风险事件</option><option>整改复核</option></select></Field>
-          <Field label="当前环节"><select value={draft.stage} onChange={(event) => setDraft({ ...draft, stage: event.target.value })}><option>全部</option><option>待处理</option><option>核查中</option><option>核查整改中</option><option>待复核</option></select></Field>
-          <Field label="时限状态"><select value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })}><option>全部</option><option>正常</option><option>临期</option><option>已逾期</option></select></Field>
+            <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && runQuery()} placeholder="编号、标题、对象或处理人"/></Field>
+            <Field label="对象类型"><select value={draft.objectType} onChange={(event) => setDraft({ ...draft, objectType: event.target.value })}><option>全部</option><option>预警</option><option>事件</option></select></Field>
+            <Field label="状态"><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option>全部</option><option>待研判</option><option>待整改</option><option>待复核</option></select></Field>
+            <Field label="时限状态"><select value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })}><option>全部</option><option>正常</option><option>临期</option><option>已逾期</option></select></Field>
           </FilterGrid>
         </div>
-        {loading ? <div className="table-loading"><i/><span>正在加载本人待办…</span></div> : rows.length === 0 ? <div className="empty-state"><span><Icon name="check"/></span><strong>当前条件下没有待办</strong><p>可调整查询条件或清除统计卡筛选。</p></div> : <div className="table-container compact-table"><table><thead><tr><th>待办编号 / 标题</th><th>类型</th><th>风险等级</th><th>当前环节</th><th>截止时间</th><th>处理人</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(item.route)}><strong>{item.title}</strong><span>{item.id}</span></button></td><td><StatusTag>{item.type}</StatusTag></td><td><RiskTag level={item.level}/></td><td><StatusTag>{item.stage}</StatusTag></td><td><span className={`deadline ${item.timeState === '已逾期' ? 'overdue' : item.timeState === '临期' ? 'soon' : ''}`}>{item.dueAt}<small>{item.timeState}</small></span></td><td>{item.owner || '待分配'}</td><td><div className="row-actions"><button onClick={() => navigate(item.route)}>处理</button><button onClick={() => { setTransferTarget(item); setTransferOwner(item.owner === '李华' ? '王宁' : '李华') }}>转派</button></div></td></tr>)}</tbody></table></div>}
+        {loading ? <div className="table-loading"><i/><span>正在加载本人待办…</span></div> : rows.length === 0 ? <div className="empty-state"><span><Icon name="check"/></span><strong>当前条件下没有待办</strong><p>可调整查询条件或清除统计卡筛选。</p></div> : <div className="table-container compact-table"><table><thead><tr><th>待办编号 / 标题</th><th>对象类型</th><th>风险等级</th><th>状态</th><th>截止时间</th><th>当前处理人</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(item.route)}><strong>{item.title}</strong><span>{item.id}</span></button></td><td><span className={`tag todo-object-tag ${item.objectType === '事件' ? 'event' : 'warning'}`}>{item.objectType}</span></td><td><RiskTag level={item.level}/></td><td><StatusTag>{item.status}</StatusTag></td><td><span className={`deadline ${item.timeState === '已逾期' ? 'overdue' : item.timeState === '临期' ? 'soon' : ''}`}>{item.dueAt}<small>{item.timeState}</small></span></td><td>{item.owner || '待分配'}</td><td><div className="row-actions"><button onClick={() => navigate(item.route)}>{todoActionLabel(item)}</button><button onClick={() => { setTransferTarget(item); setTransferOwner(item.owner === '李华' ? '王宁' : '李华'); setTransferReason('工作职责调整') }}>转派</button></div></td></tr>)}</tbody></table></div>}
         <div className="pagination"><span>共 {filteredTodos.length} 条</span><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => setPage(page + 1)}>›</button></div>
       </Panel>
       <Panel title="消息接收框" subtitle={`${messages.filter((item) => item.unread).length} 条未读`} actions={<button className="text-button" disabled={!messages.some((item) => item.unread)} onClick={() => setAllReadConfirm(true)}>全部已读</button>} className="message-panel">
-        <div className="message-list">{messages.slice(0, 8).map((item) => <button key={item.id} className={`message-item ${item.unread ? 'unread' : ''}`} onClick={() => openMessage(item)}><span className="message-icon"><Icon name={item.type === '逾期' ? 'clock' : item.type === '预警' ? 'warning' : 'bell'}/></span><span className="message-main"><b><StatusTag>{item.type}</StatusTag>{item.unread && <i/>}</b><strong>{item.title}</strong><small>{item.source} · {item.time}</small></span><Icon name="chevron" size={15}/></button>)}</div>
+        <div className="message-list">{messages.slice(0, 8).map((item) => <button key={item.id} className={`message-item ${item.unread ? 'unread' : ''}`} onClick={() => openMessage(item)}><span className="message-icon"><Icon name={messageIcon(item)}/></span><span className="message-main"><b><StatusTag>{item.type}</StatusTag>{item.unread && <i/>}</b><strong>{item.title}</strong><small>{item.source} · {item.time}</small></span><Icon name="chevron" size={15}/></button>)}</div>
       </Panel>
     </section>
-    <Modal open={!!transferTarget} title="转派待办" description={transferTarget ? `${transferTarget.id} · ${transferTarget.title}` : ''} onClose={() => setTransferTarget(null)} onConfirm={confirmTransfer}><div className="form-stack"><Field label="当前处理人"><input value={transferTarget?.owner || '待分配'} disabled/></Field><Field label="新处理人（必填）"><select value={transferOwner} onChange={(event) => setTransferOwner(event.target.value)}><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option></select></Field><Field label="转派原因（必填）"><textarea value={transferReason} onChange={(event) => setTransferReason(event.target.value)}/></Field><div className="alert-box"><Icon name="warning"/><span>提交前会重新校验待办状态和候选人有效性，并记录前后处理人。</span></div></div></Modal>
+    <Modal open={!!transferTarget} title="转派当前任务" description={transferTarget ? `${transferTarget.id} · ${transferTarget.title}` : ''} onClose={() => setTransferTarget(null)} onConfirm={confirmTransfer}><div className="form-stack"><Field label="当前处理人"><input value={transferTarget?.owner || '待分配'} disabled/></Field><Field label="新处理人（必填）"><select value={transferOwner} onChange={(event) => setTransferOwner(event.target.value)}><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option><option>尹晨阳</option></select></Field><Field label="转派原因（必填）"><textarea value={transferReason} onChange={(event) => setTransferReason(event.target.value)}/></Field><div className="alert-box"><Icon name="warning"/><span>转派会同步更新来源预警或风险事件的当前处理人，但不会改变业务状态。</span></div></div></Modal>
     <Modal open={allReadConfirm} title="全部标记为已读" description={`将处理 ${messages.filter((item) => item.unread).length} 条未读消息。`} onClose={() => setAllReadConfirm(false)} onConfirm={() => { markAllMessagesRead(); setAllReadConfirm(false); setToast('全部消息已标记为已读') }}><p className="drawer-note">消息已读状态会保留，消息本身不会删除，也不会影响待办数量。</p></Modal>
-    <Drawer open={!!messageTarget} title={messageTarget?.source || ''} eyebrow={`业务消息 / ${messageTarget?.type || ''}`} onClose={() => setMessageTarget(null)} footer={<><Button onClick={() => { if (messageTarget) markMessageUnread(messageTarget.id); setMessageTarget(null) }}>标记未读</Button><Button variant="primary" onClick={() => { if (messageTarget) navigate(messageTarget.route); setMessageTarget(null) }}>进入来源对象</Button></>}><div className="message-detail"><StatusTag>{messageTarget?.type}</StatusTag><h3>{messageTarget?.title}</h3><p>系统将在进入来源对象前重新校验页面、字段和证据权限。若对象已失效，将保留本条消息元数据并给出明确提示。</p><KeyValue items={[{ label: '来源对象', value: messageTarget?.source }, { label: '发送时间', value: messageTarget?.time }, { label: '当前状态', value: messageTarget?.unread ? '未读' : '已读' }]}/></div></Drawer>
+    <Drawer open={!!messageTarget} title={messageTarget?.source || ''} eyebrow={`业务消息 / ${messageTarget?.type || ''}`} onClose={() => setMessageTarget(null)} footer={<><Button onClick={() => { if (messageTarget) markMessageUnread(messageTarget.id); setMessageTarget(null) }}>标记未读</Button><Button variant="primary" onClick={() => { if (messageTarget) navigate(messageTarget.route); setMessageTarget(null) }}>进入来源对象</Button></>}><div className="message-detail"><StatusTag>{messageTarget?.type}</StatusTag><h3>{messageTarget?.title}</h3><p>消息与来源对象共用同一工作流状态。进入详情后可继续当前阶段允许的查看、转派、整改或复核操作。</p><KeyValue items={[{ label: '来源对象', value: messageTarget?.source }, { label: '发送时间', value: messageTarget?.time }, { label: '当前状态', value: messageTarget?.unread ? '未读' : '已读' }]}/></div></Drawer>
   </>
 }
 
@@ -217,8 +228,8 @@ function OrganizationRiskChart({ warnings, onClick }: { warnings: Warning[]; onC
 }
 
 function RiskDispositionChart({ events, onClick }: { events: RiskEvent[]; onClick: (status: string) => void }) {
-  const statuses = ['核查整改中','待复核','待派发','已关闭']
-  const colors = ['#655cf6','#4b82f1','#f59e42','#2fa36b']
+  const statuses = ['待整改','待复核','已关闭']
+  const colors = ['#655cf6','#4b82f1','#2fa36b']
   const total = Math.max(1, events.length)
   const data = statuses.map((status, index) => {
     const count = events.filter((event) => event.status === status).length

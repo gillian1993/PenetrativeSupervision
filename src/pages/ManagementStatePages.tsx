@@ -425,7 +425,7 @@ export function UsersPage() {
   </>
 }
 
-const permissionOptions = ['查看工作台','查看监管态势','查看统一预警','查看风险事件','派发核查','监管复核','解除重大预警','升级风险事件','复核关闭风险事件','编辑场景规则','发布场景规则','发布本体版本','发布图谱版本','实体合并与拆分','管理用户','调整角色权限','查看审计日志']
+const permissionOptions = ['查看工作台','查看监管态势','查看统一预警','查看风险事件','转派任务','监管复核','解除重大预警','升级风险事件','复核关闭风险事件','编辑场景规则','发布场景规则','发布本体版本','发布图谱版本','实体合并与拆分','管理用户','调整角色权限','查看审计日志']
 
 export function RolesPage() {
   const roles = useAppStore((state) => state.roles)
@@ -477,7 +477,7 @@ export function RolesPage() {
 function PermissionEditor({ tab, role, permissions, onToggle }: { tab: string; role: RoleItem; permissions: string[]; onToggle: (value: string) => void }) {
   if (tab === 'org') return <div className="detail-grid"><Panel title="数据范围"><div className="radio-list"><label><input type="radio" name="scope" defaultChecked/>当前组织</label><label><input type="radio" name="scope"/>当前组织及授权下级</label><label><input type="radio" name="scope"/>自定义组织节点</label></div></Panel><Panel title="授权摘要"><KeyValue items={[{ label: '当前范围', value: role.scope }, { label: '组织节点', value: '12个' }, { label: '监管领域', value: '采购、合同、财务' }]}/></Panel></div>
   if (tab === 'field') return <div className="table-container"><table><thead><tr><th>本体类 / 字段</th><th>敏感等级</th><th>明文</th><th>脱敏</th><th>隐藏</th></tr></thead><tbody>{[['人员','证件号码','强敏感'],['账户','银行账号','强敏感'],['合同','合同金额','敏感'],['供应商','联系电话','敏感']].map((row, index) => <tr key={row[1]}><td><strong>{row[0]}</strong><small className="cell-sub">{row[1]}</small></td><td><StatusTag>{row[2]}</StatusTag></td><td><input type="radio" name={`field-${index}`}/></td><td><input type="radio" name={`field-${index}`} defaultChecked/></td><td><input type="radio" name={`field-${index}`}/></td></tr>)}</tbody></table></div>
-  const visible = tab === 'menu' ? permissionOptions.filter((item) => item.startsWith('查看') || ['派发核查','监管复核'].includes(item)) : tab === 'danger' ? permissionOptions.filter((item) => ['解除重大预警','升级风险事件','复核关闭风险事件','发布场景规则','发布本体版本','发布图谱版本','实体合并与拆分','调整角色权限'].includes(item)) : tab === 'relation' ? ['查看统一预警','查看风险事件','实体合并与拆分'] : ['查看统一预警','查看风险事件','查看审计日志']
+  const visible = tab === 'menu' ? permissionOptions.filter((item) => item.startsWith('查看') || ['转派任务','监管复核'].includes(item)) : tab === 'danger' ? permissionOptions.filter((item) => ['解除重大预警','升级风险事件','复核关闭风险事件','发布场景规则','发布本体版本','发布图谱版本','实体合并与拆分','调整角色权限'].includes(item)) : tab === 'relation' ? ['查看统一预警','查看风险事件','实体合并与拆分'] : ['查看统一预警','查看风险事件','查看审计日志']
   return <div className={tab === 'danger' ? 'danger-permissions' : 'check-grid permission-cards'}>{visible.map((item) => <label key={item}><div><Icon name={tab === 'danger' ? 'lock' : 'shield'}/><span>{item}</span></div><input type="checkbox" checked={permissions.includes(item)} onChange={() => onToggle(item)}/></label>)}</div>
 }
 

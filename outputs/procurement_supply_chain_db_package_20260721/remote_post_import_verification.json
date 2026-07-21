@@ -1,0 +1,75 @@
+{
+  "verifiedAt": "2026-07-20T16:50:50.709Z",
+  "target": {
+    "host": "47.94.226.107",
+    "port": 3306,
+    "database": "penetrative_supervision",
+    "user": "root"
+  },
+  "server": {
+    "version": "8.4.10",
+    "database_name": "penetrative_supervision",
+    "hostname": "iZ0iq34w0pzbagZ",
+    "checked_at": "2026-07-20T16:50:44.000Z"
+  },
+  "checks": {
+    "ontology_elements": {
+      "expected": 182,
+      "actual": 182,
+      "passed": true
+    },
+    "graph_entities": {
+      "expected": 171,
+      "actual": 171,
+      "passed": true
+    },
+    "graph_relations": {
+      "expected": 249,
+      "actual": 249,
+      "passed": true
+    },
+    "graph_events": {
+      "expected": 69,
+      "actual": 69,
+      "passed": true
+    },
+    "risk_scenes": {
+      "expected": 7,
+      "actual": 7,
+      "passed": true
+    },
+    "rule_assets": {
+      "expected": 14,
+      "actual": 14,
+      "passed": true
+    },
+    "risk_warnings": {
+      "expected": 7,
+      "actual": 7,
+      "passed": true
+    },
+    "risk_evidence": {
+      "expected": 33,
+      "actual": 33,
+      "passed": true
+    },
+    "bid_evaluation_scores": {
+      "expected": 6,
+      "actual": 6,
+      "passed": true
+    },
+    "trade_cycle_records": {
+      "expected": 8,
+      "actual": 8,
+      "passed": true
+    }
+  },
+  "anomalies": {
+    "orphanRelations": 0,
+    "orphanEvents": 0,
+    "orphanEvidence": 0,
+    "invalidBatchStatus": 0
+  },
+  "passed": true,
+  "passwordLogged": false
+}
