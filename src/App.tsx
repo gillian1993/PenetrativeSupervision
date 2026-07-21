@@ -26,12 +26,17 @@ const navGroups: NavGroup[] = [
 ]
 
 const scopeOptions = ['中国电子云集团', '集团监管部', '集团采购中心', '财务共享中心', '试点事业部']
+const agentSuggestions = ['当前页面是做什么的？', '我下一步应该怎么操作？', '帮我解释当前数据']
+
+type AgentMessage = { role: 'assistant' | 'user'; text: string }
+type AgentPageContext = { page: string; guide: string; next: string; data: string }
 
 function AppEnhanced() {
   const navigate = useNavigate()
   const location = useLocation()
   const graphWorkspace = location.pathname === '/graphs/new' || /^\/graphs\/[^/]+\/edit$/.test(location.pathname)
   const messages = useAppStore((state) => state.messages)
+  const todos = useAppStore((state) => state.todos)
   const warnings = useAppStore((state) => state.warnings)
   const riskEvents = useAppStore((state) => state.riskEvents)
   const scenes = useAppStore((state) => state.scenes)
@@ -53,6 +58,9 @@ function AppEnhanced() {
   const [scopeOpen, setScopeOpen] = useState(false)
   const [roleOpen, setRoleOpen] = useState(false)
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ risk: true, scene: true, ontology: true, system: true })
+  const [agentOpen, setAgentOpen] = useState(false)
+  const [agentInput, setAgentInput] = useState('')
+  const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([])
 
   useEffect(() => {
     void loadOntologies().then((result) => { if (!result.ok) setToast(`MySQL本体数据加载失败：${result.message}`) })
@@ -71,6 +79,9 @@ function AppEnhanced() {
     setSearchOpen(false)
     setScopeOpen(false)
     setRoleOpen(false)
+    setAgentOpen(false)
+    setAgentInput('')
+    setAgentMessages([])
   }, [location.pathname])
 
   const currentRoleItem = roles.find((item) => item.name === currentRole)
@@ -109,10 +120,46 @@ function AppEnhanced() {
     ].slice(0, 8)
   }, [search, warnings, riskEvents, scenes, users])
 
+  const agentContext = useMemo<AgentPageContext>(() => {
+    const path = location.pathname
+    const objectId = path.split('/').filter(Boolean).at(-1) || ''
+    if (path === '/workbench') return { page: '监管工作台', guide: '这里汇总本人待办、处置统计和业务消息，帮助你快速确定当前需要处理的事项。', next: '建议先查看已逾期和重大风险待办，再按状态进入对应的预警或风险事件处理。', data: `当前共有${todos.length}项待办，其中${todos.filter((item) => item.timeState === '已逾期').length}项已逾期。` }
+    if (path === '/situation') return { page: '监管态势', guide: '这里集中展示预警规模、风险等级、组织分布和风险处置进展。', next: '建议先关注重大高风险和逾期事项，再通过图表或重点事项下钻到业务对象。', data: `当前加载${warnings.length}条预警和${riskEvents.length}个风险事件，可结合等级、组织和处置状态分析。` }
+    if (path.startsWith('/risk/warnings/')) { const item = warnings.find((warning) => warning.id === objectId); return { page: `预警详情 · ${objectId}`, guide: '这里用于查看预警风险说明、证据子图、制度依据和完整处置记录。', next: '建议先核对证据和命中规则，再根据状态执行研判、核查、复核、解除或升级。', data: item ? `该预警风险等级为${item.level}，当前状态为${item.status}，证据状态为${item.evidenceStatus}。` : '当前预警详情正在加载，请稍后查看证据和状态。' } }
+    if (path === '/risk/warnings') return { page: '统一预警', guide: '这里统一查询事前、事中和事后预警，并进入证据研判与处置流程。', next: '可先使用状态和风险等级筛选，再进入预警详情查看证据或开展处置。', data: `当前加载${warnings.length}条预警，其中${warnings.filter((item) => ['重大', '高'].includes(item.level)).length}条为重大或高风险。` }
+    if (path.startsWith('/risk/events/')) { const item = riskEvents.find((event) => event.id === objectId); return { page: `风险事件详情 · ${objectId}`, guide: '这里用于跟踪风险事件的责任人、整改过程、证据材料和监管复核。', next: '建议确认当前状态和完成时限，再执行派发、整改提交或监管复核。', data: item ? `该事件风险等级为${item.level}，当前状态为${item.status}，责任人为${item.owner || '待分配'}。` : '当前风险事件详情正在加载，请稍后查看处置状态。' } }
+    if (path === '/risk/events') return { page: '风险事件', guide: '这里管理由预警升级形成的风险事件，并跟踪整改、复核和关闭过程。', next: '建议优先处理逾期和待复核事件，再检查核查整改中的事项。', data: `当前共有${riskEvents.length}个风险事件，其中${riskEvents.filter((item) => item.overdue && item.status !== '已关闭').length}个已逾期。` }
+    if (path.startsWith('/scenes')) return { page: '风险场景', guide: '这里维护风险场景、适用对象、目标事件和关联规则。', next: '建议先确认场景状态和版本，再进入编辑页面维护规则或发布新版本。', data: `当前共有${scenes.length}个风险场景，其中${scenes.filter((item) => item.status === '已发布').length}个已发布。` }
+    if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里配置规则判断逻辑、风险等级、证据要求和运行策略。', next: '建议先选择所属场景，再检查判断条件、输出证据和失败策略。', data: '规则数据按所属场景和版本管理，发布前需要完成配置与校验。' }
+    if (path.startsWith('/ontology')) return { page: '本体管理', guide: '这里维护监管对象、属性、关系和事件的统一语义定义。', next: '建议先选择本体及版本，再维护类、属性、关系或事件并完成校验。', data: '本体版本会影响规则配置、数据映射和图谱构建，请在发布前确认影响范围。' }
+    if (path.startsWith('/graphs')) return { page: '图谱管理', guide: '这里管理图谱版本、数据来源、语义映射和图谱质量。', next: '建议先确认数据源和本体版本，再检查映射、质量问题和发布条件。', data: '图谱数据用于证据关联和风险穿透分析，版本发布后会被后续规则运行引用。' }
+    if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
+    if (path.startsWith('/system/roles')) return { page: '角色与权限', guide: '这里维护角色、数据范围、菜单权限和高危操作权限。', next: '建议先确认角色使用人数，再调整权限并检查敏感操作影响。', data: `当前共有${roles.length}个角色，权限调整会影响菜单、数据范围和可执行操作。` }
+    if (path.startsWith('/system/audit')) return { page: '审计日志', guide: '这里查询用户操作、对象变化、执行结果和审计追踪编号。', next: '可按操作人、对象类型、风险级别或追踪编号定位具体操作记录。', data: '审计记录用于追踪关键配置和业务处置操作，历史记录不会被普通业务操作覆盖。' }
+    return { page: '穿透式监管', guide: '当前页面属于穿透式监管业务平台。', next: '可以先查看页面标题和筛选条件，再选择需要处理的业务对象。', data: '当前页面数据会按照监管范围和角色权限展示。' }
+  }, [location.pathname, todos, warnings, riskEvents, scenes, users, roles, currentRole])
+
+  const answerAgentQuestion = (question: string) => {
+    if (/当前页面|做什么|功能/.test(question)) return agentContext.guide
+    if (/下一步|怎么操作|如何操作/.test(question)) return agentContext.next
+    if (/数据|解释|指标|状态/.test(question)) return agentContext.data
+    return `当前位于“${agentContext.page}”。${agentContext.guide}${agentContext.next}`
+  }
+  const sendAgentQuestion = (value = agentInput) => {
+    const question = value.trim()
+    if (!question) return
+    setAgentMessages((items) => [...items, { role: 'user', text: question }, { role: 'assistant', text: answerAgentQuestion(question) }])
+    setAgentInput('')
+  }
+  const openAgent = () => {
+    if (agentMessages.length === 0) setAgentMessages([{ role: 'assistant', text: `你好，我是监管智能体。当前位于“${agentContext.page}”，你可以询问页面功能、下一步操作或当前数据。` }])
+    setAgentOpen(true)
+  }
+
   const chooseScope = (scope: string) => { setScope(scope); setScopeOpen(false); setToast(`监管范围已切换为：${scope}`) }
   const chooseRole = (role: string) => { setCurrentRole(role); setRoleOpen(false); setToast(`当前角色已切换为：${role}`); navigate('/workbench') }
 
-  return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''}`} onClick={() => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false) }}>
+  return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''}`} onClick={(event) => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false); const target = event.target as Element; if (agentOpen && !target.closest('.agent-popover') && !target.closest('.agent-fab')) setAgentOpen(false) }}>
     <header className="topbar">
       <button className="brand" onClick={() => navigate('/workbench')} aria-label="返回监管工作台"><img className="brand-logo" src={cloudLogo} alt="中国电子云"/><em/><span>穿透式监管智能应用平台</span></button>
       <nav className="platform-nav"><button>应用开发平台</button><button>模型开发平台</button><button className="active">穿透式监管</button></nav>
@@ -157,7 +204,8 @@ function AppEnhanced() {
       <Route path="/system/audit" element={<AuditPage/>}/>
       <Route path="*" element={<Navigate to="/workbench" replace/>}/>
     </Routes></div></main>
-    <button className="help-fab" onClick={() => setToast('操作提示：从工作台待办进入预警，完成核查、升级和整改闭环')}><Icon name="warning"/><span>操作指引</span></button>
+    <button className={`help-fab agent-fab ${agentOpen ? 'open' : ''}`} onClick={() => agentOpen ? setAgentOpen(false) : openAgent()} aria-label={agentOpen ? '收起监管智能体' : '打开监管智能体'}><Icon name={agentOpen ? 'close' : 'agent'}/><span>{agentOpen ? '收起智能体' : '监管智能体'}</span></button>
+    {agentOpen && <section className="modal agent-dialog agent-popover" role="dialog" aria-modal="true" aria-labelledby="agent-dialog-title"><header><div><p className="eyebrow">智能问答 · {agentContext.page}</p><h2 id="agent-dialog-title"><Icon name="agent"/>监管智能体</h2><p>提供当前页面说明和操作建议，暂不直接执行业务操作。</p></div><button className="icon-button" onClick={() => setAgentOpen(false)} aria-label="关闭监管智能体"><Icon name="close"/></button></header><div className="modal-body agent-dialog-body"><div className="agent-messages" aria-live="polite">{agentMessages.map((message, index) => <div className={`agent-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Icon name="agent" size={15}/> : '我'}</span><p>{message.text}</p></div>)}</div><div className="agent-suggestions"><span>你可以这样问</span><div>{agentSuggestions.map((question) => <button key={question} onClick={() => sendAgentQuestion(question)}>{question}</button>)}</div></div></div><footer className="agent-composer"><div><textarea rows={2} value={agentInput} onChange={(event) => setAgentInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); sendAgentQuestion() } }} placeholder="请输入你的问题" aria-label="向监管智能体提问"/><small>Enter 发送，Shift + Enter 换行</small></div><Button variant="primary" icon="agent" disabled={!agentInput.trim()} onClick={() => sendAgentQuestion()}>发送</Button></footer></section>}
     <div className={`toast ${toast ? 'show' : ''}`}><Icon name="check"/><span>{toast || '操作成功'}</span></div>
   </div>
 }

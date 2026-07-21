@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import type { RiskLevel } from './types'
 import { graphEdges, graphNodes } from './data'
 
-export type IconName = 'workbench' | 'situation' | 'shield' | 'rules' | 'graph' | 'system' | 'bell' | 'search' | 'refresh' | 'chevron' | 'eye' | 'edit' | 'user' | 'audit' | 'clock' | 'check' | 'warning' | 'close' | 'plus' | 'link' | 'file' | 'lock' | 'menu' | 'home'
+export type IconName = 'workbench' | 'situation' | 'shield' | 'rules' | 'graph' | 'system' | 'bell' | 'agent' | 'search' | 'refresh' | 'chevron' | 'eye' | 'edit' | 'user' | 'audit' | 'clock' | 'check' | 'warning' | 'close' | 'plus' | 'link' | 'file' | 'lock' | 'menu' | 'home'
 
 const iconPaths: Record<IconName, ReactNode> = {
   workbench: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
@@ -12,6 +12,7 @@ const iconPaths: Record<IconName, ReactNode> = {
   graph: <><circle cx="5" cy="12" r="2.5"/><circle cx="18" cy="5" r="2.5"/><circle cx="19" cy="18" r="2.5"/><path d="m7.2 10.8 8.6-4.6M7.4 13l9.2 4"/></>,
   system: <><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z"/></>,
   bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 7h18s-3 0-3-7"/><path d="M10 20h4"/></>,
+  agent: <><rect x="4" y="6" width="16" height="13" rx="4"/><path d="M9 2h6M12 2v4M8 19v3l4-3"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M9 16h6"/></>,
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
   refresh: <><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 11M5.5 15A7 7 0 0 0 18 17.5l2-4.5"/></>,
   chevron: <path d="m9 18 6-6-6-6"/>,
