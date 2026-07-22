@@ -105,23 +105,6 @@ export interface DemoGraphEvent {
   properties: Record<string, unknown>
 }
 
-export interface DemoBidEvaluation {
-  evaluationId: string
-  caseId: string
-  projectId: string
-  bidId: string
-  supplierId: string
-  supplierName: string
-  technicalScore: number
-  commercialScore: number
-  priceScore: number
-  relationRiskDeduction: number
-  totalScore: number
-  riskScore: number
-  rating: string
-  recommendation: string
-}
-
 export interface DemoTradeRecord {
   businessId: string
   caseId: string
@@ -147,7 +130,6 @@ export interface DemoWarningDetail {
   evidence: DemoEvidence[]
   runs: DemoRun[]
   graph: { id: string; nodes: DemoGraphNode[]; relations: DemoGraphRelation[]; events: DemoGraphEvent[] }
-  bidEvaluations: DemoBidEvaluation[]
   tradeCycle: DemoTradeRecord[]
 }
 

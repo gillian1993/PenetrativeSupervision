@@ -95,7 +95,6 @@ async function warningDetail(pool,id){
     const ontologyRow=ontologyRows[0]||{}
     ontology={id:ontologyId,name:ontologyRow.name||ontologyId,version:ontologyRow.version||'',elements:elementRows.map((row)=>({type:row.element_type,code:row.code,name:row.name,ownerCode:row.owner_code||'',targetCode:row.target_code||'',dataType:row.data_type||'',constraint:row.constraint_desc||'',description:row.description||''}))}
   }
-  const [bidRows]=await pool.query('SELECT * FROM bid_evaluation_scores WHERE batch_id=? AND case_id=? ORDER BY project_id,risk_score DESC,bid_id',[batchId,warning.caseId])
   const [tradeRows]=await pool.query('SELECT * FROM trade_cycle_records WHERE batch_id=? AND case_id=? ORDER BY business_time,business_id',[batchId,warning.caseId])
   return {
     ontology,
@@ -108,7 +107,6 @@ async function warningDetail(pool,id){
       relations:relations.map((row)=>({id:row.id,relationCode:row.relation_code,fromId:row.from_entity_id,toId:row.to_entity_id,evidenceId:row.evidence_id,confidence:Number(row.confidence),sourceSystem:row.source_system,properties:parseJson(row.properties_json,{})})),
       events:events.map((row)=>({id:row.id,eventCode:row.event_code,name:row.name,objectId:row.object_entity_id,actorId:row.actor_entity_id,organizationId:row.organization_entity_id,eventTime:formatTime(row.event_time),amount:row.amount===null?null:Number(row.amount),status:row.status,sourceSystem:row.source_system,properties:parseJson(row.properties_json,{})})),
     },
-    bidEvaluations:bidRows.map((row)=>({evaluationId:row.evaluation_id,caseId:row.case_id,projectId:row.project_id,bidId:row.bid_id,supplierId:row.supplier_id,supplierName:row.supplier_name,technicalScore:Number(row.technical_score),commercialScore:Number(row.commercial_score),priceScore:Number(row.price_score),relationRiskDeduction:Number(row.relation_risk_deduction),totalScore:Number(row.total_score),riskScore:Number(row.risk_score),rating:row.rating,recommendation:row.recommendation})),
     tradeCycle:tradeRows.map((row)=>({businessId:row.business_id,caseId:row.case_id,businessType:row.business_type,internalOrgId:row.internal_org_id,counterpartyId:row.counterparty_id,itemName:row.item_name,specification:row.specification,quantity:Number(row.quantity),unitPrice:Number(row.unit_price),amount:Number(row.amount),direction:row.direction,businessTime:formatTime(row.business_time),sourceAccountId:row.source_account_id,targetAccountId:row.target_account_id,modeCodes:row.mode_codes,evidenceConclusion:row.evidence_conclusion})),
   }
 }
