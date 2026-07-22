@@ -21,6 +21,10 @@ export interface Warning {
   path: string
   generatedAt: string
   updatedAt: string
+  riskEventStatus?: '待整改' | '待复核' | '已关闭'
+  riskEventDueAt?: string
+  riskEventOwner?: string
+  riskEventRectificationOwner?: string
 }
 
 export type RiskEventStatus = '待整改' | '待复核' | '已关闭'

@@ -3,7 +3,7 @@ import { persist } from 'zustand/middleware'
 import { ontologies as initialOntologyItems } from './data'
 import type { OntologyItem } from './types'
 
-export type OntologyElementType = 'class' | 'property' | 'relation' | 'event'
+export type OntologyElementType = 'class' | 'property' | 'relation'
 
 export interface OntologyElement {
   id: string
@@ -53,7 +53,7 @@ const sampleElements: OntologyElement[] = [
   { id: 'EL-PROC-001', type: 'class', code: 'PROC.Supplier', name: '供应商', dataType: '本体类', constraint: '统一社会信用代码为主标识', description: '参与采购、合同或服务活动的业务主体。' },
   { id: 'EL-PROC-002', type: 'property', code: 'PROC.Supplier.credit_code', name: '统一社会信用代码', dataType: '文本', constraint: '主标识、必填', description: '供应商工商登记主标识。' },
   { id: 'EL-PROC-003', type: 'relation', code: 'PROC.participate', name: '参与采购', dataType: '供应商 → 采购项目', constraint: '多对多', description: '供应商报名或参与采购项目。' },
-  { id: 'EL-PROC-004', type: 'event', code: 'PROC.BidConfirmed', name: '中标确认', dataType: '采购项目事件', constraint: '目标事件', description: '采购项目确认中标结果的业务事件。' },
+  { id: 'EL-PROC-004', type: 'class', code: 'PROC.BidConfirmed', name: '中标确认', dataType: '本体类', constraint: '发生时间必填', description: '采购项目确认中标结果的业务记录。' },
 ]
 
 const descriptions: Record<string, string> = {
@@ -69,7 +69,7 @@ const createInitial = (): OntologyRecord[] => initialOntologyItems.map((item) =>
   elements: item.id === 'ONT-PROC' ? sampleElements : [],
 }))
 
-const countKey = { class: 'classes', property: 'properties', relation: 'relations', event: 'events' } as const
+const countKey = { class: 'classes', property: 'properties', relation: 'relations' } as const
 
 export const useOntologyStore = create<OntologyState>()(
   persist(
@@ -130,7 +130,7 @@ export const useOntologyStore = create<OntologyState>()(
         if (item.elements.some((element) => element.type === payload.type && element.code === payload.code.trim())) return { ok: false, message: '同类型元素编码已存在' }
         const key = countKey[payload.type]
         const element: OntologyElement = { ...payload, id: `EL-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`, code: payload.code.trim(), name: payload.name.trim() }
-        set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, [key]: row[key] + 1, elements: [...row.elements, element], updatedAt: '刚刚' } : row) }))
+        set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, [key]: row[key] + 1, events: 0, elements: [...row.elements, element], updatedAt: '刚刚' } : row) }))
         return { ok: true, message: `${payload.name}已添加到本体` }
       },
       deleteElement: (id, elementId) => {
@@ -140,7 +140,7 @@ export const useOntologyStore = create<OntologyState>()(
         const element = item.elements.find((row) => row.id === elementId)
         if (!element) return { ok: false, message: '本体元素不存在' }
         const key = countKey[element.type]
-        set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, [key]: Math.max(0, row[key] - 1), elements: row.elements.filter((value) => value.id !== elementId), updatedAt: '刚刚' } : row) }))
+        set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, [key]: Math.max(0, row[key] - 1), events: 0, elements: row.elements.filter((value) => value.id !== elementId), updatedAt: '刚刚' } : row) }))
         return { ok: true, message: `${element.name}已删除` }
       },
       resetOntologies: () => set({ ontologies: createInitial() }),

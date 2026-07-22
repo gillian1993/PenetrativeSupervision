@@ -1,7 +1,7 @@
 import type { DataSourceItem, GraphVersion } from './types'
 
 export interface SourceMetadataItem { id: string; sourceId: string; tableName: string; displayName: string; fieldCount: number; summary: string }
-export interface MappingItem { id: string; sourceId: string; ontologyId: string; type: '属性' | '关系' | '事件'; sourceField: string; transform: string; targetCode: string; confidence: number; status: string; revision?: number; setStatus?: string; lastValidatedAt?: string }
+export interface MappingItem { id: string; sourceId: string; ontologyId: string; type: '节点实例' | '关系'; sourceField: string; transform: string; targetCode: string; confidence: number; status: string; revision?: number; setStatus?: string; lastValidatedAt?: string }
 export interface MappingDependencyItem { sourceId: string; sourceName: string; sourceStatus: string; status: 'ready' | 'missing' | 'pending' | 'invalid' | 'disabled'; revision: number; mappingCount: number; validCount: number; lastValidatedAt: string; message: string }
 export interface GraphDependencyCheck { ready: boolean; ontologyId: string; items: MappingDependencyItem[] }
 export interface SyncRecordItem { id: string; sourceId: string; sourceName: string; mode: string; startedAt: string; processed: number; errors: number; duration: string; result: string }

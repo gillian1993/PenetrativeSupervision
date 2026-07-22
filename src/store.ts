@@ -87,7 +87,7 @@ interface AppState {
   deleteRole: (id: string) => OperationResult
   createRole: (payload: Pick<RoleItem, 'id' | 'name' | 'scope'> & { permissions?: string[] }) => OperationResult
   addAudit: (entry: Omit<AuditItem, 'id' | 'time' | 'traceId'>) => void
-  resetDemo: () => void
+  resetWorkflow: () => void
 }
 
 const timestamp = () => new Date().toLocaleString('zh-CN', { hour12: false }).replaceAll('/', '-')
@@ -118,21 +118,26 @@ const normalizeTodo = (todo: LegacyTodoItem): TodoItem => {
 }
 
 
-const createRiskEventFromWarning = (warning: Warning): RiskEvent => ({
-  id: `RE-${warning.id.replace(/^WA-/, '')}`,
-  warningId: warning.id,
-  title: warning.title,
-  level: warning.level,
-  scene: warning.scene,
-  target: warning.target,
-  organization: warning.organization,
-  owner: warning.owner || '尹晨阳',
-  rectificationOwner: warning.owner || '尹晨阳',
-  status: '待整改',
-  dueAt: warning.expectedAt || '待确定',
-  overdue: isPastDue(warning.expectedAt),
-  updatedAt: warning.updatedAt,
-})
+const createRiskEventFromWarning = (warning: Warning): RiskEvent => {
+  const status = warning.riskEventStatus || '待整改'
+  const dueAt = warning.riskEventDueAt || warning.expectedAt || '待确定'
+  const owner = warning.riskEventOwner || warning.owner || '尹晨阳'
+  return {
+    id: `RE-${warning.id.replace(/^WA-/, '')}`,
+    warningId: warning.id,
+    title: warning.title,
+    level: warning.level,
+    scene: warning.scene,
+    target: warning.target,
+    organization: warning.organization,
+    owner,
+    rectificationOwner: warning.riskEventRectificationOwner || warning.owner || owner,
+    status,
+    dueAt,
+    overdue: status !== '已关闭' && isPastDue(dueAt),
+    updatedAt: warning.updatedAt,
+  }
+}
 
 const isPastDue = (value: string) => {
   const timestamp = Date.parse(value.replaceAll('-', '/'))
@@ -149,6 +154,8 @@ const synchronizeRiskEvents = (warnings: Warning[], existingEvents: RiskEvent[])
   return warnings.filter((warning) => warning.status === '已升级').map((warning) => {
     const existing = existingByWarning.get(warning.id)
     if (!existing) return createRiskEventFromWarning(warning)
+    const status = warning.riskEventStatus || existing.status
+    const dueAt = warning.riskEventDueAt || existing.dueAt || warning.expectedAt || '待确定'
     return {
       ...existing,
       warningId: warning.id,
@@ -157,9 +164,12 @@ const synchronizeRiskEvents = (warnings: Warning[], existingEvents: RiskEvent[])
       scene: warning.scene,
       target: warning.target,
       organization: warning.organization,
-      dueAt: existing.dueAt || warning.expectedAt || '待确定',
-      overdue: existing.status !== '已关闭' && isPastDue(existing.dueAt || warning.expectedAt),
-      updatedAt: existing.updatedAt || warning.updatedAt,
+      owner: warning.riskEventOwner || existing.owner,
+      rectificationOwner: warning.riskEventRectificationOwner || existing.rectificationOwner,
+      status,
+      dueAt,
+      overdue: status !== '已关闭' && isPastDue(dueAt),
+      updatedAt: warning.updatedAt || existing.updatedAt,
     }
   })
 }
@@ -233,12 +243,12 @@ export const useAppStore = create<AppState>()(
             const warningTodos: TodoItem[] = warnings.filter((item) => item.status === '待研判').map((item) => {
               const route = `/risk/warnings/${item.id}`
               const previous = previousTodos.get(route)
-              return { id: previous?.id || `TODO-${item.id}`, title: `研判：${item.title}`, objectType: '预警', level: item.level, status: '待研判', dueAt: item.expectedAt || '待确定', owner: item.owner || '尹晨阳', timeState: isPastDue(item.expectedAt) ? '已逾期' : previous?.timeState || '正常', route }
+              return { id: previous?.id || `TODO-${item.id}`, title: `研判：${item.title}`, objectType: '预警', level: item.level, status: '待研判', dueAt: item.expectedAt || '待确定', owner: item.owner || '尹晨阳', timeState: isPastDue(item.expectedAt) ? '已逾期' : '正常', route }
             })
             const eventTodos: TodoItem[] = riskEvents.filter((item) => item.status !== '已关闭').map((item) => {
               const route = `/risk/events/${item.id}`
               const previous = previousTodos.get(route)
-              return { id: previous?.id || `TODO-${item.id}`, title: `${item.status === '待复核' ? '复核' : '整改'}：${item.title}`, objectType: '事件', level: item.level, status: item.status === '待复核' ? '待复核' : '待整改', dueAt: item.dueAt, owner: item.owner, timeState: item.overdue ? '已逾期' : previous?.timeState || '正常', route }
+              return { id: previous?.id || `TODO-${item.id}`, title: `${item.status === '待复核' ? '复核' : '整改'}：${item.title}`, objectType: '事件', level: item.level, status: item.status === '待复核' ? '待复核' : '待整改', dueAt: item.dueAt, owner: item.owner, timeState: item.overdue ? '已逾期' : '正常', route }
             })
             const validRoutes = new Set([...warnings.map((item) => `/risk/warnings/${item.id}`), ...riskEvents.map((item) => `/risk/events/${item.id}`)])
             const retainedMessages = currentState.messages.filter((item) => validRoutes.has(item.route))
@@ -515,7 +525,7 @@ export const useAppStore = create<AppState>()(
           return { ok: true, message: '自定义角色已删除' }
         },
         addAudit: appendAudit,
-        resetDemo: () => set({ warnings: initialWarnings, warningSource: 'local', riskEvents: initialRiskEvents, messages: initialMessages, todos: initialTodos, scenes: initialScenes, ontologies: initialOntologies, dataSources: initialDataSources, graphVersions: initialGraphVersions, users: initialUsers, roles: initialRoles, audits: initialAudits, currentScope: '中国电子云集团', currentRole: '监管负责人' }),
+        resetWorkflow: () => set({ warnings: [], warningSource: 'local', riskEvents: [], messages: [], todos: [] }),
       }
     },
     {
@@ -551,12 +561,12 @@ export const useAppStore = create<AppState>()(
         const warningTodos: TodoItem[] = warnings.filter((item) => item.status === '待研判').map((item) => {
           const route = `/risk/warnings/${item.id}`
           const previous = previousTodos.get(route)
-          return { id: previous?.id || `TODO-${item.id}`, title: `研判：${item.title}`, objectType: '预警', level: item.level, status: '待研判', dueAt: previous?.dueAt || item.expectedAt, owner: item.owner, timeState: previous?.timeState || '正常', route }
+          return { id: previous?.id || `TODO-${item.id}`, title: `研判：${item.title}`, objectType: '预警', level: item.level, status: '待研判', dueAt: item.expectedAt, owner: item.owner, timeState: isPastDue(item.expectedAt) ? '已逾期' : '正常', route }
         })
         const eventTodos: TodoItem[] = riskEvents.filter((item) => item.status !== '已关闭').map((item) => {
           const route = `/risk/events/${item.id}`
           const previous = previousTodos.get(route)
-          return { id: previous?.id || `TODO-${item.id}`, title: `${item.status === '待复核' ? '复核' : '整改'}：${item.title}`, objectType: '事件', level: item.level, status: item.status === '待复核' ? '待复核' : '待整改', dueAt: previous?.dueAt || item.dueAt, owner: item.owner, timeState: item.overdue ? '已逾期' : previous?.timeState || '正常', route }
+          return { id: previous?.id || `TODO-${item.id}`, title: `${item.status === '待复核' ? '复核' : '整改'}：${item.title}`, objectType: '事件', level: item.level, status: item.status === '待复核' ? '待复核' : '待整改', dueAt: item.dueAt, owner: item.owner, timeState: item.overdue ? '已逾期' : '正常', route }
         })
         return { ...state, warnings, riskEvents, messages, todos: [...warningTodos, ...eventTodos] } as unknown as AppState
       },

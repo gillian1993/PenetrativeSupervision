@@ -1,7 +1,7 @@
 import type { Warning } from './types'
 
-async function request<T>(path: string): Promise<T> {
-  const response = await fetch(path)
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(path, init)
   const payload = await response.json().catch(() => ({}))
   if (!response.ok) throw new Error(payload.message || `请求失败（${response.status}）`)
   return payload as T
@@ -51,7 +51,7 @@ export interface DemoRun {
 }
 
 export interface DemoOntologyElement {
-  type: 'class' | 'property' | 'relation' | 'event'
+  type: 'class' | 'property' | 'relation'
   code: string
   name: string
   ownerCode: string
@@ -147,4 +147,5 @@ export const demoDataApi = {
   summary: () => request<DemoSummary>('/api/demo/summary'),
   listWarnings: () => request<DemoWarning[]>('/api/demo/warnings'),
   warningDetail: (id: string) => request<DemoWarningDetail>(`/api/demo/warnings/${encodeURIComponent(id)}`),
+  resetWorkflow: () => request<{ ok: boolean; message: string; counts: { rectification: number; review: number; overdue: number } }>('/api/demo/workflow/reset', { method: 'POST' }),
 }

@@ -8,9 +8,10 @@ import { RuleAssetEditorPage, RuleAssetManagementPage } from './pages/RuleAssetP
 import { OntologyEditorPage, OntologyListPage } from './pages/OntologyLocalPages'
 import { SituationPage, WorkbenchPage } from './pages/OverviewPages'
 import { RiskEventDetailPage, RiskEventListPage, WarningDetailPage, WarningListPage } from './pages/RiskPages'
+import { demoDataApi } from './demoDataApi'
 import { useAppStore } from './store'
 import { useOntologyStore } from './ontologyMysqlStore'
-import { Button, Icon, type IconName } from './ui'
+import { Button, Icon, Modal, type IconName } from './ui'
 import cloudLogo from './assets/logo-cloud.svg'
 
 interface NavItem { label: string; path: string; permission?: string }
@@ -49,8 +50,7 @@ function AppEnhanced() {
   const loadWarningsFromDatabase = useAppStore((state) => state.loadWarningsFromDatabase)
   const setScope = useAppStore((state) => state.setScope)
   const setCurrentRole = useAppStore((state) => state.setCurrentRole)
-  const resetDemo = useAppStore((state) => state.resetDemo)
-  const resetOntologies = useOntologyStore((state) => state.resetOntologies)
+  const resetWorkflow = useAppStore((state) => state.resetWorkflow)
   const loadOntologies = useOntologyStore((state) => state.loadOntologies)
   const [collapsed, setCollapsed] = useState(false)
   const [search, setSearch] = useState('')
@@ -61,6 +61,8 @@ function AppEnhanced() {
   const [agentOpen, setAgentOpen] = useState(false)
   const [agentInput, setAgentInput] = useState('')
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([])
+  const [resetWorkflowOpen, setResetWorkflowOpen] = useState(false)
+  const [resettingWorkflow, setResettingWorkflow] = useState(false)
 
   useEffect(() => {
     void loadOntologies().then((result) => { if (!result.ok) setToast(`MySQL本体数据加载失败：${result.message}`) })
@@ -129,9 +131,9 @@ function AppEnhanced() {
     if (path === '/risk/warnings') return { page: '统一预警', guide: '这里统一查询事前、事中和事后预警，并进入证据研判与处置流程。', next: '可先使用状态和风险等级筛选，再进入预警详情查看证据或开展处置。', data: `当前加载${warnings.length}条预警，其中${warnings.filter((item) => ['重大', '高'].includes(item.level)).length}条为重大或高风险。` }
     if (path.startsWith('/risk/events/')) { const item = riskEvents.find((event) => event.id === objectId); return { page: `风险事件详情 · ${objectId}`, guide: '这里用于跟踪风险事件的责任人、整改过程、证据材料和监管复核。', next: '建议确认当前状态和完成时限，再执行派发、整改提交或监管复核。', data: item ? `该事件风险等级为${item.level}，当前状态为${item.status}，责任人为${item.owner || '待分配'}。` : '当前风险事件详情正在加载，请稍后查看处置状态。' } }
     if (path === '/risk/events') return { page: '风险事件', guide: '这里管理由预警升级形成的风险事件，并跟踪整改、复核和关闭过程。', next: '建议优先处理逾期和待复核事件，再检查核查整改中的事项。', data: `当前共有${riskEvents.length}个风险事件，其中${riskEvents.filter((item) => item.overdue && item.status !== '已关闭').length}个已逾期。` }
-    if (path.startsWith('/scenes')) return { page: '风险场景', guide: '这里维护风险场景、适用对象、目标事件和关联规则。', next: '建议先确认场景状态和版本，再进入编辑页面维护规则或发布新版本。', data: `当前共有${scenes.length}个风险场景，其中${scenes.filter((item) => item.status === '已发布').length}个已发布。` }
+    if (path.startsWith('/scenes')) return { page: '风险场景', guide: '这里维护风险场景、适用对象、目标类和关联规则。', next: '建议先确认场景状态和版本，再进入编辑页面维护规则或发布新版本。', data: `当前共有${scenes.length}个风险场景，其中${scenes.filter((item) => item.status === '已发布').length}个已发布。` }
     if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里配置规则判断逻辑、风险等级、证据要求和运行策略。', next: '建议先选择所属场景，再检查判断条件、输出证据和失败策略。', data: '规则数据按所属场景和版本管理，发布前需要完成配置与校验。' }
-    if (path.startsWith('/ontology')) return { page: '本体管理', guide: '这里维护监管对象、属性、关系和事件的统一语义定义。', next: '建议先选择本体及版本，再维护类、属性、关系或事件并完成校验。', data: '本体版本会影响规则配置、数据映射和图谱构建，请在发布前确认影响范围。' }
+    if (path.startsWith('/ontology')) return { page: '本体管理', guide: '这里维护本体类、属性和关系的统一语义定义。', next: '需要表达带时间的业务记录时，为普通本体类配置标识、发生时间属性及关联对象关系。', data: '本体版本会影响规则配置、数据映射和图谱构建，请在发布前确认影响范围。' }
     if (path.startsWith('/graphs')) return { page: '图谱管理', guide: '这里管理图谱版本、数据来源、语义映射和图谱质量。', next: '建议先确认数据源和本体版本，再检查映射、质量问题和发布条件。', data: '图谱数据用于证据关联和风险穿透分析，版本发布后会被后续规则运行引用。' }
     if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
     if (path.startsWith('/system/roles')) return { page: '角色与权限', guide: '这里维护角色、数据范围、菜单权限和高危操作权限。', next: '建议先确认角色使用人数，再调整权限并检查敏感操作影响。', data: `当前共有${roles.length}个角色，权限调整会影响菜单、数据范围和可执行操作。` }
@@ -158,6 +160,23 @@ function AppEnhanced() {
 
   const chooseScope = (scope: string) => { setScope(scope); setScopeOpen(false); setToast(`监管范围已切换为：${scope}`) }
   const chooseRole = (role: string) => { setCurrentRole(role); setRoleOpen(false); setToast(`当前角色已切换为：${role}`); navigate('/workbench') }
+  const confirmWorkflowReset = async () => {
+    if (resettingWorkflow) return
+    setResettingWorkflow(true)
+    try {
+      const result = await demoDataApi.resetWorkflow()
+      resetWorkflow()
+      const reloadResult = await loadWarningsFromDatabase()
+      if (!reloadResult.ok) throw new Error(reloadResult.message)
+      setResetWorkflowOpen(false)
+      navigate('/workbench')
+      setToast(result.message)
+    } catch (error) {
+      setToast(`重置失败：${error instanceof Error ? error.message : '服务处理失败'}`)
+    } finally {
+      setResettingWorkflow(false)
+    }
+  }
 
   return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''}`} onClick={(event) => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false); const target = event.target as Element; if (agentOpen && !target.closest('.agent-popover') && !target.closest('.agent-fab')) setAgentOpen(false) }}>
     <header className="topbar">
@@ -177,7 +196,7 @@ function AppEnhanced() {
         const isOpen = openGroups[group.id]
         return <div key={group.id} className={`nav-group ${isActive ? 'active' : ''} ${isOpen ? 'open' : ''}`}><button className="nav-main" title={group.label} onClick={() => setOpenGroups((value) => ({ ...value, [group.id]: !value[group.id] }))}><Icon name={group.icon}/><span>{group.label}</span><i><Icon name="chevron" size={14}/></i></button><div className="nav-children">{group.children!.map((child) => <button key={child.path} className={location.pathname.startsWith(child.path) ? 'active' : ''} onClick={() => navigate(child.path)}><span>{child.label}</span></button>)}</div></div>
       })}</nav>
-      <div className="sidebar-footer"><button onClick={() => setCollapsed((value) => !value)}><Icon name="menu"/><span>{collapsed ? '展开导航' : '收起导航'}</span></button><button onClick={() => { resetDemo(); resetOntologies(); setToast('演示数据已恢复为初始状态') }}><Icon name="refresh"/><span>重置演示数据</span></button></div>
+      <div className="sidebar-footer"><button onClick={() => setCollapsed((value) => !value)}><Icon name="menu"/><span>{collapsed ? '展开导航' : '收起导航'}</span></button><button onClick={() => setResetWorkflowOpen(true)}><Icon name="refresh"/><span>重置演示工作流</span></button></div>
     </aside>
     <main className="main-content"><div className="content-inner"><Routes>
       <Route path="/" element={<Navigate to="/workbench" replace/>}/>
@@ -206,6 +225,7 @@ function AppEnhanced() {
     </Routes></div></main>
     <button className={`help-fab agent-fab ${agentOpen ? 'open' : ''}`} onClick={() => agentOpen ? setAgentOpen(false) : openAgent()} aria-label={agentOpen ? '收起监管智能体' : '打开监管智能体'}><Icon name={agentOpen ? 'close' : 'agent'}/><span>{agentOpen ? '收起智能体' : '监管智能体'}</span></button>
     {agentOpen && <section className="modal agent-dialog agent-popover" role="dialog" aria-modal="true" aria-labelledby="agent-dialog-title"><header><div><p className="eyebrow">智能问答 · {agentContext.page}</p><h2 id="agent-dialog-title"><Icon name="agent"/>监管智能体</h2><p>提供当前页面说明和操作建议，暂不直接执行业务操作。</p></div><button className="icon-button" onClick={() => setAgentOpen(false)} aria-label="关闭监管智能体"><Icon name="close"/></button></header><div className="modal-body agent-dialog-body"><div className="agent-messages" aria-live="polite">{agentMessages.map((message, index) => <div className={`agent-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Icon name="agent" size={15}/> : '我'}</span><p>{message.text}</p></div>)}</div><div className="agent-suggestions"><span>你可以这样问</span><div>{agentSuggestions.map((question) => <button key={question} onClick={() => sendAgentQuestion(question)}>{question}</button>)}</div></div></div><footer className="agent-composer"><div><textarea rows={2} value={agentInput} onChange={(event) => setAgentInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); sendAgentQuestion() } }} placeholder="请输入你的问题" aria-label="向监管智能体提问"/><small>Enter 发送，Shift + Enter 换行</small></div><Button variant="primary" icon="agent" disabled={!agentInput.trim()} onClick={() => sendAgentQuestion()}>发送</Button></footer></section>}
+    <Modal open={resetWorkflowOpen} title="重置演示工作流" description="恢复预警和风险事件的演示处置状态，不影响规则、证据、图谱、组织及业务配置。" confirmText={resettingWorkflow ? '正在重置…' : '确认重置'} danger onClose={() => { if (!resettingWorkflow) setResetWorkflowOpen(false) }} onConfirm={() => void confirmWorkflowReset()}><div className="alert-box danger"><Icon name="warning"/><span>将覆盖当前演示中的转派、解除、升级、整改和复核结果，并重新生成待办及业务消息。</span></div><ul className="plain-list"><li>保留规则测试数据、证据快照和证据子图</li><li>恢复为6个待整改事件、4个待复核事件</li><li>仅保留2个事件逾期，用于验证催办功能</li></ul></Modal>
     <div className={`toast ${toast ? 'show' : ''}`}><Icon name="check"/><span>{toast || '操作成功'}</span></div>
   </div>
 }

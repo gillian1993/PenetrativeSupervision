@@ -15,7 +15,7 @@ const ruleSelect=[
 function summarize(payload){
   const count=payload.type==='高级表达式'?(payload.conditions?.expression?1:0):payload.type==='关系路径'?(payload.pathConfig?.constraints||[]).length||Math.min(1,(payload.pathConfig?.hops||[]).length):payload.type==='时序'?(payload.timeConfig?.conditions||[]).length:payload.type==='聚合'?(payload.aggregateConfig?.metrics||[]).length:(payload.conditions?.items||[]).length
   const logic=payload.type==='高级表达式'?'EXPRESSION':payload.type==='关系路径'?payload.pathConfig?.logic:payload.type==='时序'?payload.timeConfig?.logic:payload.type==='聚合'?payload.aggregateConfig?.logic:payload.conditions?.logic
-  const typeText=payload.type==='高级表达式'?'执行受控高级表达式':payload.type==='关系路径'?`按${(payload.pathConfig?.hops||[]).length}跳关系路径和${count}个约束判断`:payload.type==='时序'?`围绕目标事件组合${count}个时序条件`:payload.type==='聚合'?`组合${count}个聚合指标`:'按属性与字段条件判断'
+  const typeText=payload.type==='高级表达式'?'执行受控高级表达式':payload.type==='关系路径'?`按${(payload.pathConfig?.hops||[]).length}跳关系路径和${count}个约束判断`:payload.type==='时序'?`围绕目标类节点组合${count}个时序条件`:payload.type==='聚合'?`组合${count}个聚合指标`:'按属性与字段条件判断'
   const levelText=(payload.level||'继承场景')==='继承场景'?'继承场景默认等级':(payload.level||'高')+'风险'
   return typeText+'，'+(logic==='EXPRESSION'?'按表达式计算':logic==='OR'?'满足任一':'满足全部')+'；命中后'+levelText+'并固化'+(payload.outputs||[]).length+'项输出。'
 }

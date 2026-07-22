@@ -29,7 +29,7 @@ const fallbackElements:OntologyElement[]=[
   {id:'p3',type:'property',code:'PROC.Contract.change_rate',name:'合同金额变更比例',dataType:'数字',constraint:'',description:''},
   {id:'p4',type:'property',code:'PROC.Contract.change_amount',name:'合同变更金额',dataType:'金额',constraint:'',description:''},
   {id:'r1',type:'relation',code:'PROC.shared_contact',name:'共同使用',dataType:'联系方式 → 评审人员',constraint:'',description:''},
-  {id:'e1',type:'event',code:'PROC.BidConfirmed',name:'中标确认',dataType:'采购项目事件',constraint:'',description:''},
+  {id:'e1',type:'class',code:'PROC.BidConfirmed',name:'中标确认',dataType:'本体类',constraint:'发生时间必填',description:'用于表达中标确认业务记录的普通本体类'},
 ]
 type OntologyOption={id:string;name:string;status?:string;elements:OntologyElement[]}
 type GraphOption={id:string;status:string;ontologyId:string}
@@ -77,7 +77,7 @@ const configured=(rule:RuleItem)=>{
 const displayStatus=(rule:RuleItem)=>rule.status==='已发布'||rule.status==='已停用'?rule.status:configured(rule)?'已配置':'未完成'
 const logicWord=(logic?:Logic)=>logic==='OR'?'或':'且'
 function ruleExpression(rule:RuleItem,elements:OntologyElement[]=[]){
-  const range=rule.timeConfig.baseline==='runtime'?'以规则运行时间为基准':`当“${rule.eventName||'目标事件'}”发生时`
+  const range=rule.timeConfig.baseline==='runtime'?'以规则运行时间为基准':`当“${rule.eventName||'目标类'}”节点发生时`
   const window=`观察${rule.timeConfig.direction||'之前'}${rule.timeConfig.windowValue??30}${rule.timeConfig.windowUnit||'天'}`
   if(rule.type==='高级表达式'){
     const expression=rule.conditions.expression||''
@@ -113,7 +113,7 @@ export function RuleAssetManagementPage(){
   const [draft,setDraft]=useState({name:'',code:'',type:'属性' as RuleItem['type'],levelMode:'inherit' as 'inherit'|'override',level:'高' as RiskLevel,domain:'采购',ontologyId:'ONT-PROC',objectCode:'PROC.Supplier',objectName:'供应商',eventCode:'',eventName:'',graphVersion:''})
   const ontology=ontologies.find((item)=>item.id===draft.ontologyId)
   const classes=(ontology?.elements||[]).filter((item)=>item.type==='class')
-  const events=(ontology?.elements||[]).filter((item)=>item.type==='event')
+  const events=(ontology?.elements||[]).filter((item)=>item.type==='class')
   const availableGraphs=graphs
 
   const load=async(nextKeyword=keyword)=>{
@@ -139,7 +139,7 @@ export function RuleAssetManagementPage(){
   const openNew=()=>{
     const selected=ontologies.find((item)=>item.id==='ONT-PROC')||ontologies[0]
     const selectedClasses=(selected?.elements||[]).filter((item)=>item.type==='class')
-    const selectedEvents=(selected?.elements||[]).filter((item)=>item.type==='event')
+    const selectedEvents=(selected?.elements||[]).filter((item)=>item.type==='class')
     const object=selectedClasses[0]
     const event=selectedEvents[0]
     const graph=graphs.find((item)=>item.ontologyId===selected?.id)
@@ -149,7 +149,7 @@ export function RuleAssetManagementPage(){
   const chooseOntology=(ontologyId:string)=>{
     const selected=ontologies.find((item)=>item.id===ontologyId)
     const object=selected?.elements.find((item)=>item.type==='class')
-    const event=selected?.elements.find((item)=>item.type==='event')
+    const event=selected?.elements.find((item)=>item.type==='class')
     const graph=graphs.find((item)=>item.ontologyId===ontologyId)
     setDraft({...draft,ontologyId,objectCode:object?.code||'',objectName:object?.name||'',eventCode:event?.code||'',eventName:event?.name||'',graphVersion:graph?.id||''})
   }
@@ -157,7 +157,7 @@ export function RuleAssetManagementPage(){
     const graph=graphs.find((item)=>item.id===graphVersion)
     const selected=ontologies.find((item)=>item.id===graph?.ontologyId)
     const object=selected?.elements.find((item)=>item.type==='class')
-    const event=selected?.elements.find((item)=>item.type==='event')
+    const event=selected?.elements.find((item)=>item.type==='class')
     setDraft({...draft,graphVersion,ontologyId:graph?.ontologyId||'',objectCode:object?.code||'',objectName:object?.name||'',eventCode:event?.code||'',eventName:event?.name||''})
   }
   const create=async()=>{
@@ -192,7 +192,7 @@ export function RuleAssetManagementPage(){
         <Field label="监管领域"><select value={draft.domain} onChange={(event)=>setDraft({...draft,domain:event.target.value})}>{domains.map((item)=><option key={item}>{item}</option>)}</select></Field>
         <Field label="适用本体（由图谱带出）"><select value={draft.ontologyId} disabled>{ontologies.map((item)=><option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
         <Field label="主对象"><select value={draft.objectCode} onChange={(event)=>{const item=classes.find((candidate)=>candidate.code===event.target.value);setDraft({...draft,objectCode:event.target.value,objectName:item?.name||''})}}>{classes.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>
-        {draft.type==='时序'&&<Field label="目标事件"><select value={draft.eventCode} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);setDraft({...draft,eventCode:event.target.value,eventName:item?.name||''})}}><option value="">请选择目标事件</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>}
+        {draft.type==='时序'&&<Field label="目标类"><select value={draft.eventCode} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);setDraft({...draft,eventCode:event.target.value,eventName:item?.name||''})}}><option value="">请选择目标类</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>}
         <Field label="图谱版本"><select value={draft.graphVersion} onChange={(event)=>chooseGraph(event.target.value)}><option value="">请选择已发布图谱</option>{availableGraphs.map((item)=><option value={item.id} key={item.id}>{item.id}</option>)}</select></Field>
       </div></div>
     </Modal>
@@ -242,7 +242,7 @@ export function RuleAssetEditorPage(){
   const patch=(next:Partial<RuleItem>)=>{if(!draft)return;setDraft({...draft,...next});setDirty(true);setIssues([])}
   const properties=elements.filter((item)=>item.type==='property')
   const relations=elements.filter((item)=>item.type==='relation')
-  const events=elements.filter((item)=>item.type==='event')
+  const events=elements.filter((item)=>item.type==='class')
   const classes=elements.filter((item)=>item.type==='class')
   const flatConditions=draft?draft.conditions.items.filter((item):item is RuleCondition=>!isConditionGroup(item)):[]
   const pathConstraints=draft?.pathConfig.constraints||[]
@@ -284,7 +284,7 @@ export function RuleAssetEditorPage(){
   const addPathConstraint=()=>{if(!draft)return;if(pathConstraints.length>=10){setToast('关系路径最多支持10个约束条件');return}patch({pathConfig:{...draft.pathConfig,constraints:[...pathConstraints,newCondition(false,pathConstraints.map((item)=>item.fieldCode))]}})}
   const updatePathConstraint=(id:string,next:Partial<RuleCondition>)=>{if(!draft)return;patch({pathConfig:{...draft.pathConfig,constraints:pathConstraints.map((item)=>item.id===id?{...item,...next}:item)}})}
   const removePathConstraint=(id:string)=>{if(!draft)return;patch({pathConfig:{...draft.pathConfig,constraints:pathConstraints.filter((item)=>item.id!==id)}})}
-  const addTimeCondition=()=>{if(!draft)return;if(timeConditions.length>=10){setToast('时序规则最多支持10个事件条件');return}const item=events.find((event)=>event.code!==draft.eventCode&&!timeConditions.some((condition)=>condition.eventCode===event.code))||events.find((event)=>event.code!==draft.eventCode)||events[0];const condition:TimeCondition={id:'time-'+Date.now(),eventCode:item?.code||'',eventName:item?.name||'',requirement:'必须发生'};patch({timeConfig:{...draft.timeConfig,conditions:[...timeConditions,condition]}})}
+  const addTimeCondition=()=>{if(!draft)return;if(timeConditions.length>=10){setToast('时序规则最多支持10个类节点条件');return}const item=events.find((event)=>event.code!==draft.eventCode&&!timeConditions.some((condition)=>condition.eventCode===event.code))||events.find((event)=>event.code!==draft.eventCode)||events[0];const condition:TimeCondition={id:'time-'+Date.now(),eventCode:item?.code||'',eventName:item?.name||'',requirement:'必须发生'};patch({timeConfig:{...draft.timeConfig,conditions:[...timeConditions,condition]}})}
   const updateTimeCondition=(id:string,next:Partial<TimeCondition>)=>{if(!draft)return;patch({timeConfig:{...draft.timeConfig,conditions:timeConditions.map((item)=>item.id===id?{...item,...next}:item)}})}
   const removeTimeCondition=(id:string)=>{if(!draft)return;patch({timeConfig:{...draft.timeConfig,conditions:timeConditions.filter((item)=>item.id!==id)}})}
   const addAggregateMetric=()=>{if(!draft)return;if(aggregateMetrics.length>=3){setToast('聚合规则最多支持3个统计指标');return}const field=properties.find((item)=>/数字|金额/.test(item.dataType)&&!aggregateMetrics.some((metric)=>metric.fieldCode===item.code))||properties.find((item)=>/数字|金额/.test(item.dataType));const metric:AggregateMetric={id:'metric-'+Date.now(),function:'COUNT',fieldCode:field?.code||'',fieldName:field?.name||'',operator:'大于等于',threshold:1};patch({aggregateConfig:{...draft.aggregateConfig,metrics:[...aggregateMetrics,metric]}})}
@@ -327,7 +327,7 @@ export function RuleAssetEditorPage(){
     const nextElements=ontology?.elements || []
     setElements(nextElements)
     const object=nextElements.find((item)=>item.type==='class')
-    const event=nextElements.find((item)=>item.type==='event')
+    const event=nextElements.find((item)=>item.type==='class')
     const graph=editorGraphs.find((item)=>item.ontologyId===ontologyId)
     patch({ontologyId,graphVersion:graph?.id||'',objectCode:object?.code||'',objectName:object?.name||'',eventCode:usesTimeWindow&&scopeBaseline==='event'?event?.code||'':'',eventName:usesTimeWindow&&scopeBaseline==='event'?event?.name||'':'',conditions:{id:'group-root',logic:'AND',items:[]},pathConfig:{...draft!.pathConfig,hops:[],logic:'AND',constraints:[]},timeConfig:{...draft!.timeConfig,conditions:[],eventCode:''},aggregateConfig:{...draft!.aggregateConfig,metrics:[],fieldCode:'',threshold:0}})
   }
@@ -336,7 +336,7 @@ export function RuleAssetEditorPage(){
     const ontology=ontologies.find((item)=>item.id===graph?.ontologyId)
     const nextElements=ontology?.elements||[];setElements(nextElements)
     const object=nextElements.find((item)=>item.type==='class')
-    const event=nextElements.find((item)=>item.type==='event')
+    const event=nextElements.find((item)=>item.type==='class')
     patch({graphVersion,ontologyId:graph?.ontologyId||'',objectCode:object?.code||'',objectName:object?.name||'',eventCode:usesTimeWindow&&scopeBaseline==='event'?event?.code||'':'',eventName:usesTimeWindow&&scopeBaseline==='event'?event?.name||'':'',conditions:{id:'group-root',logic:'AND',items:[]},pathConfig:{...draft!.pathConfig,hops:[],logic:'AND',constraints:[]},timeConfig:{...draft!.timeConfig,conditions:[],eventCode:''},aggregateConfig:{...draft!.aggregateConfig,metrics:[],fieldCode:'',threshold:0}})
   }
 
@@ -389,12 +389,12 @@ export function RuleAssetEditorPage(){
             <Field label="适用本体（由图谱带出）"><select value={draft.ontologyId} disabled>{ontologies.map((item)=><option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
             <Field label="主对象 *"><select value={draft.objectCode||''} disabled={readonly} onChange={(event)=>{const item=classes.find((candidate)=>candidate.code===event.target.value);patch({objectCode:event.target.value,objectName:item?.name||''})}}>{classes.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>
             {usesTimeWindow&&<>
-              <Field label="计算基准 *"><select value={scopeBaseline} disabled={readonly} onChange={(event)=>{const baseline=event.target.value as 'event'|'runtime';const target=events[0];patch({timeConfig:{...draft.timeConfig,baseline},eventCode:baseline==='event'?(draft.eventCode||target?.code||''):'',eventName:baseline==='event'?(draft.eventName||target?.name||''):''})}}><option value="event">目标事件发生时间</option><option value="runtime">规则运行时间</option></select></Field>
-              {scopeBaseline==='event'&&<Field label="目标事件 *"><select value={draft.eventCode||''} disabled={readonly} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);patch({eventCode:event.target.value,eventName:item?.name||''})}}><option value="">请选择目标事件</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>}
+              <Field label="计算基准 *"><select value={scopeBaseline} disabled={readonly} onChange={(event)=>{const baseline=event.target.value as 'event'|'runtime';const target=events[0];patch({timeConfig:{...draft.timeConfig,baseline},eventCode:baseline==='event'?(draft.eventCode||target?.code||''):'',eventName:baseline==='event'?(draft.eventName||target?.name||''):''})}}><option value="event">目标类节点的发生时间</option><option value="runtime">规则运行时间</option></select></Field>
+              {scopeBaseline==='event'&&<Field label="目标类 *"><select value={draft.eventCode||''} disabled={readonly} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);patch({eventCode:event.target.value,eventName:item?.name||''})}}><option value="">请选择目标类</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>}
               <Field label="观察窗口 *"><div className="scope-window-control"><select value={draft.timeConfig.direction||'之前'} disabled={readonly} onChange={(event)=>patch({timeConfig:{...draft.timeConfig,direction:event.target.value}})}><option>之前</option><option>之后</option></select><input type="number" min="1" value={draft.timeConfig.windowValue} disabled={readonly} onChange={(event)=>patch({timeConfig:{...draft.timeConfig,windowValue:Number(event.target.value)}})}/><select value={draft.timeConfig.windowUnit||'天'} disabled={readonly} onChange={(event)=>patch({timeConfig:{...draft.timeConfig,windowUnit:event.target.value}})}><option>小时</option><option>天</option><option>月</option></select></div></Field>
             </>}
           </div>
-          <div className="scope-summary"><Icon name="graph"/><span>{usesTimeWindow?(scopeBaseline==='event'?`以“${draft.eventName||'未选择目标事件'}”为基准，检查${draft.timeConfig.direction}${draft.timeConfig.windowValue||0}${draft.timeConfig.windowUnit}`:`以规则运行时间为基准，检查${draft.timeConfig.direction}${draft.timeConfig.windowValue||0}${draft.timeConfig.windowUnit}`):'按规则运行时的当前有效数据判断，不设置观察窗口'}</span></div>
+          <div className="scope-summary"><Icon name="graph"/><span>{usesTimeWindow?(scopeBaseline==='event'?`以“${draft.eventName||'未选择目标类'}”为基准，检查${draft.timeConfig.direction}${draft.timeConfig.windowValue||0}${draft.timeConfig.windowUnit}`:`以规则运行时间为基准，检查${draft.timeConfig.direction}${draft.timeConfig.windowValue||0}${draft.timeConfig.windowUnit}`):'按规则运行时的当前有效数据判断，不设置观察窗口'}</span></div>
         </div>
         <div className="rule-editor-section detection-condition-section">
           <header><div><strong>判定方式与条件</strong><span>{logicHelp(draft.type)}</span></div><em className={logicDone?'complete':'pending'}>{logicDone?'已完成':'待完成'}</em></header>
@@ -427,7 +427,7 @@ export function RuleAssetEditorPage(){
   </>
 }
 
-function logicHelp(type:RuleItem['type']){return type==='属性'?'添加一个或多个属性判断条件。':type==='字段比对'?'添加一个或多个字段之间的比较条件。':type==='关系路径'?'从主对象出发配置一至两跳关系，并可增加属性约束。':type==='时序'?'添加一个或多个事件发生要求，共用同一观察窗口。':type==='聚合'?'添加一至三个统计指标，并设置组合方式。':'使用受控表达式组合字段、事件、关系和白名单函数。'}
+function logicHelp(type:RuleItem['type']){return type==='属性'?'添加一个或多个属性判断条件。':type==='字段比对'?'添加一个或多个字段之间的比较条件。':type==='关系路径'?'从主对象出发配置一至两跳关系，并可增加属性约束。':type==='时序'?'添加一个或多个类节点发生要求，共用同一观察窗口。':type==='聚合'?'添加一至三个统计指标，并设置组合方式。':'使用受控表达式组合字段、类节点、关系和白名单函数。'}
 function operatorsFor(element?:OntologyElement){const type=element?.dataType||'';if(/数字|金额|日期/.test(type))return['等于','不等于','大于','大于等于','小于','小于等于','为空','不为空'];return['等于','不等于','包含','不包含','为空','不为空']}
 function ConditionRows({conditions,properties,readonly,fieldCompare,onAdd,onUpdate,onRemove}:{conditions:RuleCondition[];properties:OntologyElement[];readonly:boolean;fieldCompare:boolean;onAdd:()=>void;onUpdate:(id:string,next:Partial<RuleCondition>)=>void;onRemove:(id:string)=>void}){
   return <div className="simple-condition-list">{conditions.length>0&&<div className="simple-condition-head"><span>序号</span><span>判断属性</span><span>运算符</span><span>{fieldCompare?'对比属性':'比较值'}</span><span>操作</span></div>}{conditions.map((condition,index)=>{const element=properties.find((item)=>item.code===condition.fieldCode);const unary=['为空','不为空'].includes(condition.operator);return <div className="simple-condition" key={condition.id}><b>{index+1}</b><select value={condition.fieldCode} disabled={readonly} onChange={(event)=>{const next=properties.find((item)=>item.code===event.target.value);onUpdate(condition.id,{fieldCode:event.target.value,fieldName:next?.name||'',fieldType:next?.dataType||'',operator:'等于'})}}><option value="">选择判断属性</option>{properties.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select><select value={condition.operator} disabled={readonly} onChange={(event)=>{const operator=event.target.value;onUpdate(condition.id,{operator,value:['为空','不为空'].includes(operator)?'':condition.value})}}>{operatorsFor(element).map((item)=><option key={item}>{item}</option>)}</select>{unary?<div className="unary-value">无需比较值</div>:fieldCompare?<select value={condition.valueFieldCode||''} disabled={readonly} onChange={(event)=>{const next=properties.find((item)=>item.code===event.target.value);onUpdate(condition.id,{valueMode:'field',value:'',valueFieldCode:event.target.value,valueFieldName:next?.name||''})}}><option value="">选择对比属性</option>{properties.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select>:<input value={condition.value} disabled={readonly} onChange={(event)=>onUpdate(condition.id,{valueMode:'literal',value:event.target.value})} placeholder="输入比较值"/>}{!readonly&&<button onClick={()=>onRemove(condition.id)}><Icon name="close" size={14}/></button>}</div>})}{!conditions.length&&<EmptyState title="尚未配置判断条件" description={fieldCompare?'请选择两个属性进行比较。':'请选择一个属性并输入比较值。'}/>} {!readonly&&<Button icon="plus" onClick={onAdd}>添加判断条件</Button>}</div>
@@ -440,10 +440,10 @@ function LogicSelector({logic,count,readonly,onChange}:{logic:Logic;count:number
 
 function TimeConditionRows({conditions,events,readonly,onAdd,onUpdate,onRemove}:{conditions:TimeCondition[];events:OntologyElement[];readonly:boolean;onAdd:()=>void;onUpdate:(id:string,next:Partial<TimeCondition>)=>void;onRemove:(id:string)=>void}){
   return <div className="time-condition-list">
-    {conditions.length>0&&<div className="time-condition-head"><span>序号</span><span>判断事件</span><span>发生要求</span><span>操作</span></div>}
-    {conditions.map((condition,index)=><div className="time-condition-row" key={condition.id}><b>{index+1}</b><select value={condition.eventCode} disabled={readonly} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);onUpdate(condition.id,{eventCode:event.target.value,eventName:item?.name||''})}}><option value="">选择判断事件</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select><select value={condition.requirement} disabled={readonly} onChange={(event)=>onUpdate(condition.id,{requirement:event.target.value as TimeCondition['requirement']})}><option>必须发生</option><option>不得发生</option></select>{!readonly&&<button type="button" onClick={()=>onRemove(condition.id)}><Icon name="close" size={14}/></button>}</div>)}
-    {!conditions.length&&<EmptyState title="尚未配置事件条件" description="添加一个或多个判断事件，并确定必须发生或不得发生。"/>}
-    {!readonly&&<Button icon="plus" onClick={onAdd}>添加事件条件</Button>}
+    {conditions.length>0&&<div className="time-condition-head"><span>序号</span><span>判断类节点</span><span>发生要求</span><span>操作</span></div>}
+    {conditions.map((condition,index)=><div className="time-condition-row" key={condition.id}><b>{index+1}</b><select value={condition.eventCode} disabled={readonly} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);onUpdate(condition.id,{eventCode:event.target.value,eventName:item?.name||''})}}><option value="">选择判断类</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select><select value={condition.requirement} disabled={readonly} onChange={(event)=>onUpdate(condition.id,{requirement:event.target.value as TimeCondition['requirement']})}><option>必须发生</option><option>不得发生</option></select>{!readonly&&<button type="button" onClick={()=>onRemove(condition.id)}><Icon name="close" size={14}/></button>}</div>)}
+    {!conditions.length&&<EmptyState title="尚未配置时序条件" description="选择一个或多个本体类，并判断对应类节点必须发生或不得发生。"/>}
+    {!readonly&&<Button icon="plus" onClick={onAdd}>添加类节点条件</Button>}
   </div>
 }
 
@@ -461,7 +461,7 @@ function AggregateMetricRows({metrics,properties,readonly,onAdd,onUpdate,onRemov
 function AdvancedExpressionEditor({expression,elements,readonly,onChange}:{expression:string;elements:OntologyElement[];readonly:boolean;onChange:(value:string)=>void}){
   const issue=advancedExpressionIssue(expression)
   const properties=elements.filter((item)=>item.type==='property')
-  const events=elements.filter((item)=>item.type==='event')
+  const events=elements.filter((item)=>item.type==='class')
   const relations=elements.filter((item)=>item.type==='relation')
   const append=(token:string)=>onChange(`${expression}${expression.trim()?'\nAND ':''}${token}`)
   const functionToken=(name:string)=>name==='EVENT_COUNT'?`EVENT_COUNT("", 30, "DAY", "BEFORE")`:name==='EXISTS_PATH'?`EXISTS_PATH("")`:name==='DATE_DIFF'?`DATE_DIFF("", "")`:name==='ABS'?`ABS()`:`${name}("", 30, "DAY", "BEFORE")`
@@ -472,7 +472,7 @@ function AdvancedExpressionEditor({expression,elements,readonly,onChange}:{expre
     {!readonly&&<div className="expression-palette">
       <section><h4>函数</h4><div>{expressionFunctions.map((name)=><button type="button" key={name} onClick={()=>append(functionToken(name))}><strong>{name}</strong><span>{expressionFunctionLabels[name]}</span></button>)}</div></section>
       <section><h4>属性</h4><div>{properties.map((item)=><button type="button" key={item.code} onClick={()=>append(item.code)}><strong>{item.name}</strong><code>{item.code}</code></button>)}</div></section>
-      <section><h4>事件</h4><div>{events.map((item)=><button type="button" key={item.code} onClick={()=>append(`EVENT_COUNT("${item.code}", 30, "DAY", "BEFORE") > 0`)}><strong>{item.name}</strong><code>{item.code}</code></button>)}</div></section>
+      <section><h4>类节点</h4><div>{events.map((item)=><button type="button" key={item.code} onClick={()=>append(`EVENT_COUNT("${item.code}", 30, "DAY", "BEFORE") > 0`)}><strong>{item.name}</strong><code>{item.code}</code></button>)}</div></section>
       <section><h4>关系</h4><div>{relations.map((item)=><button type="button" key={item.code} onClick={()=>append(`EXISTS_PATH("${item.code}")`)}><strong>{item.name}</strong><code>{item.code}</code></button>)}</div></section>
     </div>}
     <div className="expression-help"><strong>支持内容</strong><span>AND、OR、NOT、括号、比较和算术运算；时间单位使用 HOUR、DAY、MONTH，方向使用 BEFORE、AFTER。</span></div>

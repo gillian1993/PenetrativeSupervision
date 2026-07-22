@@ -135,8 +135,8 @@ export async function collectSemanticReferenceIssues(connection, reference, tab 
   const [ontologies]=await connection.query('SELECT id,status FROM ontologies WHERE id=? LIMIT 1',[ontologyId])
   if(!ontologies.length)blockers.push({field:'ontologyId',tab,message:`适用本体 ${ontologyId} 不存在`})
   else if(ontologies[0].status!=='已发布')blockers.push({field:'ontologyId',tab,message:`适用本体 ${ontologyId} 尚未发布`})
-  if(objectCode){const [objects]=await connection.query("SELECT element_id FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND code=? LIMIT 1",[ontologyId,objectCode]);if(!objects.length)blockers.push({field:'objectCode',tab,message:`主对象 ${objectCode} 不存在于适用本体`})}
-  if(eventCode){const [events]=await connection.query("SELECT element_id FROM ontology_elements WHERE ontology_id=? AND element_type='event' AND code=? LIMIT 1",[ontologyId,eventCode]);if(!events.length)blockers.push({field:'eventCode',tab,message:`目标事件 ${eventCode} 不存在于适用本体`})}
+  if(objectCode){const [objects]=await connection.query("SELECT element_id FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND code=? LIMIT 1",[ontologyId,objectCode]);if(!objects.length)blockers.push({field:'objectCode',tab,message:`主对象 ${objectCode} 不存在于适用本体类`})}
+  if(eventCode){const [targets]=await connection.query("SELECT element_id FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND code=? LIMIT 1",[ontologyId,eventCode]);if(!targets.length)blockers.push({field:'eventCode',tab,message:`目标类 ${eventCode} 不存在于适用本体`})}
   const [graphs]=await connection.query('SELECT id,status,ontology_id FROM graph_versions WHERE id=? LIMIT 1',[graphVersion])
   if(!graphs.length)blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 不存在`})
   else {if(graphs[0].status!=='已发布')blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 尚未发布`});if(graphs[0].ontology_id&&graphs[0].ontology_id!==ontologyId)blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 使用的本体与当前配置不一致`})}
@@ -166,7 +166,7 @@ export function validateRuleRecord(rule){
   if(!String(rule.object_code||'').trim())blockers.push({field:'objectCode',tab:'basic',message:'主对象不能为空'})
   const usesTimeWindow=['时序','聚合'].includes(rule.rule_type)
   const scope=normalizeTimeConfig(rule.time_json)
-  if(usesTimeWindow&&scope.baseline==='event'&&!String(rule.event_code||'').trim())blockers.push({field:'eventCode',tab:'conditions',message:'以目标事件为计算基准时，必须配置目标事件'})
+  if(usesTimeWindow&&scope.baseline==='event'&&!String(rule.event_code||'').trim())blockers.push({field:'eventCode',tab:'conditions',message:'以目标类节点为计算基准时，必须配置目标类'})
   if(usesTimeWindow&&!Number(scope.windowValue))blockers.push({field:'window',tab:'conditions',message:'观察窗口必须大于0'})
   if(rule.rule_type==='高级表达式'){
     const advanced=parseJson(rule.condition_json,{})

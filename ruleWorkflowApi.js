@@ -50,7 +50,7 @@ function executionProfile(rule,outcome){
   const aggregate=normalizeAggregateConfig(rule.aggregate_json)
   const root=parseJson(rule.condition_json,{id:'group-root',logic:'AND',items:[]})
   const usesTimeWindow=rule.rule_type==='时序'||rule.rule_type==='聚合'
-  const scopeText=usesTimeWindow?(time.baseline==='runtime'?'以规则运行时间为基准':`以“${rule.event_name||rule.event_code||'目标事件'}”为基准`):'按规则运行时的当前有效数据'
+  const scopeText=usesTimeWindow?(time.baseline==='runtime'?'以规则运行时间为基准':`以“${rule.event_name||rule.event_code||'目标类'}”节点为基准`):'按规则运行时的当前有效数据'
   const windowText=`检查${time.direction}${time.windowValue}${time.windowUnit}`
   let logic='AND';let conditionTexts=[];let machineParts=[]
   if(rule.rule_type==='高级表达式'){

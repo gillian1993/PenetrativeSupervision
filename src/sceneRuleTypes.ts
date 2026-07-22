@@ -6,7 +6,7 @@ export type Logic='AND'|'OR'
 
 export interface ValidationIssue{field:string;tab:string;message:string;ruleId?:string}
 export interface ValidationResult{blockers:ValidationIssue[];warnings:ValidationIssue[];validatedAt:string}
-export interface OntologyElement{id:string;type:'class'|'property'|'relation'|'event';code:string;name:string;dataType:string;constraint:string;description:string}
+export interface OntologyElement{id:string;type:'class'|'property'|'relation';code:string;name:string;dataType:string;constraint:string;description:string}
 
 export interface RuleCondition{
   id:string;fieldCode:string;fieldName:string;fieldType:string;operator:string;
