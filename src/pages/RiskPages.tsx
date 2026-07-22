@@ -132,7 +132,9 @@ export function WarningDetailPage() {
   const [action, setAction] = useState<WarningAction>(null)
   const [graphScale, setGraphScale] = useState(1)
   const [fullScreen, setFullScreen] = useState(false)
-  const [relationFilter, setRelationFilter] = useState('全部关系')
+  const [relationFilter, setRelationFilter] = useState<DatabaseGraphRelationFilter>('核心证据链')
+  const [graphViewMode, setGraphViewMode] = useState<DatabaseGraphViewMode>('风险链视图')
+  const [showGraphEvents, setShowGraphEvents] = useState(false)
   const [evidenceFilter, setEvidenceFilter] = useState('全部')
   const [form, setForm] = useState({ owner: '', dueAt: '2026-07-24 18:00', requirement: '确认风险事实、明确影响范围并提交整改证明材料。', reason: '', evidence: '' })
   const [databaseDetail, setDatabaseDetail] = useState<DemoWarningDetail | null>(null)
@@ -169,12 +171,15 @@ export function WarningDetailPage() {
     }
   }
   const selectedDatabaseNode = databaseDetail?.graph.nodes.find((item) => item.id === selectedNode)
-  const nodeTitle = selectedDatabaseNode?.name || (selectedNode === 'supplier' ? '华北数字科技有限公司' : selectedNode === 'phone' ? '手机号 138****8201' : selectedNode === 'reviewer' ? '评审人员 王**' : selectedNode === 'project' ? '云资源扩容采购项目' : selectedNode === 'bid' ? '中标确认事件' : '工商查询记录')
+  const selectedDatabaseRelation = databaseDetail?.graph.relations.find((item) => item.id === selectedNode)
+  const selectedDatabaseEvent = databaseDetail?.graph.events.find((item) => item.id === selectedNode)
+  const nodeTitle = selectedDatabaseNode?.name || (selectedDatabaseRelation ? ontologyElementName(databaseDetail!, 'relation', selectedDatabaseRelation.relationCode) : selectedDatabaseEvent?.name) || (selectedNode === 'supplier' ? '华北数字科技有限公司' : selectedNode === 'phone' ? '手机号 138****8201' : selectedNode === 'reviewer' ? '评审人员 王**' : selectedNode === 'project' ? '云资源扩容采购项目' : selectedNode === 'bid' ? '中标确认事件' : '工商查询记录')
   const canRelease = warning.status === '待研判' && (!['重大','高'].includes(warning.level) || currentRole === '监管负责人')
   const primaryRun = databaseDetail?.runs[0]
   const relationSummary = databaseDetail?.graph.relations.slice(0, 3).map((item) => item.relationCode).join(' → ') || warning.path
   const databaseGraphVersion = databaseDetail?.graph.id || ('graphVersion' in warning ? String(warning.graphVersion) : '')
-  const detailTabs = [{ key: 'graph', label: '证据子图', count: databaseDetail?.graph.nodes.length ?? (databaseBackedWarning ? 0 : path === 'path1' ? 6 : 5) }, { key: 'timeline', label: '事件时间轴', count: databaseDetail?.graph.events.length ?? (databaseBackedWarning ? 0 : 5) }, { key: 'policies', label: '制度依据', count: 2 }, { key: 'evidence', label: '实际证据', count: databaseDetail?.evidence.length ?? (databaseBackedWarning ? 0 : 8) }]
+  const databaseGraphProjection = databaseDetail ? createDatabaseGraphProjection(databaseDetail, relationFilter) : null
+  const detailTabs = [{ key: 'graph', label: '证据子图', count: databaseGraphProjection?.nodes.length ?? (databaseBackedWarning ? 0 : path === 'path1' ? 6 : 5) }, { key: 'timeline', label: '事件时间轴', count: databaseDetail?.graph.events.length ?? (databaseBackedWarning ? 0 : 5) }, { key: 'policies', label: '制度依据', count: 2 }, { key: 'evidence', label: '实际证据', count: databaseDetail?.evidence.length ?? (databaseBackedWarning ? 0 : 8) }]
   if (databaseDetail?.bidEvaluations.length) detailTabs.push({ key: 'evaluation', label: '智能评标', count: databaseDetail.bidEvaluations.length })
   if (databaseDetail?.tradeCycle.length) detailTabs.push({ key: 'trade', label: '循环贸易', count: databaseDetail.tradeCycle.length })
   return <div className={`warning-detail-page ${fullScreen ? 'evidence-fullscreen' : ''}`}>
@@ -183,11 +188,11 @@ export function WarningDetailPage() {
     {databaseSourced && <div className="alert-box evidence-alert"><Icon name="graph"/><span>节点、关系、事件、评标和贸易明细来自MySQL；预警状态、处理人和工作台待办由演示工作流统一维护，可正常操作。</span><StatusTag>工作流可操作</StatusTag></div>}
     {warning.status === '已升级' && linkedRiskEvent && <div className="alert-box evidence-alert"><Icon name="shield"/><span>该预警已转入风险事件 {linkedRiskEvent.id}，后续处置请在风险事件中完成。</span><Button variant="primary" onClick={() => navigate(`/risk/events/${linkedRiskEvent.id}`)}>查看风险事件</Button></div>}
     {warning.evidenceStatus === '快照异常' && <div className="alert-box danger evidence-alert"><Icon name="warning"/><span>初始证据快照生成失败，当前仅允许查看预警信息；证据补偿不作为预警处置动作展示。</span></div>}
-<section className="evidence-workspace"><aside className="risk-explain"><div className="explain-block"><p className="section-kicker">风险说明</p><h2>{warning.title}</h2><p>{primaryRun?.actualValueSummary || warning.path}</p></div><div className="explain-block"><p className="section-kicker">命中规则</p><div className="rule-hit"><span>{primaryRun?.ruleCode || '演示规则'}</span><strong>{primaryRun?.ruleName || warning.scene}</strong><p>{primaryRun?.actualValueSummary || `命中${warning.scene}，已固化实际证据。`}</p></div></div><div className="explain-block"><p className="section-kicker">核心路径</p><button className="path-card active" onClick={() => setEvidenceFilter('全部')}><b>数据库关系路径</b><span>{relationSummary}</span><small>{databaseDetail ? `${databaseDetail.graph.relations.length}条关系 · ${databaseDetail.graph.nodes.length}个节点` : '2跳 · 完整度100%'}</small></button>{!databaseDetail && <button className={path === 'path2' ? 'path-card active' : 'path-card'} onClick={() => { setPath('path2'); setEvidenceFilter('路径2') }}><b>路径 2 · 辅助证据</b><span>供应商 → 工商记录 → 关联人员</span><small>2跳 · 完整度86%</small></button>}</div><div className="explain-block"><p className="section-kicker">制度依据</p><p className="policy-line">《采购管理制度（演示）》v1.0<br/><b>正式演示前确认对应制度条款。</b></p></div><div className="explain-block"><p className="section-kicker">处理记录</p><ul className="plain-list"><li>生成预警：{warning.generatedAt}</li><li>当前处理人：{warning.owner || '待分配'}</li><li>数据来源：{databaseDetail ? '线上MySQL' : '本地演示数据'}</li></ul></div></aside>
-<main className="evidence-main"><div className="evidence-toolbar"><Tabs value={tab} onChange={setTab} items={detailTabs}/><div className="graph-tools"><select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value)}><option>全部关系</option><option>仅命中关系</option><option>隐藏辅助关系</option></select><button onClick={() => setGraphScale(Math.min(1.5, graphScale + .1))}>＋</button><button onClick={() => setGraphScale(Math.max(.7, graphScale - .1))}>－</button><button onClick={() => setGraphScale(1)}><Icon name="refresh" size={14}/>重置</button><button onClick={() => setFullScreen(!fullScreen)}><Icon name="eye" size={14}/>{fullScreen ? '退出全屏' : '全屏'}</button></div></div>
-{tab === 'graph' && (databaseBackedWarning && detailLoading && !databaseDetail ? <DatabaseGraphLoading/> : <div style={{ transform: `scale(${graphScale})`, transformOrigin: 'center top', transition: '.18s' }}>{databaseDetail ? <DatabaseGraphView detail={databaseDetail} selected={selectedNode} onSelect={setSelectedNode}/> : <EvidenceGraph selected={selectedNode} onSelect={setSelectedNode}/>}</div>)}{tab === 'timeline' && (databaseDetail ? <DatabaseTimeline detail={databaseDetail} onSelect={(key) => { setSelectedNode(key); setTab('graph') }}/> : <Timeline path={path} onSelect={(key) => { setSelectedNode(key); setTab('graph') }}/>) } {tab === 'policies' && <PolicySnapshot/>} {tab === 'evidence' && <EvidenceTable filter={evidenceFilter} onFilter={setEvidenceFilter} onSelect={setSelectedNode} rows={databaseDetail?.evidence}/>} {tab === 'evaluation' && databaseDetail && <BidEvaluationPanel rows={databaseDetail.bidEvaluations}/>} {tab === 'trade' && databaseDetail && <TradeCyclePanel rows={databaseDetail.tradeCycle}/>} </main></section>
+<section className="evidence-workspace"><aside className="risk-explain"><div className="explain-block"><p className="section-kicker">风险说明</p><h2>{warning.title}</h2><p>{primaryRun?.actualValueSummary || warning.path}</p></div><div className="explain-block"><p className="section-kicker">命中规则</p><div className="rule-hit"><span>{primaryRun?.ruleCode || '演示规则'}</span><strong>{primaryRun?.ruleName || warning.scene}</strong><p>{primaryRun?.actualValueSummary || `命中${warning.scene}，已固化实际证据。`}</p></div></div><div className="explain-block"><p className="section-kicker">核心路径</p><button className="path-card active" onClick={() => setEvidenceFilter('全部')}><b>数据库关系路径</b><span>{relationSummary}</span><small>{databaseDetail && databaseGraphProjection ? `显示${databaseGraphProjection.relations.length}/${databaseDetail.graph.relations.length}条关系 · ${databaseGraphProjection.nodes.length}/${databaseDetail.graph.nodes.length}个节点` : '2跳 · 完整度100%'}</small></button>{!databaseDetail && <button className={path === 'path2' ? 'path-card active' : 'path-card'} onClick={() => { setPath('path2'); setEvidenceFilter('路径2') }}><b>路径 2 · 辅助证据</b><span>供应商 → 工商记录 → 关联人员</span><small>2跳 · 完整度86%</small></button>}</div><div className="explain-block"><p className="section-kicker">制度依据</p><p className="policy-line">《采购管理制度（演示）》v1.0<br/><b>正式演示前确认对应制度条款。</b></p></div><div className="explain-block"><p className="section-kicker">处理记录</p><ul className="plain-list"><li>生成预警：{warning.generatedAt}</li><li>当前处理人：{warning.owner || '待分配'}</li><li>数据来源：{databaseDetail ? '线上MySQL' : '本地演示数据'}</li></ul></div></aside>
+<main className="evidence-main"><div className="evidence-toolbar"><Tabs value={tab} onChange={setTab} items={detailTabs}/><div className="graph-tools"><div className="graph-view-switch" aria-label="证据图展示方式"><button className={graphViewMode === '风险链视图' ? 'active' : ''} onClick={() => { setGraphViewMode('风险链视图'); setRelationFilter('核心证据链'); setShowGraphEvents(false) }}>风险链</button><button className={graphViewMode === '完整本体视图' ? 'active' : ''} onClick={() => { setGraphViewMode('完整本体视图'); setRelationFilter('全部关系') }}>完整本体</button></div>{graphViewMode === '完整本体视图' && <select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value as DatabaseGraphRelationFilter)}><option>核心证据链</option><option>仅命中关系</option><option>隐藏辅助关系</option><option>全部关系</option></select>}{databaseDetail && <button className={showGraphEvents ? 'active' : ''} onClick={() => { if (showGraphEvents && selectedDatabaseEvent) setSelectedNode(''); setShowGraphEvents(!showGraphEvents) }}><Icon name="clock" size={14}/>{showGraphEvents ? '隐藏事件' : '显示事件'}</button>}<button onClick={() => setGraphScale(Math.min(1.5, graphScale + .1))}>＋</button><button onClick={() => setGraphScale(Math.max(.7, graphScale - .1))}>－</button><button onClick={() => setGraphScale(1)}><Icon name="refresh" size={14}/>重置</button><button onClick={() => setFullScreen(!fullScreen)}><Icon name="eye" size={14}/>{fullScreen ? '退出全屏' : '全屏'}</button></div></div>
+{tab === 'graph' && (databaseBackedWarning && detailLoading && !databaseDetail ? <DatabaseGraphLoading/> : <div style={{ transform: `scale(${graphScale})`, transformOrigin: 'center top', transition: '.18s' }}>{databaseDetail ? <DatabaseGraphView detail={databaseDetail} filter={relationFilter} viewMode={graphViewMode} showEvents={showGraphEvents} selected={selectedNode} onSelect={setSelectedNode}/> : <EvidenceGraph selected={selectedNode} onSelect={setSelectedNode}/>}</div>)}{tab === 'timeline' && (databaseDetail ? <DatabaseTimeline detail={databaseDetail} onSelect={(key) => { setSelectedNode(key); setShowGraphEvents(true); setTab('graph') }}/> : <Timeline path={path} onSelect={(key) => { setSelectedNode(key); setTab('graph') }}/>) } {tab === 'policies' && <PolicySnapshot/>} {tab === 'evidence' && <EvidenceTable filter={evidenceFilter} onFilter={setEvidenceFilter} onSelect={setSelectedNode} rows={databaseDetail?.evidence}/>} {tab === 'evaluation' && databaseDetail && <BidEvaluationPanel rows={databaseDetail.bidEvaluations}/>} {tab === 'trade' && databaseDetail && <TradeCyclePanel rows={databaseDetail.tradeCycle}/>} </main></section>
 <footer className="fixed-action-bar"><div><span>当前处理人</span><strong>{warning.owner || '待分配'}</strong><small>{databaseSourced ? 'MySQL证据 · 工作流可操作' : `当前角色：${currentRole}`}</small></div><div className="action-group"><Button onClick={() => navigate('/risk/warnings')}>返回</Button>{warning.status === '待研判' && <Button icon="user" onClick={() => openAction('transfer')}>转派</Button>}{canRelease && <Button variant="danger" onClick={() => openAction('release')}>解除预警</Button>}{warning.status === '待研判' && <Button variant="primary" icon="shield" onClick={() => openAction('escalate')}>升级风险事件</Button>}{warning.status === '已升级' && linkedRiskEvent && <Button variant="primary" onClick={() => navigate(`/risk/events/${linkedRiskEvent.id}`)}>查看风险事件</Button>}</div></footer>
-<Drawer open={!!selectedNode} title={nodeTitle} eyebrow={selectedDatabaseNode ? '数据库图谱节点' : selectedNode === 'bid' ? '事件详情' : selectedNode === 'file' ? '证据详情与预览' : selectedNode === 'phone' ? '关系证据详情' : '节点详情'} onClose={() => setSelectedNode('')} footer={<><Button onClick={() => setSelectedNode('')}>关闭</Button><Button variant="primary" onClick={() => setToast('已打开数据库来源记录摘要')}>来源追溯</Button></>}>{selectedDatabaseNode ? <DatabaseNodeDetail node={selectedDatabaseNode} graphId={databaseDetail?.graph.id || ''}/> : <NodeDetail selectedNode={selectedNode} path={path}/>}</Drawer>
+<Drawer modal={false} className="evidence-inspector" open={!!selectedNode} title={nodeTitle} eyebrow={selectedDatabaseNode ? '本体类实例' : selectedDatabaseRelation ? '本体关系实例' : selectedDatabaseEvent ? '本体事件实例' : selectedNode === 'bid' ? '事件详情' : selectedNode === 'file' ? '证据详情与预览' : selectedNode === 'phone' ? '关系证据详情' : '节点详情'} onClose={() => setSelectedNode('')} footer={<><Button onClick={() => setSelectedNode('')}>关闭</Button><Button variant="primary" onClick={() => setToast('已打开数据库来源记录摘要')}>来源追溯</Button></>}>{selectedDatabaseNode ? <DatabaseNodeDetail node={selectedDatabaseNode} detail={databaseDetail!}/> : selectedDatabaseRelation ? <DatabaseRelationDetail relation={selectedDatabaseRelation} detail={databaseDetail!}/> : selectedDatabaseEvent ? <DatabaseEventDetail event={selectedDatabaseEvent} detail={databaseDetail!}/> : <NodeDetail selectedNode={selectedNode} path={path}/>}</Drawer>
     <Modal open={!!action} title={action ? actionMeta[action].title : ''} description={action ? actionMeta[action].description : ''} confirmText={action ? actionMeta[action].confirm : ''} danger={action ? actionMeta[action].danger : false} onClose={() => setAction(null)} onConfirm={execute}>{action && <WarningActionForm action={action} warning={warning} form={form} onChange={setForm}/>}</Modal>
   </div>
 }
@@ -202,11 +207,17 @@ function PolicySnapshot() {
   return <div className="record-list policy-snapshot-list">{rows.map((row)=><article key={`${row[0]}-${row[2]}`}><header><div><strong>{row[0]}</strong><span>{row[1]} · {row[2]}</span></div><StatusTag>已固化</StatusTag></header><p>{row[3]}</p><div className="attachment"><Icon name="file"/><span>制度条款快照 · 发布时版本</span><button>预览</button></div></article>)}</div>
 }
 
+function evidenceDisplayValue(evidence: DemoEvidence) {
+  const parts = evidence.value.split(/\s*\/\s*/)
+  if (parts.length === 2 && parts[1].includes('%')) return `${evidence.type.includes('资金') ? '金额' : '数值'} ${parts[0]} · 比例 ${parts[1]}`
+  return evidence.value
+}
+
 function EvidenceTable({ filter, onFilter, onSelect, rows }: { filter: string; onFilter: (value: string) => void; onSelect: (key: string) => void; rows?: DemoEvidence[] }) {
   if (rows) {
     const sourceTypes = [...new Set(rows.map((row) => row.type))]
     const visible = rows.filter((row) => filter === '全部' || row.type === filter || row.validity === filter)
-    return <div className="evidence-list-view"><div className="evidence-filter"><select value={filter} onChange={(event) => onFilter(event.target.value)}><option>全部</option>{sourceTypes.map((item) => <option key={item}>{item}</option>)}<option>有效</option></select><span>数据库证据 {visible.length} 项</span></div><div className="table-container evidence-table"><table><thead><tr><th>证据编号 / 结论</th><th>类型</th><th>字段 / 关系</th><th>证据值</th><th>来源</th><th>有效性</th><th>采集时间</th></tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><button className="table-link title-cell" onClick={() => onSelect(row.sourceRecord)}><strong>{row.description || row.type}</strong><span>{row.id}</span></button></td><td>{row.type}</td><td>{row.fieldOrRelation}</td><td>{row.value}</td><td>{row.sourceSystem}<small className="cell-sub">{row.sourceRecord}</small></td><td><StatusTag>{row.validity}</StatusTag></td><td>{row.collectedAt}</td></tr>)}</tbody></table></div></div>
+    return <div className="evidence-list-view"><div className="evidence-filter"><select value={filter} onChange={(event) => onFilter(event.target.value)}><option>全部</option>{sourceTypes.map((item) => <option key={item}>{item}</option>)}<option>有效</option></select><span>数据库证据 {visible.length} 项</span></div><div className="table-container evidence-table"><table><thead><tr><th>证据编号 / 结论</th><th>类型</th><th>字段 / 关系</th><th>证据值</th><th>来源</th><th>有效性</th><th>采集时间</th></tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><button className="table-link title-cell" onClick={() => onSelect(row.sourceRecord)}><strong>{row.description || row.type}</strong><span>{row.id}</span></button></td><td>{row.type}</td><td>{row.fieldOrRelation}</td><td>{evidenceDisplayValue(row)}</td><td>{row.sourceSystem}<small className="cell-sub">{row.sourceRecord}</small></td><td><StatusTag>{row.validity}</StatusTag></td><td>{row.collectedAt}</td></tr>)}</tbody></table></div></div>
   }
   const allRows = [['EVI-001','工商主体查询记录','外部数据','华北数字科技','工商司法外部数据','可用','内部','file','路径2'],['EVI-002','供应商报名信息','业务来源记录','华北数字科技','集团ERP采购视图','可用','内部','supplier','路径1'],['EVI-003','评审专家抽取记录','审批记录','王**','OA审批事件接口','可用','敏感','reviewer','路径1'],['EVI-004','共同手机号匹配明细','规则运行','手机号 138****8201','规则运行服务','可用','强敏感','phone','路径1']]
   const visible = allRows.filter((row) => filter === '全部' || row[8] === filter || row[2] === filter)
@@ -215,8 +226,26 @@ function EvidenceTable({ filter, onFilter, onSelect, rows }: { filter: string; o
 
 type DatabaseGraphNode = DemoWarningDetail['graph']['nodes'][number]
 type DatabaseGraphRelation = DemoWarningDetail['graph']['relations'][number]
+type DatabaseGraphEvent = DemoWarningDetail['graph']['events'][number]
 type DatabaseGraphKind = 'person' | 'account' | 'organization' | 'business' | 'entity'
 type DatabaseGraphPoint = { node: DatabaseGraphNode; x: number; y: number; vx: number; vy: number; target: boolean; kind: DatabaseGraphKind }
+type DatabaseGraphEventPoint = { event: DatabaseGraphEvent; x: number; y: number; ownerId: string }
+type DatabaseGraphRelationFilter = '核心证据链' | '仅命中关系' | '隐藏辅助关系' | '全部关系'
+type DatabaseGraphViewMode = '风险链视图' | '完整本体视图'
+type DatabaseGraphLayout = { width: number; height: number; points: DatabaseGraphPoint[]; relations: DatabaseGraphRelation[]; targetId: string; columns?: Array<{ x: number; label: string }> }
+type DatabaseGraphProjection = {
+  nodes: DatabaseGraphNode[]
+  relations: DatabaseGraphRelation[]
+  targetId: string
+  hitRelationIds: Set<string>
+  connectorRelationIds: Set<string>
+}
+type DatabaseGraphEdgeGroup = {
+  id: string
+  fromId: string
+  toId: string
+  relations: DatabaseGraphRelation[]
+}
 
 function databaseGraphKind(classCode: string): DatabaseGraphKind {
   if (classCode.includes('Person')) return 'person'
@@ -226,8 +255,123 @@ function databaseGraphKind(classCode: string): DatabaseGraphKind {
   return 'entity'
 }
 
-function createDatabaseGraphLayout(nodes: DatabaseGraphNode[], relations: DatabaseGraphRelation[], requestedTargetId: string) {
-  const width = 1120
+function resolveDatabaseGraphTarget(nodes: DatabaseGraphNode[], relations: DatabaseGraphRelation[], requestedTargetId: string) {
+  if (nodes.some((node) => node.id === requestedTargetId)) return requestedTargetId
+  const degree = new Map(nodes.map((node) => [node.id, 0]))
+  relations.forEach((relation) => {
+    if (degree.has(relation.fromId)) degree.set(relation.fromId, (degree.get(relation.fromId) || 0) + 1)
+    if (degree.has(relation.toId)) degree.set(relation.toId, (degree.get(relation.toId) || 0) + 1)
+  })
+  return [...nodes].sort((left, right) => (degree.get(right.id) || 0) - (degree.get(left.id) || 0) || left.id.localeCompare(right.id))[0]?.id || ''
+}
+
+function connectorRelationIds(relations: DatabaseGraphRelation[], targetId: string, requiredNodeIds: Set<string>, hitRelationIds: Set<string>) {
+  const adjacency = new Map<string, Array<{ nodeId: string; relation: DatabaseGraphRelation }>>()
+  relations.forEach((relation) => {
+    adjacency.set(relation.fromId, [...(adjacency.get(relation.fromId) || []), { nodeId: relation.toId, relation }])
+    adjacency.set(relation.toId, [...(adjacency.get(relation.toId) || []), { nodeId: relation.fromId, relation }])
+  })
+  adjacency.forEach((items) => items.sort((left, right) => Number(hitRelationIds.has(right.relation.id)) - Number(hitRelationIds.has(left.relation.id)) || Number(Boolean(right.relation.evidenceId)) - Number(Boolean(left.relation.evidenceId)) || left.relation.id.localeCompare(right.relation.id)))
+  const parent = new Map<string, { nodeId: string; relationId: string }>()
+  const visited = new Set(targetId ? [targetId] : [])
+  const queue = targetId ? [targetId] : []
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index]
+    for (const item of adjacency.get(current) || []) {
+      if (visited.has(item.nodeId)) continue
+      visited.add(item.nodeId)
+      parent.set(item.nodeId, { nodeId: current, relationId: item.relation.id })
+      queue.push(item.nodeId)
+    }
+  }
+  const result = new Set<string>()
+  requiredNodeIds.forEach((nodeId) => {
+    let current = nodeId
+    const pathVisited = new Set<string>()
+    while (current && current !== targetId && !pathVisited.has(current)) {
+      pathVisited.add(current)
+      const step = parent.get(current)
+      if (!step) break
+      result.add(step.relationId)
+      current = step.nodeId
+    }
+  })
+  return result
+}
+
+function createDatabaseGraphProjection(detail: DemoWarningDetail, filter: DatabaseGraphRelationFilter): DatabaseGraphProjection {
+  const { nodes, relations } = detail.graph
+  const targetId = resolveDatabaseGraphTarget(nodes, relations, detail.warning.targetId)
+  const warningEvidenceIds = new Set(detail.evidence.map((item) => item.id))
+  const hitRelations = relations.filter((relation) => Boolean(relation.evidenceId && warningEvidenceIds.has(relation.evidenceId)))
+  const hitRelationIds = new Set(hitRelations.map((relation) => relation.id))
+  const evidenceRelations = relations.filter((relation) => Boolean(relation.evidenceId))
+  let projectedRelations = relations
+  const connectorIds = new Set<string>()
+  if (filter === '仅命中关系') projectedRelations = hitRelations
+  if (filter === '隐藏辅助关系') projectedRelations = evidenceRelations.length ? evidenceRelations : relations
+  if (filter === '核心证据链') {
+    const baseRelations = hitRelations.length ? hitRelations : evidenceRelations
+    const requiredNodeIds = new Set(baseRelations.flatMap((relation) => [relation.fromId, relation.toId]))
+    connectorRelationIds(relations, targetId, requiredNodeIds, hitRelationIds).forEach((relationId) => connectorIds.add(relationId))
+    const coreIds = new Set([...baseRelations.map((relation) => relation.id), ...connectorIds])
+    projectedRelations = coreIds.size ? relations.filter((relation) => coreIds.has(relation.id)) : relations.filter((relation) => relation.fromId === targetId || relation.toId === targetId)
+  }
+  const visibleNodeIds = new Set(projectedRelations.flatMap((relation) => [relation.fromId, relation.toId]))
+  if (targetId) visibleNodeIds.add(targetId)
+  const projectedNodes = filter === '全部关系' ? nodes : nodes.filter((node) => visibleNodeIds.has(node.id))
+  return { nodes: projectedNodes, relations: projectedRelations, targetId, hitRelationIds, connectorRelationIds: connectorIds }
+}
+
+function groupDatabaseGraphRelations(relations: DatabaseGraphRelation[]) {
+  const groups = new Map<string, DatabaseGraphEdgeGroup>()
+  relations.forEach((relation) => {
+    const key = `${relation.fromId}\u0000${relation.toId}`
+    const current = groups.get(key)
+    if (current) {
+      current.relations.push(relation)
+    } else {
+      groups.set(key, { id: relation.id, fromId: relation.fromId, toId: relation.toId, relations: [relation] })
+    }
+  })
+  return [...groups.values()]
+}
+
+function ontologyElement(detail: DemoWarningDetail, type: 'class' | 'property' | 'relation' | 'event', code: string) {
+  return detail.ontology?.elements.find((item) => item.type === type && item.code === code)
+}
+
+function ontologyElementName(detail: DemoWarningDetail, type: 'class' | 'property' | 'relation' | 'event', code: string) {
+  return ontologyElement(detail, type, code)?.name || code.split('.').at(-1) || code
+}
+
+function ontologyPropertyDefinition(detail: DemoWarningDetail, node: DatabaseGraphNode, propertyKey: string) {
+  const fullCode = `${node.classCode}.${propertyKey}`
+  return ontologyElement(detail, 'property', fullCode) || detail.ontology?.elements.find((item) => item.type === 'property' && item.ownerCode === node.classCode && item.code.endsWith(`.${propertyKey}`))
+}
+
+function databasePropertyValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return '—'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+function databaseRelationLabel(group: DatabaseGraphEdgeGroup, detail: DemoWarningDetail) {
+  const names = [...new Set(group.relations.map((relation) => ontologyElementName(detail, 'relation', relation.relationCode)))]
+  const primary = names[0].length > 9 ? `${names[0].slice(0, 8)}…` : names[0]
+  return names.length > 1 ? `${primary} 等${names.length}种` : primary
+}
+
+function databaseRelationVerification(detail: DemoWarningDetail, relation: DatabaseGraphRelation) {
+  const evidence = detail.evidence.find((item) => item.id === relation.evidenceId)
+  if (!evidence) return '待核查'
+  if (evidence.validity === '有效' || evidence.validity === '已核验') return '已核验'
+  if (evidence.validity === '无效' || evidence.validity === '数据冲突') return '数据冲突'
+  return '待核验'
+}
+
+function createDatabaseGraphLayout(nodes: DatabaseGraphNode[], relations: DatabaseGraphRelation[], requestedTargetId: string): DatabaseGraphLayout {
+  const width = 900
   const height = 650
   const centerX = width / 2
   const centerY = height / 2 + 18
@@ -237,7 +381,7 @@ function createDatabaseGraphLayout(nodes: DatabaseGraphNode[], relations: Databa
     if (degree.has(relation.fromId)) degree.set(relation.fromId, (degree.get(relation.fromId) || 0) + 1)
     if (degree.has(relation.toId)) degree.set(relation.toId, (degree.get(relation.toId) || 0) + 1)
   })
-  const targetId = nodes.some((node) => node.id === requestedTargetId) ? requestedTargetId : [...nodes].sort((a, b) => (degree.get(b.id) || 0) - (degree.get(a.id) || 0))[0].id
+  const targetId = resolveDatabaseGraphTarget(nodes, relations, requestedTargetId)
   const ordered = [...nodes].sort((a, b) => Number(b.id === targetId) - Number(a.id === targetId) || (degree.get(b.id) || 0) - (degree.get(a.id) || 0) || a.id.localeCompare(b.id))
   const points: DatabaseGraphPoint[] = []
   let orbitIndex = 0
@@ -248,7 +392,7 @@ function createDatabaseGraphLayout(nodes: DatabaseGraphNode[], relations: Databa
       return
     }
     const angle = orbitIndex * Math.PI * (3 - Math.sqrt(5))
-    const radius = 170 + orbitIndex % 4 * 48
+    const radius = 230 + orbitIndex % 4 * 65
     points.push({ node, x: centerX + Math.cos(angle) * radius, y: centerY + Math.sin(angle) * radius * .82, vx: 0, vy: 0, target, kind: databaseGraphKind(node.classCode) })
     orbitIndex += 1
   })
@@ -264,7 +408,7 @@ function createDatabaseGraphLayout(nodes: DatabaseGraphNode[], relations: Databa
         if (Math.abs(dx) + Math.abs(dy) < .01) { dx = (right + 1) * .01; dy = (left + 1) * .01 }
         const distanceSquared = Math.max(625, dx * dx + dy * dy)
         const distance = Math.sqrt(distanceSquared)
-        const force = 5200 / distanceSquared
+        const force = 18000 / distanceSquared
         const forceX = dx / distance * force
         const forceY = dy / distance * force
         forces[left].x -= forceX; forces[left].y -= forceY
@@ -275,7 +419,7 @@ function createDatabaseGraphLayout(nodes: DatabaseGraphNode[], relations: Databa
       const dx = points[to].x - points[from].x
       const dy = points[to].y - points[from].y
       const distance = Math.max(1, Math.hypot(dx, dy))
-      const pull = (distance - 118) * .014
+      const pull = (distance - 175) * .01
       const forceX = dx / distance * pull
       const forceY = dy / distance * pull
       forces[from].x += forceX; forces[from].y += forceY
@@ -283,36 +427,268 @@ function createDatabaseGraphLayout(nodes: DatabaseGraphNode[], relations: Databa
     })
     points.forEach((point, index) => {
       if (point.target) { point.x = centerX; point.y = centerY; point.vx = 0; point.vy = 0; return }
-      forces[index].x += (centerX - point.x) * .0035
-      forces[index].y += (centerY - point.y) * .0035
+      forces[index].x += (centerX - point.x) * .0015
+      forces[index].y += (centerY - point.y) * .0015
       point.vx = (point.vx + forces[index].x) * .76
       point.vy = (point.vy + forces[index].y) * .76
-      point.x = Math.min(width - 48, Math.max(48, point.x + point.vx))
-      point.y = Math.min(height - 45, Math.max(72, point.y + point.vy))
+      point.x = Math.min(width - 55, Math.max(55, point.x + point.vx))
+      point.y = Math.min(height - 48, Math.max(85, point.y + point.vy))
     })
   }
   return { width, height, points, relations: visibleRelations, targetId }
+}
+
+function createDatabaseRiskChainLayout(nodes: DatabaseGraphNode[], relations: DatabaseGraphRelation[], requestedTargetId: string): DatabaseGraphLayout {
+  const targetId = resolveDatabaseGraphTarget(nodes, relations, requestedTargetId)
+  const adjacency = new Map(nodes.map((node) => [node.id, [] as string[]]))
+  const degree = new Map(nodes.map((node) => [node.id, 0]))
+  relations.forEach((relation) => {
+    if (adjacency.has(relation.fromId) && adjacency.has(relation.toId)) {
+      adjacency.get(relation.fromId)!.push(relation.toId)
+      adjacency.get(relation.toId)!.push(relation.fromId)
+      degree.set(relation.fromId, (degree.get(relation.fromId) || 0) + 1)
+      degree.set(relation.toId, (degree.get(relation.toId) || 0) + 1)
+    }
+  })
+  const distance = new Map<string, number>()
+  const queue = targetId ? [targetId] : []
+  if (targetId) distance.set(targetId, 0)
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index]
+    for (const next of adjacency.get(current) || []) {
+      if (distance.has(next)) continue
+      distance.set(next, (distance.get(current) || 0) + 1)
+      queue.push(next)
+    }
+  }
+  const connectedMax = Math.max(0, ...distance.values())
+  nodes.forEach((node) => {
+    if (!distance.has(node.id)) distance.set(node.id, connectedMax + 1)
+  })
+  const maxLevel = Math.max(0, ...distance.values())
+  const groups = new Map<number, DatabaseGraphNode[]>()
+  nodes.forEach((node) => {
+    const level = distance.get(node.id) || 0
+    groups.set(level, [...(groups.get(level) || []), node])
+  })
+  const laneRank = (classCode: string) => {
+    if (/(Project|Contract)/i.test(classCode)) return 0
+    if (/(Supplier|Vendor|Organization|Company)/i.test(classCode)) return 1
+    if (/(Order|Item|Document)/i.test(classCode)) return 2
+    if (/(Logistics|Receipt|Invoice)/i.test(classCode)) return 3
+    if (/(Account|Payment)/i.test(classCode)) return 4
+    return 5
+  }
+  groups.forEach((items) => items.sort((left, right) => laneRank(left.classCode) - laneRank(right.classCode) || (degree.get(right.id) || 0) - (degree.get(left.id) || 0) || left.id.localeCompare(right.id)))
+  const width = Math.max(1040, 220 * (maxLevel + 1) + 160)
+  const largestColumn = Math.max(1, ...[...groups.values()].map((items) => items.length))
+  const height = Math.max(650, largestColumn * 100 + 220)
+  const left = 112
+  const right = width - 112
+  const top = 220
+  const bottom = height - 100
+  const points: DatabaseGraphPoint[] = []
+  groups.forEach((items, level) => {
+    const x = maxLevel === 0 ? width / 2 : left + (right - left) * level / maxLevel
+    items.forEach((node, index) => {
+      const y = items.length === 1 ? (top + bottom) / 2 : top + (bottom - top) * index / (items.length - 1)
+      points.push({ node, x, y, vx: 0, vy: 0, target: node.id === targetId, kind: databaseGraphKind(node.classCode) })
+    })
+  })
+  const visibleNodeIds = new Set(points.map((point) => point.node.id))
+  const visibleRelations = relations.filter((relation) => visibleNodeIds.has(relation.fromId) && visibleNodeIds.has(relation.toId))
+  const columns = Array.from({ length: maxLevel + 1 }, (_, level) => ({
+    x: maxLevel === 0 ? width / 2 : left + (right - left) * level / maxLevel,
+    label: level === 0 ? '风险主对象' : level === 1 ? '直接证据' : level === maxLevel ? '关联结果' : '证据链延伸',
+  }))
+  return { width, height, points, relations: visibleRelations, targetId, columns }
 }
 
 function DatabaseGraphLoading() {
   return <div className="database-graph-loading" role="status"><i/><strong>正在加载证据关系图</strong><span>从MySQL读取节点、关系和历史图谱版本，请稍候…</span></div>
 }
 
-function DatabaseGraphView({ detail, selected, onSelect }: { detail: DemoWarningDetail; selected: string; onSelect: (id: string) => void }) {
-  const layout = useMemo(() => createDatabaseGraphLayout(detail.graph.nodes, detail.graph.relations, detail.warning.targetId), [detail.graph.nodes, detail.graph.relations, detail.warning.targetId])
+function createDatabaseEventLayout(events: DatabaseGraphEvent[], visibleNodeIds: Set<string>, width: number, startY: number) {
+  const relatedEvents = events.filter((event) => visibleNodeIds.has(event.objectId) || Boolean(event.actorId && visibleNodeIds.has(event.actorId)) || Boolean(event.organizationId && visibleNodeIds.has(event.organizationId))).sort((left, right) => Number(right.status === '异常') - Number(left.status === '异常') || left.eventTime.localeCompare(right.eventTime))
+  const columns = Math.min(5, Math.max(1, relatedEvents.length))
+  const rows = Math.max(1, Math.ceil(relatedEvents.length / columns))
+  const side = 82
+  const usableWidth = width - side * 2
+  const points: DatabaseGraphEventPoint[] = relatedEvents.map((event, index) => {
+    const column = index % columns
+    const row = Math.floor(index / columns)
+    const ownerId = [event.objectId, event.actorId, event.organizationId].find((id): id is string => Boolean(id && visibleNodeIds.has(id))) || ''
+    return { event, ownerId, x: columns === 1 ? width / 2 : side + column * usableWidth / (columns - 1), y: startY + row * 96 }
+  })
+  return { points, height: startY + (rows - 1) * 96 + 72 }
+}
+
+function databaseGraphCurve(x1: number, y1: number, x2: number, y2: number, index: number, curvature = 18) {
+  const dx = x2 - x1
+  const dy = y2 - y1
+  const length = Math.max(1, Math.hypot(dx, dy))
+  const direction = index % 2 === 0 ? 1 : -1
+  const offset = direction * (curvature + Math.floor(index / 2) % 3 * 7)
+  const cx = (x1 + x2) / 2 - dy / length * offset
+  const cy = (y1 + y2) / 2 + dx / length * offset
+  return { path: `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`, labelX: .25 * x1 + .5 * cx + .25 * x2, labelY: .25 * y1 + .5 * cy + .25 * y2 }
+}
+
+function DatabaseGraphView({ detail, filter, viewMode, showEvents, selected, onSelect }: { detail: DemoWarningDetail; filter: DatabaseGraphRelationFilter; viewMode: DatabaseGraphViewMode; showEvents: boolean; selected: string; onSelect: (id: string) => void }) {
+  const projection = useMemo(() => createDatabaseGraphProjection(detail, filter), [detail, filter])
+  const riskChain = viewMode === '风险链视图'
+  const layout = useMemo(() => riskChain ? createDatabaseRiskChainLayout(projection.nodes, projection.relations, projection.targetId) : createDatabaseGraphLayout(projection.nodes, projection.relations, projection.targetId), [projection, riskChain])
+  const edgeGroups = useMemo(() => groupDatabaseGraphRelations(layout.relations), [layout.relations])
   const pointById = new Map(layout.points.map((point) => [point.node.id, point]))
-  const labelledRelations = new Set([...layout.relations].sort((a, b) => Number(b.fromId === layout.targetId || b.toId === layout.targetId) - Number(a.fromId === layout.targetId || a.toId === layout.targetId) || b.confidence - a.confidence).slice(0, 14).map((relation) => relation.id))
-  const kindLabels: Record<DatabaseGraphKind, string> = { person: '人员', account: '账户', organization: '主体', business: '业务对象', entity: '实体' }
+  const edgePriority = (left: DatabaseGraphEdgeGroup, right: DatabaseGraphEdgeGroup) => Number(right.fromId === layout.targetId || right.toId === layout.targetId) - Number(left.fromId === layout.targetId || left.toId === layout.targetId) || left.id.localeCompare(right.id)
+  const hitEdges = edgeGroups.filter((group) => group.relations.some((relation) => projection.hitRelationIds.has(relation.id))).sort(edgePriority)
+  const targetEdges = edgeGroups.filter((group) => group.fromId === layout.targetId || group.toId === layout.targetId).sort(edgePriority)
+  const labelledEdges = new Set((riskChain ? edgeGroups : filter === '全部关系' ? [...edgeGroups].sort(edgePriority).slice(0, 14) : edgeGroups).map((group) => group.id))
+  const spacious = layout.points.length <= 12
+  const dense = layout.points.length > 24
+  const nodeRadius = spacious ? 42 : dense ? 29 : 35
+  const targetRadius = nodeRadius + 7
+  const nodeLabelLimit = spacious ? 10 : 8
+  const visibleNodeIds = new Set(layout.points.map((point) => point.node.id))
+  const eventLayout = createDatabaseEventLayout(detail.graph.events, visibleNodeIds, layout.width, layout.height + 54)
+  const canvasHeight = showEvents && eventLayout.points.length ? eventLayout.height + 82 : layout.height
+  const selectedRelation = layout.relations.find((relation) => relation.id === selected)
+  const selectedEvent = detail.graph.events.find((event) => event.id === selected)
+  const selectedEventOwnerId = selectedEvent ? [selectedEvent.objectId, selectedEvent.actorId, selectedEvent.organizationId].find((id) => Boolean(id && visibleNodeIds.has(id))) || '' : ''
+  const graphId = detail.graph.id.replace(/[^a-zA-Z0-9]/g, '')
+  const arrowId = `databaseGraphArrow-${graphId}`
+  const classGradientId = `databaseGraphClass-${graphId}`
+  const coreGradientId = `databaseGraphCore-${graphId}`
+  const eventGradientId = `databaseGraphEvent-${graphId}`
+  let mappedPropertyCount = 0
+  let extensionPropertyCount = 0
+  layout.points.forEach((point) => Object.keys(point.node.properties).forEach((propertyKey) => {
+    if (ontologyPropertyDefinition(detail, point.node, propertyKey)) mappedPropertyCount += 1
+    else extensionPropertyCount += 1
+  }))
   if (!layout.points.length) return <EmptyState title="暂无图谱节点" description="该预警尚未形成可展示的节点与关系。"/>
-  return <div className="database-graph-view"><div className="database-graph-header"><div><strong>证据关系图 · {detail.graph.id}</strong><span>{detail.warning.caseId} · {layout.points.length}个节点 / {layout.relations.length}条关系</span></div><StatusTag>MySQL实时</StatusTag></div><svg viewBox={`0 0 ${layout.width} ${layout.height}`} role="img" aria-label="MySQL实时预警证据子图"><defs><marker id="databaseGraphArrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z"/></marker><filter id="databaseGraphShadow" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="6" stdDeviation="5" floodColor="#365f91" floodOpacity=".2"/></filter></defs>{layout.relations.map((relation) => { const from = pointById.get(relation.fromId); const to = pointById.get(relation.toId); if (!from || !to) return null; const dx = to.x - from.x; const dy = to.y - from.y; const length = Math.max(1, Math.hypot(dx, dy)); const fromRadius = from.target ? 36 : 29; const toRadius = to.target ? 36 : 29; const x1 = from.x + dx / length * fromRadius; const y1 = from.y + dy / length * fromRadius; const x2 = to.x - dx / length * toRadius; const y2 = to.y - dy / length * toRadius; const active = selected === relation.fromId || selected === relation.toId; const label = relation.relationCode.length > 12 ? `${relation.relationCode.slice(0, 11)}…` : relation.relationCode; const labelWidth = Math.max(44, label.length * 7 + 16); const middleX = (x1 + x2) / 2; const middleY = (y1 + y2) / 2; return <g key={relation.id} className={`database-graph-edge ${active ? 'active' : ''} ${relation.confidence >= .95 ? 'strong' : ''}`}><title>{pointById.get(relation.fromId)?.node.name} —{relation.relationCode}→ {pointById.get(relation.toId)?.node.name}（置信度{Math.round(relation.confidence * 100)}%）</title><line x1={x1} y1={y1} x2={x2} y2={y2} markerEnd="url(#databaseGraphArrow)"/>{labelledRelations.has(relation.id) && <><rect x={middleX - labelWidth / 2} y={middleY - 10} width={labelWidth} height="19" rx="9.5"/><text x={middleX} y={middleY + 3} textAnchor="middle">{label}</text></>}</g> })}{layout.points.map((point) => { const nodeLabel = point.node.name.length > 8 ? `${point.node.name.slice(0, 7)}…` : point.node.name; return <g key={point.node.id} role="button" tabIndex={0} aria-label={`${kindLabels[point.kind]}：${point.node.name}`} className={`database-graph-node ${point.kind} ${point.target ? 'target' : ''} ${selected === point.node.id ? 'selected' : ''}`} transform={`translate(${point.x},${point.y})`} onClick={() => onSelect(point.node.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelect(point.node.id) }}><title>{point.node.name} · {point.node.classCode} · {point.node.id}</title><circle className="selection" r={point.target ? 40 : 33}/><circle className="sphere" r={point.target ? 34 : 27}/><text className="kind" textAnchor="middle" y="-4">{point.target ? '核心对象' : kindLabels[point.kind]}</text><text className="label" textAnchor="middle" y="11">{nodeLabel}</text></g> })}</svg><div className="database-graph-legend"><span><i className="target"/>核心对象</span><span><i className="person"/>人员</span><span><i className="organization"/>主体</span><span><i className="account"/>账户</span><span><i className="business"/>业务对象</span></div><div className="database-graph-tip">点击节点查看来源记录与属性详情</div></div>
+  return <div className={`database-graph-view ontology-instance-view ${riskChain ? 'risk-chain-view' : 'full-ontology-view'} ${selected ? 'has-selection' : ''} ${spacious ? 'spacious' : dense ? 'dense' : ''}`}>
+    <div className="database-graph-header"><div><strong>本体实例证据图 · {detail.graph.id}</strong><span>{detail.ontology?.name || detail.ontology?.id || '监管本体'} {detail.ontology?.version || ''} · {detail.warning.caseId} · {layout.points.length}/{detail.graph.nodes.length} 个类实例、{layout.relations.length}/{detail.graph.relations.length} 个关系实例、{showEvents ? eventLayout.points.length : 0}/{detail.graph.events.length} 个事件实例</span></div><StatusTag>{viewMode}</StatusTag></div>
+    {riskChain && <div className="database-graph-guide"><b/><span>沿红色箭头从左向右阅读，即为本次风险的核心证据链；浅灰虚线仅用于补充上下文。</span></div>}
+    <svg viewBox={`0 0 ${layout.width} ${canvasHeight}`} role="img" aria-label={`基于本体实例化的MySQL预警证据子图，当前模式${filter}`}>
+      <defs>
+        <marker id={arrowId} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z"/></marker>
+        <radialGradient id={classGradientId} cx="32%" cy="24%"><stop offset="0%" stopColor="#fff"/><stop offset="38%" stopColor="#fff"/><stop offset="68%" stopColor="#d5e5ff"/><stop offset="100%" stopColor="#4d89e3"/></radialGradient>
+        <radialGradient id={coreGradientId} cx="30%" cy="22%"><stop offset="0%" stopColor="#fff"/><stop offset="36%" stopColor="#fff"/><stop offset="66%" stopColor="#c2d9ff"/><stop offset="100%" stopColor="#2b70d2"/></radialGradient>
+        <radialGradient id={eventGradientId} cx="31%" cy="23%"><stop offset="0%" stopColor="#fff"/><stop offset="36%" stopColor="#fff"/><stop offset="68%" stopColor="#e3d8ff"/><stop offset="100%" stopColor="#8256da"/></radialGradient>
+        <filter id="databaseGraphShadow" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="7" stdDeviation="6" floodColor="#365f91" floodOpacity=".22"/></filter>
+      </defs>
+      {riskChain && layout.columns?.map((column, index) => <g className="database-graph-stage-column" key={`${column.label}-${index}`}><line x1={column.x} x2={column.x} y1="164" y2={layout.height - 42}/><rect x={column.x - 46} y="132" width="92" height="24" rx="12"/><text x={column.x} y="148" textAnchor="middle">{column.label}</text></g>)}
+      {edgeGroups.map((group, index) => {
+        const from = pointById.get(group.fromId); const to = pointById.get(group.toId)
+        if (!from || !to) return null
+        const dx = to.x - from.x; const dy = to.y - from.y; const length = Math.max(1, Math.hypot(dx, dy))
+        const fromRadius = from.target ? targetRadius + 3 : nodeRadius + 3; const toRadius = to.target ? targetRadius + 3 : nodeRadius + 3
+        const x1 = from.x + dx / length * fromRadius; const y1 = from.y + dy / length * fromRadius
+        const x2 = to.x - dx / length * toRadius; const y2 = to.y - dy / length * toRadius
+        const geometry = databaseGraphCurve(x1, y1, x2, y2, index)
+        const active = selected === group.id || selected === group.fromId || selected === group.toId
+        const selectedOwnerRelated = Boolean(selectedEventOwnerId && (group.fromId === selectedEventOwnerId || group.toId === selectedEventOwnerId))
+        const muted = Boolean(selected && !active && !selectedOwnerRelated)
+        const hit = group.relations.some((relation) => projection.hitRelationIds.has(relation.id))
+        const connector = !hit && group.relations.some((relation) => projection.connectorRelationIds.has(relation.id))
+        const label = databaseRelationLabel(group, detail); const labelWidth = Math.max(54, label.length * 12 + 20)
+        const relationTitle = group.relations.map((relation) => `${ontologyElementName(detail, 'relation', relation.relationCode)}（${relation.relationCode}，${databaseRelationVerification(detail, relation)}）`).join('；')
+        return <g key={group.id} role="button" tabIndex={0} aria-label={`关系实例：${relationTitle}`} className={`database-graph-edge ${active ? 'active' : ''} ${muted ? 'muted' : ''} ${hit ? 'hit' : connector ? 'connector' : ''}`} onClick={() => onSelect(group.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelect(group.id) }}>
+          <title>{pointById.get(group.fromId)?.node.name} —{relationTitle}→ {pointById.get(group.toId)?.node.name}</title>
+          <path className="edge-hit-area" d={geometry.path}/>
+          <path className="relation-path" d={geometry.path} markerEnd={`url(#${arrowId})`}/>
+          {labelledEdges.has(group.id) && <g className={`relation-label ${!riskChain || hit || active ? 'always' : ''}`}><rect x={geometry.labelX - labelWidth / 2} y={geometry.labelY - 12} width={labelWidth} height="24" rx="12"/><text x={geometry.labelX} y={geometry.labelY + 4} textAnchor="middle">{label}</text></g>}
+        </g>
+      })}
+      {showEvents && eventLayout.points.map((point, index) => {
+        const owner = pointById.get(point.ownerId)
+        if (!owner) return null
+        const eventRadius = dense ? 27 : 32
+        const dx = point.x - owner.x; const dy = point.y - owner.y; const length = Math.max(1, Math.hypot(dx, dy))
+        const ownerRadius = owner.target ? targetRadius + 3 : nodeRadius + 3
+        const x1 = owner.x + dx / length * ownerRadius; const y1 = owner.y + dy / length * ownerRadius
+        const x2 = point.x - dx / length * (eventRadius + 3); const y2 = point.y - dy / length * (eventRadius + 3)
+        const geometry = databaseGraphCurve(x1, y1, x2, y2, index, 12)
+        const eventLinkMuted = Boolean(selected && selected !== point.event.id && selected !== point.ownerId)
+        return <g className={`database-event-link ${selected === point.event.id ? 'active' : ''} ${eventLinkMuted ? 'muted' : ''}`} key={`event-link-${point.event.id}`}><path d={geometry.path} markerEnd={`url(#${arrowId})`}/><text x={geometry.labelX} y={geometry.labelY - 3} textAnchor="middle">发生</text></g>
+      })}
+      {layout.points.map((point) => {
+        const nodeLabel = point.node.name.length > nodeLabelLimit ? `${point.node.name.slice(0, nodeLabelLimit - 1)}…` : point.node.name
+        const className = ontologyElementName(detail, 'class', point.node.classCode)
+        const classLabel = className.length > 7 ? `${className.slice(0, 6)}…` : className
+        const propertyCount = Object.keys(point.node.properties).filter((key) => ontologyPropertyDefinition(detail, point.node, key)).length
+        const selectedNodeRelated = Boolean(selected && layout.relations.some((relation) => (relation.fromId === selected && relation.toId === point.node.id) || (relation.toId === selected && relation.fromId === point.node.id)))
+        const related = Boolean(selectedRelation && (selectedRelation.fromId === point.node.id || selectedRelation.toId === point.node.id)) || selectedEventOwnerId === point.node.id || selectedNodeRelated
+        const muted = Boolean(selected && selected !== point.node.id && !related)
+        return <g key={point.node.id} role="button" tabIndex={0} aria-label={`${className}类实例：${point.node.name}`} className={`database-graph-node ontology-class-instance ${point.target ? 'target' : ''} ${selected === point.node.id ? 'selected' : ''} ${related ? 'related' : ''} ${muted ? 'muted' : ''}`} transform={`translate(${point.x},${point.y})`} onClick={() => onSelect(point.node.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelect(point.node.id) }}>
+          <title>{point.node.name} · 本体类：{className}（{point.node.classCode}）· {point.node.id}</title>
+          <circle className="selection" r={point.target ? targetRadius + 7 : nodeRadius + 7}/>
+          <circle className="sphere" r={point.target ? targetRadius : nodeRadius} style={{ fill: `url(#${point.target ? coreGradientId : classGradientId})` }}/>
+          <text className="kind" textAnchor="middle" y="-16">{point.target ? `核心类 · ${classLabel}` : `本体类 · ${classLabel}`}</text>
+          <text className="label" textAnchor="middle" y="2">{nodeLabel}</text>
+          <text className="instance-id" textAnchor="middle" y="18">{point.node.id}</text>
+          <circle className="property-badge" cx={(point.target ? targetRadius : nodeRadius) - 3} cy={-(point.target ? targetRadius : nodeRadius) + 3} r="12"/>
+          <text className="property-count" x={(point.target ? targetRadius : nodeRadius) - 3} y={-(point.target ? targetRadius : nodeRadius) + 7} textAnchor="middle">{propertyCount}</text>
+        </g>
+      })}
+      {showEvents && eventLayout.points.map((point) => {
+        const eventName = ontologyElementName(detail, 'event', point.event.eventCode)
+        const instanceLabel = point.event.name.length > 10 ? `${point.event.name.slice(0, 9)}…` : point.event.name
+        const eventRadius = dense ? 27 : 32
+        const muted = Boolean(selected && selected !== point.event.id && selected !== point.ownerId)
+        return <g key={point.event.id} role="button" tabIndex={0} aria-label={`${eventName}事件实例：${point.event.name}`} className={`database-graph-event ${point.event.status === '异常' ? 'danger' : ''} ${selected === point.event.id ? 'selected' : ''} ${muted ? 'muted' : ''}`} transform={`translate(${point.x},${point.y})`} onClick={() => onSelect(point.event.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') onSelect(point.event.id) }}>
+          <title>{point.event.name} · 本体事件：{eventName}（{point.event.eventCode}）· {point.event.id}</title>
+          <circle className="selection" r={eventRadius + 7}/>
+          <circle className="sphere" r={eventRadius} style={{ fill: `url(#${eventGradientId})` }}/>
+          <text className="kind" textAnchor="middle" y="-10">事件 · {eventName.length > 6 ? `${eventName.slice(0, 5)}…` : eventName}</text>
+          <text className="label" textAnchor="middle" y="6">{instanceLabel}</text>
+          <text className="instance-id" textAnchor="middle" y="20">{point.event.eventTime.replace(/^\d{4}-/, '').replace(/:\d{2}$/, '')}</text>
+        </g>
+      })}
+    </svg>
+    <div className="database-graph-legend ontology"><span title="球形节点为本体类的业务实例"><i className="ontology-class"/>类实例 <b>{layout.points.length}</b></span><span title="点击类实例查看本体属性定义和值"><i className="ontology-property"/>属性值 <b>{mappedPropertyCount}</b></span><span title="点击带方向的连线查看关系实例详情"><i className="ontology-relation"/>关系实例 <b>{layout.relations.length}</b></span><span title="紫色节点为与当前证据链相关的本体事件实例"><i className="ontology-event"/>事件实例 <b>{showEvents ? eventLayout.points.length : `${eventLayout.points.length}（隐藏）`}</b></span>{extensionPropertyCount > 0 && <span className="ontology-extension" title="来源系统存在、但当前本体尚未定义的字段">扩展字段 {extensionPropertyCount}</span>}</div>
+    <div className="database-graph-tip"><b className="hit-line"/>命中关系 <b className="connector-line"/>辅助连接 · 点击节点、连线或事件查看详情</div>
+  </div>
 }
 
 function DatabaseTimeline({ detail, onSelect }: { detail: DemoWarningDetail; onSelect: (id: string) => void }) {
-  return <div className="timeline">{detail.graph.events.map((event) => <button key={event.id} className={event.status === '异常' ? 'danger' : ''} onClick={() => onSelect(event.objectId)}><i/><time>{event.eventTime}</time><div><strong>{event.name}</strong><span>{event.eventCode} · {event.sourceSystem}</span><small>{event.amount === null ? event.status : `${event.amount.toLocaleString()}元 · ${event.status}`}</small></div></button>)}</div>
+  return <div className="timeline">{detail.graph.events.map((event) => <button key={event.id} className={event.status === '异常' ? 'danger' : ''} onClick={() => onSelect(event.id)}><i/><time>{event.eventTime}</time><div><strong>{event.name}</strong><span>{ontologyElementName(detail, 'event', event.eventCode)} · {event.eventCode}</span><small>{event.amount === null ? event.status : `${event.amount.toLocaleString()}元 · ${event.status}`}</small></div></button>)}</div>
 }
 
-function DatabaseNodeDetail({ node, graphId }: { node: DemoWarningDetail['graph']['nodes'][number]; graphId: string }) {
-  return <><KeyValue items={[{ label: '节点ID', value: node.id }, { label: '节点名称', value: node.name }, { label: '本体类', value: node.classCode }, { label: '案例ID', value: node.caseId }, { label: '来源系统', value: node.sourceSystem }, { label: '来源记录', value: node.sourceRecord }, { label: '图谱版本', value: graphId }, { label: '状态', value: <StatusTag>{node.status}</StatusTag> }]}/><Panel title="属性JSON" className="drawer-section"><pre className="database-json-preview">{JSON.stringify(node.properties, null, 2)}</pre></Panel></>
+function DatabaseNodeDetail({ node, detail }: { node: DemoWarningDetail['graph']['nodes'][number]; detail: DemoWarningDetail }) {
+  const classDefinition = ontologyElement(detail, 'class', node.classCode)
+  const propertyRows = Object.entries(node.properties).map(([propertyKey, value]) => ({ propertyKey, value, definition: ontologyPropertyDefinition(detail, node, propertyKey) }))
+  const mappedRows = propertyRows.filter((row) => row.definition)
+  const extensionRows = propertyRows.filter((row) => !row.definition)
+  const renderRows = (rows: typeof propertyRows) => <div className="database-property-list">{rows.map((row) => <div key={row.propertyKey}><div><strong>{row.definition?.name || row.propertyKey}</strong><small>{row.definition?.code || `${node.classCode}.${row.propertyKey}`}{row.definition?.dataType ? ` · ${row.definition.dataType}` : ''}</small></div><span>{databasePropertyValue(row.value)}</span></div>)}</div>
+  return <><KeyValue items={[{ label: '实例ID', value: node.id }, { label: '实例名称', value: node.name }, { label: '所属本体', value: `${detail.ontology?.name || detail.ontology?.id || '监管本体'} ${detail.ontology?.version || ''}` }, { label: '本体类', value: `${classDefinition?.name || node.classCode}（${node.classCode}）` }, { label: '案例ID', value: node.caseId }, { label: '来源系统', value: node.sourceSystem }, { label: '来源记录', value: node.sourceRecord }, { label: '图谱版本', value: detail.graph.id }, { label: '状态', value: <StatusTag>{node.status}</StatusTag> }]}/><Panel title="本体类定义" className="drawer-section"><KeyValue items={[{ label: '类编码', value: node.classCode }, { label: '约束', value: classDefinition?.constraint || '—' }, { label: '业务说明', value: classDefinition?.description || '—' }]}/></Panel><Panel title={`本体属性值 · ${mappedRows.length}项`} className="drawer-section">{mappedRows.length ? renderRows(mappedRows) : <p className="drawer-note">当前实例没有已映射的本体属性值。</p>}</Panel>{extensionRows.length > 0 && <Panel title={`来源扩展字段 · ${extensionRows.length}项`} className="drawer-section"><div className="alert-box"><Icon name="warning"/><span>以下字段来自业务源系统，当前尚未纳入本体属性定义。</span></div>{renderRows(extensionRows)}</Panel>}</>
+}
+
+function DatabaseRawProperties({ title, properties }: { title: string; properties: Record<string, unknown> }) {
+  const rows = Object.entries(properties)
+  if (!rows.length) return null
+  return <Panel title={`${title} · ${rows.length}项`} className="drawer-section"><div className="database-property-list">{rows.map(([key, value]) => <div key={key}><div><strong>{key}</strong><small>来源实例扩展属性</small></div><span>{databasePropertyValue(value)}</span></div>)}</div></Panel>
+}
+
+function DatabaseRelationDetail({ relation, detail }: { relation: DatabaseGraphRelation; detail: DemoWarningDetail }) {
+  const definition = ontologyElement(detail, 'relation', relation.relationCode)
+  const fromNode = detail.graph.nodes.find((item) => item.id === relation.fromId)
+  const toNode = detail.graph.nodes.find((item) => item.id === relation.toId)
+  const evidence = detail.evidence.find((item) => item.id === relation.evidenceId)
+  const parallelRelations = detail.graph.relations.filter((item) => item.fromId === relation.fromId && item.toId === relation.toId)
+  const fromClass = fromNode ? ontologyElementName(detail, 'class', fromNode.classCode) : '未知类'
+  const toClass = toNode ? ontologyElementName(detail, 'class', toNode.classCode) : '未知类'
+  const verificationStatus = databaseRelationVerification(detail, relation)
+  return <><KeyValue items={[{ label: '关系实例ID', value: relation.id }, { label: '本体关系', value: `${definition?.name || relation.relationCode}（${relation.relationCode}）` }, { label: '起点实例', value: `${fromClass} / ${fromNode?.name || relation.fromId}` }, { label: '终点实例', value: `${toClass} / ${toNode?.name || relation.toId}` }, { label: '核验状态', value: <StatusTag>{verificationStatus}</StatusTag> }, { label: '证据ID', value: relation.evidenceId || '未绑定独立证据' }, { label: '来源系统', value: relation.sourceSystem }, { label: '图谱版本', value: detail.graph.id }]}/><Panel title="本体关系定义" className="drawer-section"><KeyValue items={[{ label: '定义方向', value: `${definition?.ownerCode || fromNode?.classCode || '—'} → ${definition?.targetCode || toNode?.classCode || '—'}` }, { label: '约束', value: definition?.constraint || '—' }, { label: '业务说明', value: definition?.description || '—' }]}/></Panel>{evidence && <Panel title="关联证据" className="drawer-section"><KeyValue items={[{ label: '证据名称', value: evidence.description || evidence.fieldOrRelation }, { label: '证据类型', value: evidence.type }, { label: '证据值', value: evidenceDisplayValue(evidence) }, { label: '有效性', value: evidence.validity }, { label: '采集时间', value: evidence.collectedAt }, { label: '来源记录', value: evidence.sourceRecord }]}/></Panel>}{parallelRelations.length > 1 && <Panel title={`同方向关系实例 · ${parallelRelations.length}条`} className="drawer-section"><div className="database-relation-instance-list">{parallelRelations.map((item) => <div className={item.id === relation.id ? 'active' : ''} key={item.id}><strong>{ontologyElementName(detail, 'relation', item.relationCode)}</strong><span>{item.id} · {databaseRelationVerification(detail, item)}</span></div>)}</div></Panel>}<DatabaseRawProperties title="关系扩展属性" properties={relation.properties}/></>
+}
+
+function DatabaseEventDetail({ event, detail }: { event: DatabaseGraphEvent; detail: DemoWarningDetail }) {
+  const definition = ontologyElement(detail, 'event', event.eventCode)
+  const objectNode = detail.graph.nodes.find((item) => item.id === event.objectId)
+  const actorNode = detail.graph.nodes.find((item) => item.id === event.actorId)
+  const organizationNode = detail.graph.nodes.find((item) => item.id === event.organizationId)
+  return <><KeyValue items={[{ label: '事件实例ID', value: event.id }, { label: '本体事件', value: `${definition?.name || event.eventCode}（${event.eventCode}）` }, { label: '事件名称', value: event.name }, { label: '发生时间', value: event.eventTime }, { label: '业务对象', value: objectNode ? `${ontologyElementName(detail, 'class', objectNode.classCode)} / ${objectNode.name}` : event.objectId }, { label: '参与主体', value: actorNode?.name || event.actorId || '—' }, { label: '所属组织', value: organizationNode?.name || event.organizationId || '—' }, { label: '涉及金额', value: event.amount === null ? '—' : `${event.amount.toLocaleString()}元` }, { label: '状态', value: <StatusTag>{event.status}</StatusTag> }, { label: '来源系统', value: event.sourceSystem }]}/><Panel title="本体事件定义" className="drawer-section"><KeyValue items={[{ label: '事件主体类', value: definition?.ownerCode || objectNode?.classCode || '—' }, { label: '约束', value: definition?.constraint || '—' }, { label: '业务说明', value: definition?.description || '—' }]}/></Panel><DatabaseRawProperties title="事件扩展属性" properties={event.properties}/></>
 }
 
 function BidEvaluationPanel({ rows }: { rows: DemoWarningDetail['bidEvaluations'] }) {
@@ -391,7 +767,9 @@ export function RiskEventDetailPage() {
   const [selectedNode, setSelectedNode] = useState('')
   const [graphScale, setGraphScale] = useState(1)
   const [graphFullScreen, setGraphFullScreen] = useState(false)
-  const [relationFilter, setRelationFilter] = useState('全部关系')
+  const [relationFilter, setRelationFilter] = useState<DatabaseGraphRelationFilter>('核心证据链')
+  const [graphViewMode, setGraphViewMode] = useState<DatabaseGraphViewMode>('风险链视图')
+  const [showGraphEvents, setShowGraphEvents] = useState(false)
   const [sourceDetail, setSourceDetail] = useState<DemoWarningDetail | null>(null)
   const [sourceLoading, setSourceLoading] = useState(Boolean(event))
   const [sourceRefresh, setSourceRefresh] = useState(0)
@@ -416,10 +794,13 @@ export function RiskEventDetailPage() {
 
   if (!event) return <EmptyState title="风险事件不存在或无权访问" description="请从风险事件列表重新进入。"/>
   const selectedSourceNode = sourceDetail?.graph.nodes.find((item) => item.id === selectedNode)
-  const nodeTitle = selectedSourceNode?.name || (selectedNode === 'supplier' ? '华北数字科技有限公司' : selectedNode === 'phone' ? '手机号 138****8201' : selectedNode === 'reviewer' ? '评审人员 王**' : selectedNode === 'project' ? '云资源扩容采购项目' : selectedNode === 'bid' ? '中标确认事件' : '工商查询记录')
+  const selectedSourceRelation = sourceDetail?.graph.relations.find((item) => item.id === selectedNode)
+  const selectedSourceEvent = sourceDetail?.graph.events.find((item) => item.id === selectedNode)
+  const nodeTitle = selectedSourceNode?.name || (selectedSourceRelation ? ontologyElementName(sourceDetail!, 'relation', selectedSourceRelation.relationCode) : selectedSourceEvent?.name) || (selectedNode === 'supplier' ? '华北数字科技有限公司' : selectedNode === 'phone' ? '手机号 138****8201' : selectedNode === 'reviewer' ? '评审人员 王**' : selectedNode === 'project' ? '云资源扩容采购项目' : selectedNode === 'bid' ? '中标确认事件' : '工商查询记录')
   const graphVersion = sourceDetail?.graph.id || 'GRAPH-20260717.2'
-  const graphNodeCount = sourceDetail?.graph.nodes.length ?? 6
-  const graphRelationCount = sourceDetail?.graph.relations.length ?? 5
+  const sourceGraphProjection = sourceDetail ? createDatabaseGraphProjection(sourceDetail, relationFilter) : null
+  const graphNodeCount = sourceGraphProjection?.nodes.length ?? 6
+  const graphRelationCount = sourceGraphProjection?.relations.length ?? 5
   const evidenceCount = sourceDetail?.evidence.length ?? 8
   const openAction = (next: Exclude<EventAction, null>) => {
     setAction(next)
@@ -447,10 +828,10 @@ export function RiskEventDetailPage() {
     <div className="detail-topbar"><div><button className="back-button" onClick={() => navigate('/risk/events')}>‹ 返回风险事件列表</button><p>{event.id}</p><h1>{event.title}</h1></div><div className="detail-top-actions"><Button icon="refresh" onClick={() => { setSourceRefresh((value) => value + 1); setToast('风险事件状态、待办和来源预警证据已刷新') }}>刷新</Button></div></div>
     <section className="summary-strip risk-summary"><div><span>风险等级</span><RiskTag level={event.level}/></div><div><span>当前状态</span><StatusTag>{event.status}</StatusTag></div><div><span>来源预警</span><button className="table-link" onClick={() => navigate(`/risk/warnings/${event.warningId}`)}>{event.warningId}</button></div><div><span>主对象</span><strong>{event.target}</strong></div><div><span>责任组织 / 当前处理人</span><strong>{event.organization}</strong><small>{event.owner || '待分配'}</small></div><div><span>截止时间</span><strong className={event.overdue ? 'danger-text' : ''}>{event.dueAt}</strong><small>{event.overdue ? '已逾期' : '正常'}</small></div></section>
     {event.overdue && event.status !== '已关闭' && <div className="alert-box danger evidence-alert"><Icon name="clock"/><span>当前风险事件已逾期，请优先完成转派、整改或复核。</span></div>}
-    <Panel className="risk-event-detail"><Tabs value={tab} onChange={(value) => { setTab(value); if (value !== 'graph') setGraphFullScreen(false) }} items={[{ key: 'facts', label: '风险事实' }, { key: 'graph', label: '证据子图', count: graphNodeCount }, { key: 'evidence', label: '实际证据', count: evidenceCount }, { key: 'timeline', label: '处理时间线', count: 5 }, { key: 'rectification', label: '整改反馈', count: event.status === '待复核' || event.status === '已关闭' ? 2 : 0 }, { key: 'review', label: '复核记录', count: event.status === '已关闭' ? 2 : event.status === '待复核' ? 1 : 0 }]}/>{tab === 'facts' && <RiskFacts event={event} sourceDetail={sourceDetail}/>} {tab === 'graph' && <div className="risk-event-evidence-view"><div className="risk-event-evidence-banner"><span><Icon name="lock" size={17}/></span><div><strong>来源预警固化证据快照</strong><small>{event.warningId} · {graphVersion} · {graphNodeCount}个节点 / {graphRelationCount}条关系</small></div><StatusTag>{sourceDetail ? 'MySQL快照' : '固化快照'}</StatusTag><Button icon="link" onClick={() => navigate(`/risk/warnings/${event.warningId}`)}>查看来源预警</Button></div><div className="risk-event-evidence-toolbar"><div><strong>证据关系画布</strong><span>与来源预警使用同一图谱版本和证据关系；整改材料作为补充证据单独保存</span></div><div className="graph-tools"><select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value)}><option>全部关系</option><option>仅命中关系</option><option>隐藏辅助关系</option></select><button onClick={() => setGraphScale(Math.min(1.5, graphScale + .1))}>＋</button><button onClick={() => setGraphScale(Math.max(.7, graphScale - .1))}>－</button><button onClick={() => setGraphScale(1)}><Icon name="refresh" size={14}/>重置</button><button onClick={() => setGraphFullScreen(!graphFullScreen)}><Icon name="eye" size={14}/>{graphFullScreen ? '退出全屏' : '全屏'}</button></div></div><div className="risk-event-graph-stage">{sourceLoading ? <DatabaseGraphLoading/> : <div style={{ transform: `scale(${graphScale})`, transformOrigin: 'center top', transition: '.18s' }}>{sourceDetail ? <DatabaseGraphView detail={sourceDetail} selected={selectedNode} onSelect={setSelectedNode}/> : <EvidenceGraph selected={selectedNode} onSelect={setSelectedNode}/>}</div>}</div><div className="risk-event-evidence-footnote"><Icon name="lock" size={14}/><span>风险事件只读复用来源预警升级时对应的证据图谱；后续整改证明不会覆盖初始风险事实。</span></div></div>} {tab === 'evidence' && <EvidenceTable filter="全部" onFilter={() => undefined} onSelect={setSelectedNode} rows={sourceDetail?.evidence}/>} {tab === 'timeline' && <RiskTimeline event={event}/>} {tab === 'rectification' && <RectificationView event={event}/>} {tab === 'review' && <ReviewView event={event}/>}</Panel>
+    <Panel className="risk-event-detail"><Tabs value={tab} onChange={(value) => { setTab(value); if (value !== 'graph') setGraphFullScreen(false) }} items={[{ key: 'facts', label: '风险事实' }, { key: 'graph', label: '证据子图', count: graphNodeCount }, { key: 'evidence', label: '实际证据', count: evidenceCount }, { key: 'timeline', label: '处理时间线', count: 5 }, { key: 'rectification', label: '整改反馈', count: event.status === '待复核' || event.status === '已关闭' ? 2 : 0 }, { key: 'review', label: '复核记录', count: event.status === '已关闭' ? 2 : event.status === '待复核' ? 1 : 0 }]}/>{tab === 'facts' && <RiskFacts event={event} sourceDetail={sourceDetail}/>} {tab === 'graph' && <div className="risk-event-evidence-view"><div className="risk-event-evidence-banner"><span><Icon name="lock" size={17}/></span><div><strong>来源预警固化证据快照</strong><small>{event.warningId} · {graphVersion} · {graphNodeCount}个节点 / {graphRelationCount}条关系</small></div><StatusTag>{sourceDetail ? 'MySQL快照' : '固化快照'}</StatusTag><Button icon="link" onClick={() => navigate(`/risk/warnings/${event.warningId}`)}>查看来源预警</Button></div><div className="risk-event-evidence-toolbar"><div><strong>证据关系画布</strong><span>与来源预警使用同一图谱版本和证据关系；整改材料作为补充证据单独保存</span></div><div className="graph-tools"><div className="graph-view-switch" aria-label="证据图展示方式"><button className={graphViewMode === '风险链视图' ? 'active' : ''} onClick={() => { setGraphViewMode('风险链视图'); setRelationFilter('核心证据链'); setShowGraphEvents(false) }}>风险链</button><button className={graphViewMode === '完整本体视图' ? 'active' : ''} onClick={() => { setGraphViewMode('完整本体视图'); setRelationFilter('全部关系') }}>完整本体</button></div>{graphViewMode === '完整本体视图' && <select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value as DatabaseGraphRelationFilter)}><option>核心证据链</option><option>仅命中关系</option><option>隐藏辅助关系</option><option>全部关系</option></select>}{sourceDetail && <button className={showGraphEvents ? 'active' : ''} onClick={() => { if (showGraphEvents && selectedSourceEvent) setSelectedNode(''); setShowGraphEvents(!showGraphEvents) }}><Icon name="clock" size={14}/>{showGraphEvents ? '隐藏事件' : '显示事件'}</button>}<button onClick={() => setGraphScale(Math.min(1.5, graphScale + .1))}>＋</button><button onClick={() => setGraphScale(Math.max(.7, graphScale - .1))}>－</button><button onClick={() => setGraphScale(1)}><Icon name="refresh" size={14}/>重置</button><button onClick={() => setGraphFullScreen(!graphFullScreen)}><Icon name="eye" size={14}/>{graphFullScreen ? '退出全屏' : '全屏'}</button></div></div><div className="risk-event-graph-stage">{sourceLoading ? <DatabaseGraphLoading/> : <div style={{ transform: `scale(${graphScale})`, transformOrigin: 'center top', transition: '.18s' }}>{sourceDetail ? <DatabaseGraphView detail={sourceDetail} filter={relationFilter} viewMode={graphViewMode} showEvents={showGraphEvents} selected={selectedNode} onSelect={setSelectedNode}/> : <EvidenceGraph selected={selectedNode} onSelect={setSelectedNode}/>}</div>}</div><div className="risk-event-evidence-footnote"><Icon name="lock" size={14}/><span>风险事件只读复用来源预警升级时对应的证据图谱；后续整改证明不会覆盖初始风险事实。</span></div></div>} {tab === 'evidence' && <EvidenceTable filter="全部" onFilter={() => undefined} onSelect={setSelectedNode} rows={sourceDetail?.evidence}/>} {tab === 'timeline' && <RiskTimeline event={event}/>} {tab === 'rectification' && <RectificationView event={event}/>} {tab === 'review' && <ReviewView event={event}/>}</Panel>
     <footer className="fixed-action-bar"><div><span>当前任务</span><strong>{event.status === '待整改' ? '提交整改结果' : event.status === '待复核' ? '完成监管复核' : '事件已闭环'}</strong><small>当前处理人：{event.owner || '待分配'} · 最近更新：{event.updatedAt}</small></div><div className="action-group"><Button onClick={() => navigate('/risk/events')}>返回</Button>{event.status !== '已关闭' && <Button onClick={() => openAction('transfer')}>转派</Button>}{event.status === '待整改' && <Button variant="primary" onClick={() => openAction('submit')}>整改</Button>}{event.status === '待复核' && <Button variant="primary" icon="check" onClick={() => openAction('review')}>复核</Button>}</div></footer>
     <Modal open={!!action} title={action === 'transfer' ? '转派风险事件' : action === 'submit' ? '提交整改结果' : '监管复核'} description="操作成功后将同步更新风险事件、工作台待办、消息和审计日志。" confirmText={action === 'transfer' ? '确认转派' : action === 'review' ? '确认复核' : '提交整改'} danger={action === 'review'} onClose={() => setAction(null)} onConfirm={execute}>{action && <EventActionForm action={action} form={form} onChange={setForm}/>}</Modal>
-    <Drawer open={!!selectedNode} title={nodeTitle} eyebrow={selectedSourceNode ? '来源预警数据库节点' : selectedNode === 'bid' ? '事件详情' : selectedNode === 'file' ? '证据详情与预览' : selectedNode === 'phone' ? '关系证据详情' : '节点详情'} onClose={() => setSelectedNode('')} footer={<><Button onClick={() => setSelectedNode('')}>关闭</Button><Button variant="primary" onClick={() => setToast('已按来源预警快照完成证据溯源')}>来源追溯</Button></>}><div className="alert-box"><Icon name="lock"/><span>当前查看的是风险事件升级时固化的来源预警证据快照。</span></div>{selectedSourceNode ? <DatabaseNodeDetail node={selectedSourceNode} graphId={sourceDetail?.graph.id || ''}/> : <NodeDetail selectedNode={selectedNode} path="path1"/>}</Drawer>
+    <Drawer modal={false} className="evidence-inspector" open={!!selectedNode} title={nodeTitle} eyebrow={selectedSourceNode ? '来源预警本体类实例' : selectedSourceRelation ? '来源预警本体关系实例' : selectedSourceEvent ? '来源预警本体事件实例' : selectedNode === 'bid' ? '事件详情' : selectedNode === 'file' ? '证据详情与预览' : selectedNode === 'phone' ? '关系证据详情' : '节点详情'} onClose={() => setSelectedNode('')} footer={<><Button onClick={() => setSelectedNode('')}>关闭</Button><Button variant="primary" onClick={() => setToast('已按来源预警快照完成证据溯源')}>来源追溯</Button></>}><div className="alert-box"><Icon name="lock"/><span>当前查看的是风险事件升级时固化的来源预警证据快照。</span></div>{selectedSourceNode ? <DatabaseNodeDetail node={selectedSourceNode} detail={sourceDetail!}/> : selectedSourceRelation ? <DatabaseRelationDetail relation={selectedSourceRelation} detail={sourceDetail!}/> : selectedSourceEvent ? <DatabaseEventDetail event={selectedSourceEvent} detail={sourceDetail!}/> : <NodeDetail selectedNode={selectedNode} path="path1"/>}</Drawer>
   </div>
 }
 
@@ -460,7 +841,7 @@ function EventActionForm({ action, form, onChange }: { action: Exclude<EventActi
   return <div className="form-stack"><Field label="复核结论 *"><select value={form.reviewResult} onChange={(event) => onChange({ ...form, reviewResult: event.target.value as typeof form.reviewResult })}><option>通过</option><option>退回整改</option><option>不成立关闭</option></select></Field><Field label="复核说明 *"><textarea value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })}/></Field>{form.reviewResult !== '退回整改' && <Field label="引用证据 *"><input value={form.evidence} onChange={(event) => onChange({ ...form, evidence: event.target.value })} placeholder="例如 EVI-001、整改证明-1.pdf"/></Field>}<div className="alert-box danger"><Icon name="warning"/><span>{form.reviewResult === '退回整改' ? '退回后将恢复原整改责任人待办，事件回到“待整改”。' : '关闭后事件只读，关联待办同步关闭。'}</span></div></div>
 }
 
-function RiskFacts({ event, sourceDetail }: { event: RiskEvent; sourceDetail?: DemoWarningDetail | null }) { return <div className="detail-grid"><Panel title="风险事实摘要"><div className="fact-callout"><Icon name="warning" size={24}/><div><strong>{event.title}</strong><p>来源预警的初始证据快照、规则版本和本体图谱版本已经固化，后续材料以新增记录保存。</p></div></div><KeyValue items={[{ label: '风险场景', value: event.scene }, { label: '主对象', value: event.target }, { label: '来源预警', value: event.warningId }, { label: '本体版本', value: sourceDetail ? 'ONT-PROC-DEMO' : 'BASE v1.6 / PROC v2.2' }, { label: '图谱版本', value: sourceDetail?.graph.id || 'GRAPH-20260717.2' }, { label: '规则版本', value: sourceDetail ? `${sourceDetail.warning.sceneVersion} / ${sourceDetail.runs[0]?.ruleVersionId || '演示规则'}` : 'SCENE v2.3 / RULE v6.1' }]}/></Panel><Panel title="处置要求"><ul className="check-list"><li><Icon name="check"/>确认主体关联事实与责任边界</li><li><Icon name="check"/>落实整改措施并提交证明材料</li><li><Icon name="clock"/>在截止时间前完成当前任务</li><li><Icon name="lock"/>初始证据快照只读不可覆盖</li></ul></Panel></div> }
+function RiskFacts({ event, sourceDetail }: { event: RiskEvent; sourceDetail?: DemoWarningDetail | null }) { return <div className="detail-grid"><Panel title="风险事实摘要"><div className="fact-callout"><Icon name="warning" size={24}/><div><strong>{event.title}</strong><p>来源预警的初始证据快照、规则版本和本体图谱版本已经固化，后续材料以新增记录保存。</p></div></div><KeyValue items={[{ label: '风险场景', value: event.scene }, { label: '主对象', value: event.target }, { label: '来源预警', value: event.warningId }, { label: '本体版本', value: sourceDetail ? `${sourceDetail.ontology?.name || sourceDetail.ontology?.id || 'ONT-PROC-DEMO'} ${sourceDetail.ontology?.version || ''}` : 'BASE v1.6 / PROC v2.2' }, { label: '图谱版本', value: sourceDetail?.graph.id || 'GRAPH-20260717.2' }, { label: '规则版本', value: sourceDetail ? `${sourceDetail.warning.sceneVersion} / ${sourceDetail.runs[0]?.ruleVersionId || '演示规则'}` : 'SCENE v2.3 / RULE v6.1' }]}/></Panel><Panel title="处置要求"><ul className="check-list"><li><Icon name="check"/>确认主体关联事实与责任边界</li><li><Icon name="check"/>落实整改措施并提交证明材料</li><li><Icon name="clock"/>在截止时间前完成当前任务</li><li><Icon name="lock"/>初始证据快照只读不可覆盖</li></ul></Panel></div> }
 
 function RiskTimeline({ event }: { event: RiskEvent }) {
   const rows = [

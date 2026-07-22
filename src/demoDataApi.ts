@@ -50,6 +50,24 @@ export interface DemoRun {
   evidenceStatus: string
 }
 
+export interface DemoOntologyElement {
+  type: 'class' | 'property' | 'relation' | 'event'
+  code: string
+  name: string
+  ownerCode: string
+  targetCode: string
+  dataType: string
+  constraint: string
+  description: string
+}
+
+export interface DemoOntologySnapshot {
+  id: string
+  name: string
+  version: string
+  elements: DemoOntologyElement[]
+}
+
 export interface DemoGraphNode {
   id: string
   classCode: string
@@ -124,6 +142,7 @@ export interface DemoTradeRecord {
 }
 
 export interface DemoWarningDetail {
+  ontology: DemoOntologySnapshot
   warning: DemoWarning
   evidence: DemoEvidence[]
   runs: DemoRun[]

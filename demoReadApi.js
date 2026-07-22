@@ -87,9 +87,18 @@ async function warningDetail(pool,id){
     const [nodeRows]=await pool.query('SELECT * FROM graph_entities WHERE batch_id=? AND graph_id=? AND id IN (?) ORDER BY class_code,id',[batchId,warning.graphVersion,referencedIds])
     nodes=nodeRows
   }
+  const ontologyId=String(nodes[0]?.ontology_id||'')
+  let ontology={id:ontologyId,name:'',version:'',elements:[]}
+  if(ontologyId){
+    const [ontologyRows]=await pool.query('SELECT id,name,version FROM ontologies WHERE id=?',[ontologyId])
+    const [elementRows]=await pool.query('SELECT element_type,code,name,owner_code,target_code,data_type,constraint_desc,description FROM ontology_elements WHERE ontology_id=? ORDER BY element_type,element_id',[ontologyId])
+    const ontologyRow=ontologyRows[0]||{}
+    ontology={id:ontologyId,name:ontologyRow.name||ontologyId,version:ontologyRow.version||'',elements:elementRows.map((row)=>({type:row.element_type,code:row.code,name:row.name,ownerCode:row.owner_code||'',targetCode:row.target_code||'',dataType:row.data_type||'',constraint:row.constraint_desc||'',description:row.description||''}))}
+  }
   const [bidRows]=await pool.query('SELECT * FROM bid_evaluation_scores WHERE batch_id=? AND case_id=? ORDER BY project_id,risk_score DESC,bid_id',[batchId,warning.caseId])
   const [tradeRows]=await pool.query('SELECT * FROM trade_cycle_records WHERE batch_id=? AND case_id=? ORDER BY business_time,business_id',[batchId,warning.caseId])
   return {
+    ontology,
     warning,
     evidence:evidenceRows.map((row)=>({id:row.evidence_id,warningId:row.warning_code,caseId:row.case_id,type:row.evidence_type,sourceSystem:row.source_system,sourceRecord:row.source_record,fieldOrRelation:row.field_or_relation,value:row.evidence_value,collectedAt:formatTime(row.collected_at),validity:row.validity,hash:row.evidence_hash,description:row.description})),
     runs:runRows.map((row)=>{const detail=parseJson(row.evidence_json,{});return{id:row.id,ruleVersionId:row.rule_version_id,ruleCode:row.rule_code||row.rule_version_id,ruleName:row.rule_name||'风险规则',objectId:row.object_code,objectName:row.object_name,outcome:row.outcome,executedAt:formatTime(row.executed_at),actualValueSummary:detail.actualValueSummary||'',riskLevel:detail.riskLevel||warning.level,evidenceStatus:detail.evidenceStatus||warning.evidenceStatus}}),

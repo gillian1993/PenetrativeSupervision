@@ -81,8 +81,8 @@ export function Modal({ open, title, description, children, confirmText = '确�
   return <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="modal" role="dialog" aria-modal="true"><header><div><p className="eyebrow">操作确认</p><h2>{title}</h2>{description && <p>{description}</p>}</div><button className="icon-button" onClick={onClose}><Icon name="close"/></button></header><div className="modal-body">{children}</div><footer><Button onClick={onClose}>取消</Button><Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>{confirmText}</Button></footer></section></div>
 }
 
-export function Drawer({ open, title, eyebrow = '详情', children, onClose, footer }: { open: boolean; title: string; eyebrow?: string; children: ReactNode; onClose: () => void; footer?: ReactNode }) {
-  return <><div className={`drawer-mask ${open ? 'show' : ''}`} onClick={onClose}/><aside className={`drawer ${open ? 'show' : ''}`}><header><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div><button className="icon-button" onClick={onClose}><Icon name="close"/></button></header><div className="drawer-content">{children}</div>{footer && <footer>{footer}</footer>}</aside></>
+export function Drawer({ open, title, eyebrow = '详情', children, onClose, footer, modal = true, className = '' }: { open: boolean; title: string; eyebrow?: string; children: ReactNode; onClose: () => void; footer?: ReactNode; modal?: boolean; className?: string }) {
+  return <>{modal && <div className={`drawer-mask ${open ? 'show' : ''}`} onClick={onClose}/>}<aside className={`drawer ${className} ${open ? 'show' : ''}`}><header><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div><button className="icon-button" onClick={onClose}><Icon name="close"/></button></header><div className="drawer-content">{children}</div>{footer && <footer>{footer}</footer>}</aside></>
 }
 
 export function KeyValue({ items }: { items: { label: string; value: ReactNode }[] }) {

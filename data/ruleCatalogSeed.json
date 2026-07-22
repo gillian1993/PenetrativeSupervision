@@ -3769,7 +3769,7 @@
       "stage": "事前/事中",
       "level": "高",
       "logicDescription": "企业存在经核实的重大负面舆情。",
-      "thresholdDescription": "重大负面舆情置信度≥配置阈值",
+      "thresholdDescription": "重大负面舆情核验状态=已核实",
       "dataSource": "工商公示、司法征信、集团客商主数据、舆情平台",
       "evidenceDescription": "工商快照、司法名单、社保信息、内部黑名单记录",
       "buildStatus": "待接外部数据",
@@ -3880,7 +3880,7 @@
         }
       ],
       "failureStrategy": "进入异常队列",
-      "summary": "企业存在经核实的重大负面舆情。；判定条件：重大负面舆情置信度≥配置阈值。",
+      "summary": "企业存在经核实的重大负面舆情。；判定条件：重大负面舆情核验状态=已核实。",
       "enabled": false
     },
     {
@@ -4546,7 +4546,7 @@
       "stage": "事前/事中",
       "level": "高",
       "logicDescription": "上下游企业注册地址、联系电话或联系人信息重合。",
-      "thresholdDescription": "地址/电话/联系人任一高置信重合",
+      "thresholdDescription": "地址、电话或联系人任一字段标准化后完全重合",
       "dataSource": "工商公示、司法征信、集团客商主数据、舆情平台",
       "evidenceDescription": "工商快照、司法名单、社保信息、内部黑名单记录",
       "buildStatus": "待接外部数据",
@@ -4663,7 +4663,7 @@
         }
       ],
       "failureStrategy": "进入异常队列",
-      "summary": "上下游企业注册地址、联系电话或联系人信息重合。；判定条件：地址/电话/联系人任一高置信重合。",
+      "summary": "上下游企业注册地址、联系电话或联系人信息重合。；判定条件：地址、电话或联系人任一字段标准化后完全重合。",
       "enabled": false
     },
     {
@@ -7483,7 +7483,7 @@
       "stage": "事中",
       "level": "高",
       "logicDescription": "比对文件作者、创建软件、设备、模板哈希和修改时间。",
-      "thresholdDescription": "至少2项高置信元数据相同",
+      "thresholdDescription": "至少2项元数据完全相同",
       "dataSource": "投标文件元数据解析",
       "evidenceDescription": "文件属性、模板哈希、修改记录",
       "buildStatus": "待建设",
@@ -7585,7 +7585,7 @@
         }
       ],
       "failureStrategy": "进入异常队列",
-      "summary": "比对文件作者、创建软件、设备、模板哈希和修改时间。；判定条件：至少2项高置信元数据相同。",
+      "summary": "比对文件作者、创建软件、设备、模板哈希和修改时间。；判定条件：至少2项元数据完全相同。",
       "enabled": false
     },
     {
@@ -7943,7 +7943,7 @@
       "stage": "事中",
       "level": "高",
       "logicDescription": "比对联系人、手机、邮箱和办公地址。",
-      "thresholdDescription": "任一高置信字段重合",
+      "thresholdDescription": "联系人、手机、邮箱或办公地址任一字段完全重合",
       "dataSource": "电子采购平台、工商主数据",
       "evidenceDescription": "报名信息、工商地址、联系方式",
       "buildStatus": "待接外部数据",
@@ -8045,7 +8045,7 @@
         }
       ],
       "failureStrategy": "进入异常队列",
-      "summary": "比对联系人、手机、邮箱和办公地址。；判定条件：任一高置信字段重合。",
+      "summary": "比对联系人、手机、邮箱和办公地址。；判定条件：联系人、手机、邮箱或办公地址任一字段完全重合。",
       "enabled": false
     },
     {
@@ -9796,7 +9796,7 @@
       "stage": "事后",
       "level": "重大",
       "logicDescription": "固定关联供应商群组在多个同类项目中轮流中标且报价排序稳定。",
-      "thresholdDescription": "12个月项目数≥3且轮换规律置信度≥阈值",
+      "thresholdDescription": "12个月项目数≥3且连续轮换中标次数≥2",
       "dataSource": "电子采购平台、工商关联图谱",
       "evidenceDescription": "中标序列、报价排序、群组关系",
       "buildStatus": "待建设",
@@ -9907,7 +9907,7 @@
         }
       ],
       "failureStrategy": "进入异常队列",
-      "summary": "固定关联供应商群组在多个同类项目中轮流中标且报价排序稳定。；判定条件：12个月项目数≥3且轮换规律置信度≥阈值。",
+      "summary": "固定关联供应商群组在多个同类项目中轮流中标且报价排序稳定。；判定条件：12个月项目数≥3且连续轮换中标次数≥2。",
       "enabled": false
     },
     {
@@ -9919,7 +9919,7 @@
       "stage": "事中",
       "level": "重大",
       "logicDescription": "多个投标保证金来自同一账户，同时报价呈等差或稳定梯度。",
-      "thresholdDescription": "保证金来源同一且报价规律置信度≥阈值",
+      "thresholdDescription": "保证金来源同一且报价呈等差或稳定梯度",
       "dataSource": "保证金流水、投标报价",
       "evidenceDescription": "付款账户、报价明细、排列分析",
       "buildStatus": "已实现",
@@ -10030,7 +10030,7 @@
         }
       ],
       "failureStrategy": "进入异常队列",
-      "summary": "多个投标保证金来自同一账户，同时报价呈等差或稳定梯度。；判定条件：保证金来源同一且报价规律置信度≥阈值。",
+      "summary": "多个投标保证金来自同一账户，同时报价呈等差或稳定梯度。；判定条件：保证金来源同一且报价呈等差或稳定梯度。",
       "enabled": false
     },
     {
