@@ -145,7 +145,6 @@ async function getOntology(id,connection=pool){const [rows]=await connection.que
 async function listOntologies(){const [rows]=await pool.query('SELECT * FROM ontologies ORDER BY updated_at DESC,id ASC');const [elements]=await pool.query('SELECT * FROM ontology_elements ORDER BY element_type,element_id');const grouped=new Map();for(const element of elements){if(!grouped.has(element.ontology_id))grouped.set(element.ontology_id,[]);grouped.get(element.ontology_id).push(mapElement(element))}return rows.map((row)=>mapOntology(row,grouped.get(row.id)||[]))}
 async function ontologyAudit(connection,id,action,summary){await connection.query('INSERT INTO ontology_audits (ontology_id,action,summary) VALUES (?,?,?)',[id,action,summary])}
 
-const elementCodePattern=/^[A-Z][A-Za-z0-9]*(\.[A-Za-z][A-Za-z0-9_]*)+$/
 function normalizeElementPayload(payload,typeFallback=''){
   const requestedType=String(payload.type||typeFallback||'').trim()
   const type=requestedType==='event'?'class':requestedType
@@ -164,9 +163,7 @@ function validateOntologyRecord(ontology){
   const blockers=[];const warnings=[]
   const classCodes=new Set(ontology.elements.filter((item)=>item.type==='class').map((item)=>item.code))
   if(!ontology.elements.some((item)=>item.type==='class'))blockers.push({field:'classes',tab:'class',message:'至少需要定义一个本体类'})
-  if(!/^[A-Z0-9_-]{3,64}$/.test(ontology.id))blockers.push({field:'id',tab:'basic',message:'本体编码只能包含大写字母、数字、下划线和中划线'})
   for(const element of ontology.elements){
-    if(!elementCodePattern.test(element.code))blockers.push({field:element.id,tab:element.type,message:`${element.name||element.code} 的元素编码格式无效`})
     if(!String(element.name||'').trim())blockers.push({field:element.id,tab:element.type,message:`${element.code} 的中文名称不能为空`})
     if(element.type==='property'){
       if(!element.ownerCode)blockers.push({field:element.id,tab:'property',message:`属性 ${element.name} 必须选择所属类`})
@@ -201,7 +198,7 @@ async function rejectReferencedClass(connection,id,elementId,code){
 function sendJson(res,status,data){const body=JSON.stringify(data);res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Content-Length':Buffer.byteLength(body)});res.end(body)}
 async function readBody(req){let body='';for await(const chunk of req){body+=chunk;if(body.length>1024*1024)throw Object.assign(new Error('请求内容过大'),{status:413})}return body?JSON.parse(body):{}}
 
-async function createOntology(req,res){const payload=await readBody(req);const id=String(payload.id||'').trim().toUpperCase();if(!/^[A-Z0-9_-]{3,64}$/.test(id))return sendJson(res,400,{message:'本体编码只能包含大写字母、数字、下划线和中划线'});if(!String(payload.name||'').trim())return sendJson(res,400,{message:'本体名称不能为空'});try{await pool.query(`INSERT INTO ontologies (id,name,scope,domain,version,status,description) VALUES (?,?,?,?,?,'草稿',?)`,[id,String(payload.name).trim(),payload.scope||'领域扩展本体',payload.domain||'采购','v0.1',String(payload.description||'')]);await ontologyAudit(pool,id,'新建本体',`${payload.name} / ${payload.domain||'采购'}`);sendJson(res,201,await getOntology(id))}catch(error){if(error?.code==='ER_DUP_ENTRY')return sendJson(res,409,{message:`本体编码 ${id} 已存在`});throw error}}
+async function createOntology(req,res){const payload=await readBody(req);const id=String(payload.id||'').trim();if(!id)return sendJson(res,400,{message:'本体编码不能为空'});if(!String(payload.name||'').trim())return sendJson(res,400,{message:'本体名称不能为空'});try{await pool.query(`INSERT INTO ontologies (id,name,scope,domain,version,status,description) VALUES (?,?,?,?,?,'草稿',?)`,[id,String(payload.name).trim(),payload.scope||'领域扩展本体',payload.domain||'采购','v0.1',String(payload.description||'')]);await ontologyAudit(pool,id,'新建本体',`${payload.name} / ${payload.domain||'采购'}`);sendJson(res,201,await getOntology(id))}catch(error){if(error?.code==='ER_DUP_ENTRY')return sendJson(res,409,{message:`本体编码 ${id} 已存在`});throw error}}
 async function updateOntology(req,res,id){const payload=await readBody(req);const current=await getOntology(id);if(!current)return sendJson(res,404,{message:'本体不存在'});if(current.status==='已发布')return sendJson(res,409,{message:'已发布本体不可直接修改，请复制新版本'});if(payload.name!==undefined&&!String(payload.name).trim())return sendJson(res,400,{message:'本体名称不能为空'});await pool.query('UPDATE ontologies SET name=?,scope=?,domain=?,description=? WHERE id=?',[payload.name??current.name,payload.scope??current.scope,payload.domain??current.domain,payload.description??current.description,id]);await ontologyAudit(pool,id,'保存本体草稿','更新基本信息');sendJson(res,200,await getOntology(id))}
 async function copyOntology(res,id){const connection=await pool.getConnection();try{await connection.beginTransaction();const [rows]=await connection.query('SELECT * FROM ontologies WHERE id=? FOR UPDATE',[id]);if(!rows.length){await connection.rollback();return sendJson(res,404,{message:'本体不存在'})}const source=rows[0];const major=Number(String(source.version).replace(/^v/,'').split('.')[0])||0;const base=id.replace(/-DRAFT-[A-Z0-9]+$/,'');const nextId=`${base}-DRAFT-${Date.now().toString(36).toUpperCase()}`;await connection.query(`INSERT INTO ontologies (id,name,scope,domain,version,class_count,property_count,relation_count,event_count,status,description) VALUES (?,?,?,?,?,?,?,?,?,'草稿',?)`,[nextId,source.name,source.scope,source.domain,`v${major+1}.0`,source.class_count,source.property_count,source.relation_count,source.event_count,source.description]);await connection.query(`INSERT INTO ontology_elements (ontology_id,element_type,code,name,data_type,constraint_desc,description) SELECT ?,element_type,code,name,data_type,constraint_desc,description FROM ontology_elements WHERE ontology_id=?`,[nextId,id]);await ontologyAudit(connection,nextId,'复制本体版本',`${id} → ${nextId}`);await connection.commit();sendJson(res,201,await getOntology(nextId))}catch(error){await connection.rollback();throw error}finally{connection.release()}}
 async function publishOntology(res,id){const current=await getOntology(id);if(!current)return sendJson(res,404,{message:'本体不存在'});if(current.classes<1)return sendJson(res,409,{message:'本体至少需要一个本体类才能发布'});await pool.query("UPDATE ontologies SET status='已发布' WHERE id=?",[id]);await ontologyAudit(pool,id,'发布本体版本',`${current.name} ${current.version}`);sendJson(res,200,await getOntology(id))}
@@ -266,7 +263,6 @@ async function addElementV2(req,res,id){
   if(current.status==='已发布')return sendJson(res,409,{message:'已发布本体不可新增元素'})
   if(!countColumns[payload.type])return sendJson(res,400,{message:'本体元素类型无效'})
   if(!payload.code||!payload.name)return sendJson(res,400,{message:'元素编码和名称不能为空'})
-  if(!elementCodePattern.test(payload.code))return sendJson(res,400,{message:'元素编码格式无效，例如 PROC.Supplier.phone'})
   const owner=payload.type==='class'?'':payload.ownerCode
   const dataType=payload.type==='class'?'本体类':payload.dataType
   const target=payload.type==='relation'?payload.targetCode:''
@@ -296,7 +292,6 @@ async function updateElementV2(req,res,id,elementId){
     if(payload.type&&payload.type!==row.element_type){await connection.rollback();return sendJson(res,400,{message:'元素类型不可修改，请删除后重新新增'})}
     const next=normalizeElementPayload({type:row.element_type,code:payload.code??row.code,name:payload.name??row.name,ownerCode:payload.ownerCode??row.owner_code,targetCode:payload.targetCode??row.target_code,dataType:payload.dataType??row.data_type,constraint:payload.constraint??row.constraint_desc,description:payload.description??row.description},row.element_type)
     if(!next.code||!next.name){await connection.rollback();return sendJson(res,400,{message:'元素编码和名称不能为空'})}
-    if(!elementCodePattern.test(next.code)){await connection.rollback();return sendJson(res,400,{message:'元素编码格式无效，例如 PROC.Supplier.phone'})}
     if(row.element_type==='class'&&next.code!==row.code)await rejectReferencedClass(connection,id,elementId,row.code)
     await connection.query('UPDATE ontology_elements SET code=?,name=?,owner_code=?,target_code=?,data_type=?,constraint_desc=?,description=? WHERE ontology_id=? AND element_id=?',[next.code,next.name,row.element_type==='class'?'':next.ownerCode,row.element_type==='relation'?next.targetCode:'',row.element_type==='class'?'本体类':next.dataType,next.constraint,next.description,id,elementId])
     await resetOntologyDraft(connection,id)

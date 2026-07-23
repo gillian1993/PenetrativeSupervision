@@ -76,8 +76,8 @@ export const useOntologyStore = create<OntologyState>()(
     (set, get) => ({
       ontologies: createInitial(),
       createOntology: (payload) => {
-        const id = payload.id.trim().toUpperCase()
-        if (!/^[A-Z0-9_-]{3,64}$/.test(id)) return { ok: false, message: '本体编码只能包含大写字母、数字、下划线和中划线' }
+        const id = payload.id.trim()
+        if (!id) return { ok: false, message: '本体编码不能为空' }
         if (!payload.name.trim()) return { ok: false, message: '本体名称不能为空' }
         if (get().ontologies.some((item) => item.id === id)) return { ok: false, message: `本体编码 ${id} 已存在` }
         const ontology: OntologyRecord = {

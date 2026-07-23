@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto'
+﻿import { createHash, randomUUID } from 'node:crypto'
 
 const editableStatuses = new Set(['草稿', '待试跑', '待发布'])
 
@@ -302,6 +302,54 @@ async function migrateRuleAssets(pool) {
     CONSTRAINT fk_binding_rule_version FOREIGN KEY (rule_version_id) REFERENCES rule_asset_versions(id) ON DELETE RESTRICT
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS skill_assets (
+    id VARCHAR(64) PRIMARY KEY,
+    code VARCHAR(64) NOT NULL UNIQUE,
+    current_version_id VARCHAR(80) NULL,
+    status VARCHAR(24) NOT NULL DEFAULT '草稿',
+    created_by VARCHAR(80) NOT NULL DEFAULT '尹晨阳',
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS skill_asset_versions (
+    id VARCHAR(80) PRIMARY KEY,
+    skill_id VARCHAR(64) NOT NULL,
+    version VARCHAR(24) NOT NULL,
+    name VARCHAR(160) NOT NULL,
+    skill_type VARCHAR(64) NOT NULL DEFAULT '文档分析',
+    domain VARCHAR(64) NOT NULL DEFAULT '采购',
+    description TEXT NOT NULL,
+    risk_level VARCHAR(16) NOT NULL DEFAULT '高',
+    status VARCHAR(24) NOT NULL DEFAULT '草稿',
+    input_json JSON NOT NULL,
+    config_json JSON NOT NULL,
+    output_json JSON NOT NULL,
+    evidence_json JSON NOT NULL,
+    policy_json JSON NOT NULL,
+    failure_strategy VARCHAR(80) NOT NULL DEFAULT '记录执行异常，不产生预警',
+    summary TEXT NOT NULL,
+    lock_version INT NOT NULL DEFAULT 1,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_skill_asset_version (skill_id,version),
+    KEY idx_skill_asset_status (status,updated_at),
+    CONSTRAINT fk_skill_asset_version_skill FOREIGN KEY (skill_id) REFERENCES skill_assets(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+
+  await pool.query(`CREATE TABLE IF NOT EXISTS scene_skill_bindings (
+    scene_version_id VARCHAR(80) NOT NULL,
+    skill_version_id VARCHAR(80) NOT NULL,
+    enabled TINYINT(1) NOT NULL DEFAULT 1,
+    risk_level_override VARCHAR(16) NULL,
+    parameters_json JSON NOT NULL,
+    priority INT NOT NULL DEFAULT 100,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (scene_version_id,skill_version_id),
+    KEY idx_binding_skill (skill_version_id,scene_version_id),
+    CONSTRAINT fk_skill_binding_scene FOREIGN KEY (scene_version_id) REFERENCES scene_versions(id) ON DELETE CASCADE,
+    CONSTRAINT fk_binding_skill_version FOREIGN KEY (skill_version_id) REFERENCES skill_asset_versions(id) ON DELETE RESTRICT
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await pool.query(`CREATE TABLE IF NOT EXISTS rule_trial_tasks (
     id VARCHAR(80) PRIMARY KEY,
     scene_version_id VARCHAR(80) NOT NULL,
@@ -350,6 +398,20 @@ async function migrateRuleAssets(pool) {
     KEY idx_run_scene (scene_version_id, executed_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
 
+  await pool.query(`CREATE TABLE IF NOT EXISTS skill_run_records (
+    id VARCHAR(80) PRIMARY KEY,
+    scene_version_id VARCHAR(80) NOT NULL,
+    skill_version_id VARCHAR(80) NOT NULL,
+    trial_sample_id BIGINT UNSIGNED NULL,
+    object_code VARCHAR(80) NOT NULL,
+    object_name VARCHAR(200) NOT NULL,
+    outcome VARCHAR(24) NOT NULL,
+    score DECIMAL(6,2) NULL,
+    evidence_json JSON NOT NULL,
+    warning_code VARCHAR(80) NOT NULL DEFAULT '',
+    executed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_skill_run_scene (scene_version_id, executed_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await pool.query(`CREATE TABLE IF NOT EXISTS rule_effect_samples (
     id VARCHAR(80) PRIMARY KEY,
     run_record_id VARCHAR(80) NOT NULL,
@@ -371,6 +433,8 @@ async function migrateRuleAssets(pool) {
     KEY idx_scene_audit (scene_version_id, created_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
 
+  const [skillRows] = await pool.query('SELECT COUNT(*) AS total FROM skill_assets')
+  if (Number(skillRows[0].total) === 0) await seedSkillAssets(pool)
   const [rows] = await pool.query('SELECT COUNT(*) AS total FROM risk_scenes')
   if (Number(rows[0].total) === 0) await seedSceneRules(pool)
   await migrateRuleAssets(pool)
@@ -378,6 +442,23 @@ async function migrateRuleAssets(pool) {
   await pool.query("UPDATE rule_asset_versions SET graph_version='GRAPH-20260717.2' WHERE graph_version='GRAPH-0717.2'")
 }
 
+async function seedSkillAssets(pool){
+  const skills=[
+    {id:'SKILL-BID-DOC-SIM',versionId:'SKV-BID-DOC-SIM-01',code:'SKILL-BID-DOC-SIM',name:'投标文件异常相似检测',type:'文档异常相似检测',description:'对同一项目下不同供应商的投标文件进行语义和版式相似分析，识别异常相似段落、相同错误及格式特征。',level:'高',instruction:'比较同一项目下不同供应商的投标文件，识别异常相似段落、相同错别字、相同格式错误和非模板化表述。',threshold:85,policy:{name:'招标投标管理办法',version:'v2.1',clause:'第三十六条'},evidence:'相似段落及页码'},
+    {id:'SKILL-CONTRACT-BIAS',versionId:'SKV-CONTRACT-BIAS-01',code:'SKILL-CONTRACT-BIAS',name:'合同倾向性条款识别',type:'风险条款识别',description:'识别采购合同中可能排斥竞争、倾向特定供应商或明显偏离标准模板的条款。',level:'中',instruction:'分析合同条款与标准模板的差异，识别可能倾向特定供应商、限制竞争或显著偏离制度要求的内容。',threshold:80,policy:{name:'采购合同管理制度',version:'v3.0',clause:'第十八条'},evidence:'风险条款原文及位置'},
+    {id:'SKILL-DATA-ATTACH-CHECK',versionId:'SKV-DATA-ATTACH-CHECK-01',code:'SKILL-DATA-ATTACH-CHECK',name:'数据与附件一致性核验',type:'数据与附件一致性检查',description:'核验业务系统结构化字段与审批单、合同、报价单等附件中的关键信息是否一致。',level:'中',instruction:'提取附件中的项目、供应商、金额和关键日期，与业务系统字段逐项比对并说明不一致内容。',threshold:90,policy:{name:'采购业务数据质量规范',version:'v1.4',clause:'第九条'},evidence:'字段与附件比对明细'},
+  ]
+  const outputs=[{id:'output-match',name:'是否命中',dataType:'布尔',description:'是否达到风险命中条件'},{id:'output-score',name:'风险评分',dataType:'数字',description:'0至100分'},{id:'output-conclusion',name:'判断结论',dataType:'文本',description:'结构化风险结论'},{id:'output-evidence',name:'证据列表',dataType:'列表',description:'原文、页码或字段比对明细'}]
+  for(const skill of skills){
+    await pool.query("INSERT IGNORE INTO skill_assets (id,code,current_version_id,status) VALUES (?,?,?,'草稿')",[skill.id,skill.code,skill.versionId])
+    await pool.query(`INSERT IGNORE INTO skill_asset_versions (id,skill_id,version,name,skill_type,domain,description,risk_level,status,input_json,config_json,output_json,evidence_json,policy_json,failure_strategy,summary) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,[
+      skill.versionId,skill.id,'v0.1',skill.name,skill.type,'采购',skill.description,skill.level,'草稿',
+      asJson([{id:'input-file',name:'业务附件',sourceType:'附件',source:'场景运行对象关联附件',required:true}]),asJson({instruction:skill.instruction,threshold:skill.threshold}),asJson(outputs),
+      asJson([{id:'evidence-result',name:skill.evidence,source:'Skill分析结果',sourceField:'evidence',attachmentRequirement:'保留原始附件',completeness:'必须包含文件名称、原文位置、分析结果和Skill版本',description:''}]),
+      asJson([{id:'policy-default',...skill.policy,text:''}]),'记录执行异常，不产生预警',`${skill.type}；评分达到${skill.threshold}分时命中，并返回结构化实际证据。`,
+    ])
+  }
+}
 async function seedSceneRules(pool) {
   const common = {
     organizations: ['中国电子云集团', '集团采购中心', '各事业部采购组织'],

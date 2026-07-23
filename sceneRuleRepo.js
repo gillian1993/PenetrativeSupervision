@@ -12,7 +12,8 @@ export const configHash = (value) => createHash('sha256').update(JSON.stringify(
 export function normalizePolicyList(value){const parsed=parseJson(value,[]);const list=Array.isArray(parsed)?parsed:parsed&&typeof parsed==='object'?[parsed]:[];return list.map((item)=>({id:item?.id||'',name:String(item?.name||''),version:String(item?.version||''),clause:String(item?.clause||''),text:String(item?.text||'')}))}
 function evidenceSourceFor(name){return {'业务来源记录':'ERP/采购业务系统','主体信息':'本体主数据、工商司法外部数据','审批记录':'OA/ERP审批流','联系方式来源':'供应商登记、人员主数据','附件材料':'业务系统附件归档','规则运行明细':'规则运行服务'}[name]||'业务来源系统'}
 export function normalizeEvidenceRequirements(value){const parsed=parseJson(value,[]);const list=Array.isArray(parsed)?parsed:[];return list.map((item,index)=>typeof item==='string'?{id:`evidence-${index+1}`,name:item,source:evidenceSourceFor(item),sourceField:'',attachmentRequirement:item==='附件材料'?'必须有附件':'可选附件',completeness:'必须保存来源记录编号和取数批次',description:''}:{id:item?.id||`evidence-${index+1}`,name:String(item?.name||''),source:String(item?.source||''),sourceField:String(item?.sourceField||item?.source_field||''),attachmentRequirement:String(item?.attachmentRequirement||item?.attachment_requirement||'可选附件'),completeness:String(item?.completeness||''),description:String(item?.description||'')})}
-export function normalizePathConfig(value){const parsed=parseJson(value,{});return{hops:Array.isArray(parsed?.hops)?parsed.hops:[],logic:parsed?.logic==='OR'?'OR':'AND',constraints:Array.isArray(parsed?.constraints)?parsed.constraints:[]}}
+export function normalizeSkillInputs(value){const parsed=parseJson(value,[]);return(Array.isArray(parsed)?parsed:[]).map((item,index)=>({id:String(item?.id||`input-${index+1}`),name:String(item?.name||''),sourceType:['对象字段','事件数据','附件','文本'].includes(item?.sourceType)?item.sourceType:'附件',source:String(item?.source||''),required:item?.required!==false}))}
+export function normalizeSkillOutputs(value){const parsed=parseJson(value,[]);return(Array.isArray(parsed)?parsed:[]).map((item,index)=>({id:String(item?.id||`output-${index+1}`),name:String(item?.name||''),dataType:String(item?.dataType||'文本'),description:String(item?.description||'')}))}export function normalizePathConfig(value){const parsed=parseJson(value,{});return{hops:Array.isArray(parsed?.hops)?parsed.hops:[],logic:parsed?.logic==='OR'?'OR':'AND',constraints:Array.isArray(parsed?.constraints)?parsed.constraints:[]}}
 export function normalizeTimeConfig(value){const parsed=parseJson(value,{});const legacyEvent=String(parsed?.eventCode||'');const conditions=Array.isArray(parsed?.conditions)?parsed.conditions:legacyEvent?[{id:'time-legacy',eventCode:legacyEvent,eventName:String(parsed?.eventName||''),requirement:'必须发生'}]:[];return{baseline:parsed?.baseline==='runtime'?'runtime':'event',logic:parsed?.logic==='OR'?'OR':'AND',conditions:conditions.map((item,index)=>({id:item?.id||`time-${index+1}`,eventCode:String(item?.eventCode||''),eventName:String(item?.eventName||''),requirement:item?.requirement==='不得发生'?'不得发生':'必须发生'})),eventCode:legacyEvent,windowValue:Number(parsed?.windowValue??30),windowUnit:String(parsed?.windowUnit||'天'),direction:String(parsed?.direction||'之前')}}
 export function normalizeAggregateConfig(value){const parsed=parseJson(value,{});const legacyField=String(parsed?.fieldCode||'');const metrics=Array.isArray(parsed?.metrics)?parsed.metrics:legacyField?[{id:'metric-legacy',function:String(parsed?.function||'COUNT'),fieldCode:legacyField,fieldName:String(parsed?.fieldName||''),operator:String(parsed?.operator||'大于等于'),threshold:Number(parsed?.threshold||0)}]:[];return{logic:parsed?.logic==='OR'?'OR':'AND',metrics:metrics.map((item,index)=>({id:item?.id||`metric-${index+1}`,function:String(item?.function||'COUNT'),fieldCode:String(item?.fieldCode||''),fieldName:String(item?.fieldName||''),operator:String(item?.operator||'大于等于'),threshold:Number(item?.threshold||0)})),function:String(parsed?.function||metrics[0]?.function||'COUNT'),fieldCode:legacyField||String(metrics[0]?.fieldCode||''),groupBy:String(parsed?.groupBy||''),operator:String(parsed?.operator||metrics[0]?.operator||'大于等于'),threshold:Number(parsed?.threshold??metrics[0]?.threshold??0)}}
 const advancedExpressionFunctions=new Set(['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS'])
@@ -37,6 +38,23 @@ export function effectiveRiskLevel(rule,sceneLevel='高'){const raw=rawRiskLevel
 export function normalizeValidation(value){const validation=parseJson(value,{blockers:[],warnings:[],validatedAt:''});const fix=(item)=>({...item,message:String(item?.message||'').replaceAll('必备证据','证据要求')});return{...validation,blockers:(validation.blockers||[]).map(fix),warnings:(validation.warnings||[]).map(fix)}}
 
 
+export function mapSkillRow(row){
+  const sceneNames=String(row.scene_names||row.scene_name||'').split(/[、,]/).map((item)=>item.trim()).filter(Boolean)
+  const sceneIds=String(row.scene_ids||row.scene_id||'').split(',').map((item)=>item.trim()).filter(Boolean)
+  const config=parseJson(row.config_json,{})
+  const outputs=normalizeSkillOutputs(row.output_json)
+  const reviewDemand=String(config.reviewDemand||config.instruction||row.description||'')
+  const reviewContent=String(config.reviewContent||row.description||reviewDemand)
+  const reviewRequirement=String(config.reviewRequirement||config.instruction||reviewDemand)
+  const expectedOutput=String(config.expectedOutput||outputs.map((item)=>item.name).filter(Boolean).join('、'))
+  return{
+    id:row.skill_id,versionId:row.id,code:row.code,name:row.name,version:row.version,type:row.skill_type,domain:row.domain||'',description:row.description||'',
+    level:row.effective_risk_level||row.risk_level||'高',enabled:row.binding_enabled===undefined?true:Boolean(row.binding_enabled),status:row.status,
+    inputs:normalizeSkillInputs(row.input_json),instruction:String(config.instruction||reviewRequirement),threshold:Number(config.threshold??80),reviewDemand,reviewContent,reviewRequirement,expectedOutput,generatedAt:String(config.generatedAt||''),outputs,
+    policies:normalizePolicyList(row.policy_json),evidenceRequirements:normalizeEvidenceRequirements(row.evidence_json),failureStrategy:row.failure_strategy||'记录执行异常，不产生预警',
+    summary:row.summary||'',lockVersion:Number(row.lock_version||1),updatedAt:row.updated_at,sceneNames,sceneIds,bindingCount:Number(row.binding_count||sceneNames.length||0),priority:Number(row.priority||100),
+  }
+}
 export function mapRuleRow(row) {
   const sceneNames=String(row.scene_names||row.scene_name||'').split(/[、,]/).map((item)=>item.trim()).filter(Boolean)
   const sceneIds=String(row.scene_ids||row.scene_id||'').split(',').map((item)=>item.trim()).filter(Boolean)
@@ -62,7 +80,7 @@ export function mapRuleRow(row) {
   }
 }
 
-export function mapSceneRow(row, rules = [], versions = []) {
+export function mapSceneRow(row, rules = [], skills = [], versions = []) {
   return {
     id:row.scene_id, versionId:row.id, code:row.code, name:row.name, version:row.version, status:row.status,
     domain:row.domain, description:row.description, objectCode:row.object_code, objectName:row.object_name,
@@ -78,6 +96,8 @@ export function mapSceneRow(row, rules = [], versions = []) {
     publishedAt:row.published_at||'', stopReason:row.stop_reason||'', rules,
     ruleCount:rules.length||Number(row.rule_count||0),
     enabledRuleCount:rules.length?rules.filter((item)=>item.enabled).length:Number(row.enabled_rule_count||0), versions,
+    skills,skillCount:skills.length||Number(row.skill_count||0),
+    enabledSkillCount:skills.length?skills.filter((item)=>item.enabled).length:Number(row.enabled_skill_count||0),
     canDelete:editableSceneStatuses.has(row.status)&&Number(row.version_count||versions.length||0)===1&&Number(row.run_count||0)===0,
   }
 }
@@ -97,11 +117,23 @@ export async function getBoundRuleRows(connection,sceneVersionId,enabledOnly=fal
 }
 
 
+export async function getBoundSkillRows(connection,sceneVersionId,enabledOnly=false){
+  const sql=['SELECT sav.*,sa.code,sv.scene_id,sv.name AS scene_name,sv.status AS scene_status,',
+    'b.scene_version_id,b.enabled AS binding_enabled,b.priority,b.risk_level_override,',
+    "COALESCE(b.risk_level_override,NULLIF(sav.risk_level,'继承场景'),sv.risk_level) AS effective_risk_level",
+    'FROM scene_skill_bindings b JOIN skill_asset_versions sav ON sav.id=b.skill_version_id',
+    'JOIN skill_assets sa ON sa.id=sav.skill_id JOIN scene_versions sv ON sv.id=b.scene_version_id',
+    'WHERE b.scene_version_id=?',enabledOnly?'AND b.enabled=1':'','ORDER BY b.priority ASC,sav.updated_at DESC'].filter(Boolean).join(' ')
+  const [rows]=await connection.query(sql,[sceneVersionId])
+  return rows
+}
 export async function getCurrentSceneRow(pool, id, connection = pool) {
   const [rows] = await connection.query(`SELECT sv.*,rs.code,
     (SELECT COUNT(*) FROM scene_rule_bindings b WHERE b.scene_version_id=sv.id) AS rule_count,
     (SELECT COUNT(*) FROM scene_rule_bindings b WHERE b.scene_version_id=sv.id AND b.enabled=1) AS enabled_rule_count,
-    (SELECT COUNT(*) FROM rule_run_records rr WHERE rr.scene_version_id=sv.id) AS run_count,
+    (SELECT COUNT(*) FROM scene_skill_bindings b WHERE b.scene_version_id=sv.id) AS skill_count,
+    (SELECT COUNT(*) FROM scene_skill_bindings b WHERE b.scene_version_id=sv.id AND b.enabled=1) AS enabled_skill_count,
+    ((SELECT COUNT(*) FROM rule_run_records rr WHERE rr.scene_version_id=sv.id)+(SELECT COUNT(*) FROM skill_run_records sr WHERE sr.scene_version_id=sv.id)) AS run_count,
     (SELECT status FROM rule_trial_tasks tt WHERE tt.id=sv.last_trial_id) AS last_trial_status
     FROM risk_scenes rs JOIN scene_versions sv ON sv.id=rs.current_version_id
     WHERE rs.id=? OR rs.code=? OR sv.id=? LIMIT 1`,[id,id,id])
@@ -112,8 +144,9 @@ export async function getSceneAggregate(pool,id) {
   const row=await getCurrentSceneRow(pool,id)
   if(!row)return null
   const rules=await getBoundRuleRows(pool,row.id)
+  const skills=await getBoundSkillRows(pool,row.id)
   const [versions]=await pool.query(`SELECT id,version,status,updated_by,updated_at,published_at,source_version_id FROM scene_versions WHERE scene_id=? ORDER BY created_at DESC`,[row.scene_id])
-  return mapSceneRow(row,rules.map(mapRuleRow),versions.map((item)=>({id:item.id,version:item.version,status:item.status,updatedBy:item.updated_by,updatedAt:item.updated_at,publishedAt:item.published_at||'',sourceVersionId:item.source_version_id||''})))
+  return mapSceneRow(row,rules.map(mapRuleRow),skills.map(mapSkillRow),versions.map((item)=>({id:item.id,version:item.version,status:item.status,updatedBy:item.updated_by,updatedAt:item.updated_at,publishedAt:item.published_at||'',sourceVersionId:item.source_version_id||''})))
 }
 
 export function collectConditionIssues(group,issues,depth=1){
@@ -207,6 +240,26 @@ export function validateRuleRecord(rule){
   return {blockers,warnings}
 }
 
-export function snapshotForHash(scene,rules){
-  return {scene:{name:scene.name,domain:scene.domain,description:scene.description,level:scene.risk_level,organizations:parseJson(scene.organization_json,[]),objectScope:parseJson(scene.object_scope_json,{}),exceptions:parseJson(scene.exception_json,{}),checkTemplate:parseJson(scene.check_template_json,{})},rules:rules.map((rule)=>({id:rule.id,name:rule.name,type:rule.rule_type,level:effectiveRiskLevel(rule,scene.risk_level),enabled:Boolean(rule.binding_enabled===undefined?rule.enabled:rule.binding_enabled),ontologyId:rule.ontology_id,graphVersion:rule.graph_version,objectCode:rule.object_code,eventCode:rule.event_code,conditions:parseJson(rule.condition_json,{}),path:normalizePathConfig(rule.path_json),time:normalizeTimeConfig(rule.time_json),aggregate:normalizeAggregateConfig(rule.aggregate_json),exceptions:parseJson(rule.exception_json,{}),outputs:parseJson(rule.output_json,[]),evidence:normalizeEvidenceRequirements(rule.evidence_json),policies:normalizePolicyList(rule.policy_json),failureStrategy:rule.failure_strategy}))}
+export function validateSkillRecord(skill){
+  const blockers=[];const warnings=[]
+  const config=parseJson(skill.config_json,{})
+  const reviewDemand=String(config.reviewDemand||config.instruction||skill.description||'').trim()
+  const reviewContent=String(config.reviewContent||skill.description||'').trim()
+  const reviewRequirement=String(config.reviewRequirement||config.instruction||'').trim()
+  const expectedOutput=String(config.expectedOutput||normalizeSkillOutputs(skill.output_json).map((item)=>item.name).filter(Boolean).join('、')).trim()
+  if(!String(skill.name||'').trim())blockers.push({field:'name',tab:'basic',message:'Skill名称不能为空'})
+  if(!String(skill.domain||'').trim())blockers.push({field:'domain',tab:'basic',message:'监管领域不能为空'})
+  if(!reviewDemand)blockers.push({field:'reviewDemand',tab:'generate',message:'审查需求不能为空'})
+  if(!reviewContent)blockers.push({field:'reviewContent',tab:'generate',message:'请先生成审查内容'})
+  if(!reviewRequirement)blockers.push({field:'reviewRequirement',tab:'generate',message:'请先生成审查要求'})
+  if(!expectedOutput)blockers.push({field:'expectedOutput',tab:'generate',message:'请先生成输出结果'})
+  return{blockers,warnings}
+}
+
+export function snapshotForHash(scene,rules,skills=[]){
+  return {
+    scene:{name:scene.name,domain:scene.domain,description:scene.description,level:scene.risk_level,organizations:parseJson(scene.organization_json,[]),objectScope:parseJson(scene.object_scope_json,{}),exceptions:parseJson(scene.exception_json,{}),checkTemplate:parseJson(scene.check_template_json,{})},
+    rules:rules.map((rule)=>({id:rule.id,name:rule.name,type:rule.rule_type,level:effectiveRiskLevel(rule,scene.risk_level),enabled:Boolean(rule.binding_enabled===undefined?rule.enabled:rule.binding_enabled),ontologyId:rule.ontology_id,graphVersion:rule.graph_version,objectCode:rule.object_code,eventCode:rule.event_code,conditions:parseJson(rule.condition_json,{}),path:normalizePathConfig(rule.path_json),time:normalizeTimeConfig(rule.time_json),aggregate:normalizeAggregateConfig(rule.aggregate_json),exceptions:parseJson(rule.exception_json,{}),outputs:parseJson(rule.output_json,[]),evidence:normalizeEvidenceRequirements(rule.evidence_json),policies:normalizePolicyList(rule.policy_json),failureStrategy:rule.failure_strategy})),
+    skills:skills.map((skill)=>({id:skill.id,name:skill.name,type:skill.skill_type,level:skill.effective_risk_level||skill.risk_level,inputs:normalizeSkillInputs(skill.input_json),config:parseJson(skill.config_json,{}),outputs:normalizeSkillOutputs(skill.output_json),evidence:normalizeEvidenceRequirements(skill.evidence_json),policies:normalizePolicyList(skill.policy_json),failureStrategy:skill.failure_strategy})),
+  }
 }

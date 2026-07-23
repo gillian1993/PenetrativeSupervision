@@ -93,6 +93,13 @@
 .inspector-list button:hover { background: #f0f5ff; color: #176dff; }
 .inspector-list button small { color: #8491a5; font-size: 9px; }
 .inspector-list p { margin: 0; color: #98a2b3; font-size: 11px; }
+.inspector-list h3 > span { display: flex; align-items: center; gap: 6px; }
+.inspector-list h3 .inspector-add-property { width: auto; padding: 4px 7px; border: 1px solid #b8d1ff; background: #f4f8ff; color: #176dff; font-size: 10px; white-space: nowrap; }
+.inspector-property-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 4px; }
+.inspector-list .inspector-property-main { min-width: 0; }
+.inspector-property-actions { display: flex; align-items: center; gap: 2px; }
+.inspector-list .inspector-property-actions button { width: auto; padding: 4px; color: #176dff; font-size: 9px; }
+.inspector-list .inspector-property-actions button.danger { color: #d92d20; }
 .ontology-inspector > .button { width: 100%; margin-top: 8px; }
 
 @media (max-width: 1360px) {

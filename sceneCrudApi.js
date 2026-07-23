@@ -1,4 +1,4 @@
-import { assertSemanticReferences, collectAdvancedExpressionReferenceIssues, collectSemanticReferenceIssues, editableSceneStatuses, getBoundRuleRows, getCurrentSceneRow, getSceneAggregate, mapSceneRow, makeBusinessId, toJson, parseJson, validateRuleRecord, writeSceneAudit } from './sceneRuleRepo.js'
+﻿import { assertSemanticReferences, collectAdvancedExpressionReferenceIssues, collectSemanticReferenceIssues, editableSceneStatuses, getBoundRuleRows, getBoundSkillRows, getCurrentSceneRow, getSceneAggregate, mapSceneRow, makeBusinessId, toJson, parseJson, validateRuleRecord, validateSkillRecord, writeSceneAudit } from './sceneRuleRepo.js'
 
 async function listScenes(pool,url){
   const keyword=String(url.searchParams.get('keyword')||'').trim();const status=String(url.searchParams.get('status')||'').trim();const domain=String(url.searchParams.get('domain')||'').trim()
@@ -9,7 +9,9 @@ async function listScenes(pool,url){
   const [rows]=await pool.query(`SELECT sv.*,rs.code,
     (SELECT COUNT(*) FROM scene_rule_bindings b WHERE b.scene_version_id=sv.id) AS rule_count,
     (SELECT COUNT(*) FROM scene_rule_bindings b WHERE b.scene_version_id=sv.id AND b.enabled=1) AS enabled_rule_count,
-    (SELECT COUNT(*) FROM rule_run_records rr WHERE rr.scene_version_id=sv.id) AS run_count,
+    (SELECT COUNT(*) FROM scene_skill_bindings b WHERE b.scene_version_id=sv.id) AS skill_count,
+    (SELECT COUNT(*) FROM scene_skill_bindings b WHERE b.scene_version_id=sv.id AND b.enabled=1) AS enabled_skill_count,
+    ((SELECT COUNT(*) FROM rule_run_records rr WHERE rr.scene_version_id=sv.id)+(SELECT COUNT(*) FROM skill_run_records sr WHERE sr.scene_version_id=sv.id)) AS run_count,
     (SELECT COUNT(*) FROM scene_versions history WHERE history.scene_id=sv.scene_id) AS version_count,
     (SELECT status FROM rule_trial_tasks tt WHERE tt.id=sv.last_trial_id) AS last_trial_status
     FROM risk_scenes rs JOIN scene_versions sv ON sv.id=rs.current_version_id ${where.length?`WHERE ${where.join(' AND ')}`:''} ORDER BY sv.updated_at DESC`,params)
@@ -39,12 +41,13 @@ async function updateScene(pool,id,payload){
 
 async function validateScene(pool,id){
   const row=await getCurrentSceneRow(pool,id);if(!row)throw Object.assign(new Error('场景不存在'),{status:404});if(!editableSceneStatuses.has(row.status))throw Object.assign(new Error('当前版本不可校验'),{status:409})
-  const rules=await getBoundRuleRows(pool,row.id);const blockers=[];const warnings=[]
+  const rules=await getBoundRuleRows(pool,row.id);const skills=await getBoundSkillRows(pool,row.id);const blockers=[];const warnings=[]
   if(!row.description.trim())blockers.push({field:'description',tab:'basic',message:'场景说明不能为空'})
   if(!parseJson(row.organization_json,[]).length)blockers.push({field:'organizations',tab:'scope',message:'至少选择一个适用组织'})
   const template=parseJson(row.check_template_json,{});if(!template.requirements||!Number(template.deadlineHours))blockers.push({field:'checkTemplate',tab:'template',message:'核查要求和处理时限不能为空'})
-  const enabledRules=rules.filter((rule)=>Boolean(rule.binding_enabled));if(!enabledRules.length)blockers.push({field:'rules',tab:'rules',message:'至少需要一条启用规则'})
+  const enabledRules=rules.filter((rule)=>Boolean(rule.binding_enabled));const enabledSkills=skills.filter((skill)=>Boolean(skill.binding_enabled));if(!enabledRules.length&&!enabledSkills.length)blockers.push({field:'detections',tab:'rules',message:'至少需要一条启用规则或一个启用Skill'})
   for(const rule of enabledRules){const result=validateRuleRecord(rule);blockers.push(...result.blockers.map((item)=>({...item,ruleId:rule.id,message:`${rule.name}：${item.message}`})));warnings.push(...result.warnings.map((item)=>({...item,ruleId:rule.id,message:`${rule.name}：${item.message}`})))}
+for(const skill of enabledSkills){const result=validateSkillRecord(skill);blockers.push(...result.blockers.map((item)=>({...item,skillId:skill.id,tab:'skills',message:`${skill.name}：${item.message}`})));warnings.push(...result.warnings.map((item)=>({...item,skillId:skill.id,tab:'skills',message:`${skill.name}：${item.message}`})))}
   for(const rule of enabledRules){
     const refs=await collectSemanticReferenceIssues(pool,{ontologyId:rule.ontology_id,objectCode:rule.object_code,eventCode:rule.event_code,graphVersion:rule.graph_version},'rules')
     blockers.push(...refs.blockers.map((item)=>({...item,ruleId:rule.id,message:`${rule.name}：${item.message}`})))
@@ -66,6 +69,7 @@ async function copyScene(pool,id){
   try{
     await connection.beginTransaction();await connection.query(`INSERT INTO scene_versions (id,scene_id,version,status,name,domain,description,object_code,object_name,event_code,event_name,risk_level,observation_value,observation_unit,ontology_id,graph_version,organization_json,object_scope_json,exception_json,evidence_json,policy_json,check_template_json,source_version_id) SELECT ?,scene_id,?,'草稿',name,domain,description,object_code,object_name,event_code,event_name,risk_level,observation_value,observation_unit,ontology_id,graph_version,organization_json,object_scope_json,exception_json,evidence_json,policy_json,check_template_json,id FROM scene_versions WHERE id=?`,[versionId,version,source.id])
     await connection.query('INSERT INTO scene_rule_bindings (scene_version_id,rule_version_id,enabled,risk_level_override,parameters_json,priority) SELECT ?,rule_version_id,enabled,risk_level_override,parameters_json,priority FROM scene_rule_bindings WHERE scene_version_id=?',[versionId,source.id])
+    await connection.query('INSERT INTO scene_skill_bindings (scene_version_id,skill_version_id,enabled,risk_level_override,parameters_json,priority) SELECT ?,skill_version_id,enabled,risk_level_override,parameters_json,priority FROM scene_skill_bindings WHERE scene_version_id=?',[versionId,source.id])
     await connection.query('UPDATE risk_scenes SET current_version_id=? WHERE id=?',[versionId,source.scene_id]);await writeSceneAudit(connection,versionId,'复制场景新版本',`${source.version} → ${version}`);await connection.commit();return await getSceneAggregate(pool,source.scene_id)
   }catch(error){await connection.rollback();throw error}finally{connection.release()}
 }
@@ -76,7 +80,7 @@ async function deleteScene(pool,id){
   if(!editableSceneStatuses.has(row.status))throw Object.assign(new Error('已发布或已停用场景不能删除'),{status:409})
   const [[versionCount],[runCount]]=await Promise.all([
     pool.query('SELECT COUNT(*) AS total FROM scene_versions WHERE scene_id=?',[row.scene_id]),
-    pool.query('SELECT COUNT(*) AS total FROM rule_run_records rr JOIN scene_versions sv ON sv.id=rr.scene_version_id WHERE sv.scene_id=?',[row.scene_id]),
+    pool.query('SELECT ((SELECT COUNT(*) FROM rule_run_records rr JOIN scene_versions sv ON sv.id=rr.scene_version_id WHERE sv.scene_id=?)+(SELECT COUNT(*) FROM skill_run_records sr JOIN scene_versions sv2 ON sv2.id=sr.scene_version_id WHERE sv2.scene_id=?)) AS total',[row.scene_id,row.scene_id]),
   ])
   if(Number(versionCount[0].total)!==1)throw Object.assign(new Error('该场景已形成历史版本，请保留版本链并使用停用操作'),{status:409})
   if(Number(runCount[0].total)>0)throw Object.assign(new Error('该场景已有运行记录，不能删除'),{status:409})

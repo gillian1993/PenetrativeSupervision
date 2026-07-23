@@ -15,6 +15,7 @@ interface VisualModelerProps {
   validation?: OntologyValidation
   onCreate: (type: OntologyElementType, position?: CanvasPosition, defaults?: CreateDefaults) => void
   onEdit: (type: OntologyElementType, element: OntologyElement) => void
+  onDelete: (element: OntologyElement) => void
   onCreateRelation: (sourceCode: string, targetCode: string) => void
 }
 
@@ -109,7 +110,7 @@ function buildLayout(mode: Exclude<LayoutMode, 'free'>, nodes: OntologyElement[]
   return smartLayout(nodes, relations)
 }
 
-export function OntologyVisualModeler({ ontologyId, status, elements, validation, onCreate, onEdit, onCreateRelation }: VisualModelerProps) {
+export function OntologyVisualModeler({ ontologyId, status, elements, validation, onCreate, onEdit, onDelete, onCreateRelation }: VisualModelerProps) {
   const readonly = status === '已发布'
   const nodes = useMemo(() => elements.filter((item) => item.type === 'class'), [elements])
   const relations = useMemo(() => elements.filter((item) => item.type === 'relation'), [elements])
@@ -300,7 +301,7 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
 
     <aside className="ontology-inspector">
       <header><span>属性检查器</span><small>{selected ? labels[selected.type] : '未选择元素'}</small></header>
-      {selected ? <><div className={`inspector-identity ${selected.type}`}><Icon name={selected.type === 'relation' ? 'link' : 'graph'}/><div><strong>{selected.name}</strong><span>{selected.code}</span></div><StatusTag>{selected.type === 'class' ? '本体类' : labels[selected.type]}</StatusTag></div><dl><div><dt>{selected.type === 'class' ? '类型' : '数据类型或方向'}</dt><dd>{selected.type === 'class' ? '本体类' : selected.dataType || '—'}</dd></div><div><dt>约束</dt><dd>{selected.constraint || '—'}</dd></div><div><dt>业务说明</dt><dd>{selected.description || '—'}</dd></div></dl>{selected.type === 'class' && <><section className="inspector-list"><h3>类属性 <b>{selectedProperties.length}</b></h3>{selectedProperties.length ? selectedProperties.map((item) => <button key={item.id} onClick={() => { setSelectedCode(item.code); setFocusActive(true) }}><span>{item.name}</span><small>{item.dataType}</small></button>) : <p>暂未配置属性</p>}</section><section className="inspector-list"><h3>关联关系 <b>{selectedRelations.length}</b></h3>{selectedRelations.length ? selectedRelations.map((item) => <button key={item.id} onClick={() => { setSelectedCode(item.code); setFocusActive(true) }}><span>{item.name}</span><small>{item.dataType}</small></button>) : <p>暂未配置关系</p>}</section></>}<Button icon="edit" disabled={readonly} title={readonly ? '已发布版本只读，请先复制新版本' : undefined} onClick={() => onEdit(selected.type, selected)}>编辑当前元素</Button></> : <EmptyState title="请选择画布元素" description="点击球形节点或关系曲线查看详细定义。"/>}
+      {selected ? <><div className={`inspector-identity ${selected.type}`}><Icon name={selected.type === 'relation' ? 'link' : 'graph'}/><div><strong>{selected.name}</strong><span>{selected.code}</span></div><StatusTag>{selected.type === 'class' ? '本体类' : labels[selected.type]}</StatusTag></div><dl><div><dt>{selected.type === 'class' ? '类型' : '数据类型或方向'}</dt><dd>{selected.type === 'class' ? '本体类' : selected.dataType || '—'}</dd></div><div><dt>约束</dt><dd>{selected.constraint || '—'}</dd></div><div><dt>业务说明</dt><dd>{selected.description || '—'}</dd></div></dl>{selected.type === 'class' && <><section className="inspector-list"><h3><span>类属性 <b>{selectedProperties.length}</b></span>{!readonly && <button className="inspector-add-property" onClick={() => onCreate('property', undefined, { ownerCode: selected.code })}>＋ 新增属性</button>}</h3>{selectedProperties.length ? selectedProperties.map((item) => <div className="inspector-property-row" key={item.id}><button className="inspector-property-main" onClick={() => { setSelectedCode(item.code); setFocusActive(true) }}><span>{item.name}</span><small>{item.dataType}</small></button>{!readonly && <div className="inspector-property-actions"><button onClick={() => onEdit('property', item)}>编辑</button><button className="danger" onClick={() => onDelete(item)}>删除</button></div>}</div>) : <p>暂未配置属性</p>}</section><section className="inspector-list"><h3>关联关系 <b>{selectedRelations.length}</b></h3>{selectedRelations.length ? selectedRelations.map((item) => <button key={item.id} onClick={() => { setSelectedCode(item.code); setFocusActive(true) }}><span>{item.name}</span><small>{item.dataType}</small></button>) : <p>暂未配置关系</p>}</section></>}<Button icon="edit" disabled={readonly} title={readonly ? '已发布版本只读，请先复制新版本' : undefined} onClick={() => onEdit(selected.type, selected)}>编辑当前元素</Button></> : <EmptyState title="请选择画布元素" description="点击球形节点或关系曲线查看详细定义。"/>}
     </aside>
   </div>
 }

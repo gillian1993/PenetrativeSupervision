@@ -201,7 +201,7 @@ export function DataAccessPage() {
   return <>
     <FilterGrid onReset={() => { const value = { keyword: '', status: '全部' }; setSearchDraft(value); setFilters(value) }} onSearch={() => setFilters(searchDraft)} actions={<Button variant="primary" icon="plus" onClick={() => setDrawer(true)}>新建数据源</Button>}><Field label="关键词"><input value={searchDraft.keyword} onChange={(event) => setSearchDraft({ ...searchDraft, keyword: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter') setFilters(searchDraft) }} placeholder="数据源名称、编码、方式或责任人"/></Field><Field label="状态"><select value={searchDraft.status} onChange={(event) => setSearchDraft({ ...searchDraft, status: event.target.value })}><option>全部</option><option>草稿</option><option>启用</option><option>停用</option><option>异常</option></select></Field></FilterGrid>
     <section className="stats-grid four"><article className="mini-stat"><span>数据源总数</span><strong>{dataSources.length}</strong><small>含草稿、启用和停用</small></article><article className="mini-stat"><span>启用数据源</span><strong>{dataSources.filter((item) => item.status === '启用').length}</strong><small>正常参与数据同步</small></article><article className="mini-stat"><span>异常数据源</span><strong>{dataSources.filter((item) => item.status === '异常').length}</strong><small>需要检查连接或结构</small></article><article className="mini-stat"><span>近期处理数据</span><strong>{records.reduce((sum, item) => sum + item.processed, 0).toLocaleString()}</strong><small>全部数据源同步记录</small></article></section>
-    <Panel className="data-access-panel" title="数据源列表" subtitle="数据源可被多个图谱复用，进入详情维护元数据、语义映射和同步任务">{loading ? <div className="loading-state"><i/><span>正在加载数据源…</span></div> : filteredSources.length ? <SourceTable data={filteredSources} onSelect={(item) => navigate(`/graphs/sources/${item.id}`)} onTest={test} onToggle={toggle} onDelete={setDeleteTarget}/> : <EmptyState title={dataSources.length ? '未找到数据源' : '暂无数据源'} description={dataSources.length ? '请调整关键词或状态条件。' : '点击“新建数据源”开始配置数据接入。'}/>}</Panel>
+    <Panel className="data-access-panel" title="数据源列表" subtitle="数据源可被多个图谱复用，进入详情维护接入配置和语义映射">{loading ? <div className="loading-state"><i/><span>正在加载数据源…</span></div> : filteredSources.length ? <SourceTable data={filteredSources} onSelect={(item) => navigate(`/graphs/sources/${item.id}`)} onTest={test} onToggle={toggle} onDelete={setDeleteTarget}/> : <EmptyState title={dataSources.length ? '未找到数据源' : '暂无数据源'} description={dataSources.length ? '请调整关键词或状态条件。' : '点击“新建数据源”开始配置数据接入。'}/>}</Panel>
     <Drawer open={drawer} title="新建数据源" eyebrow="数据源向导" onClose={() => setDrawer(false)} footer={<><Button onClick={() => setDrawer(false)}>取消</Button><Button variant="primary" onClick={create}>保存并继续</Button></>}><div className="step-indicator"><span className="active">1 基本配置</span><span>2 连接测试</span><span>3 元数据解析</span></div><div className="form-stack"><Field label="来源系统名称 *"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })}/></Field><Field label="来源方式"><select value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value })}><option>数据库视图</option><option>API</option><option>消息</option><option>批量文件</option></select></Field><Field label="责任人"><select value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })}><option>张海</option><option>陈洁</option></select></Field><Field label="同步方式"><select value={form.syncMode} onChange={(event) => setForm({ ...form, syncMode: event.target.value })}><option>全量</option><option>增量</option><option>事件</option></select></Field><Field label="数据范围 *"><textarea value={form.range} onChange={(event) => setForm({ ...form, range: event.target.value })} placeholder="说明对象、时间和组织范围"/></Field></div></Drawer>
     <Modal open={!!deleteTarget} title="删除数据源" description={deleteTarget ? `${deleteTarget.name} · ${deleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()}><div className="alert-box danger"><Icon name="warning"/><span>仅未启用且没有同步记录的数据源可以删除，元数据和映射草稿将一并清理。</span></div></Modal>
   </>
@@ -218,7 +218,7 @@ export function DataSourceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const requestedTab = searchParams.get('tab') || 'basic'
-  const tab = ['basic','metadata','mapping','sync'].includes(requestedTab) ? requestedTab : 'basic'
+  const tab = requestedTab === 'mapping' ? 'mapping' : 'basic'
   const requestedType = searchParams.get('type')
   const mappingType: MappingGroup = requestedType === '关系' ? '关系' : '节点实例'
 
@@ -281,16 +281,6 @@ export function DataSourceDetailPage() {
     if (!source) return
     try { const updated = await dataGraphApi.toggleSource(source.id, source.status !== '启用'); setSource(updated); setToast(updated.status === '启用' ? '数据源已启用' : '数据源已停用') } catch (actionError) { setToast(actionError instanceof Error ? actionError.message : '状态切换失败') }
   }
-  const sync = async () => {
-    if (!source) return
-    try {
-      const result = await dataGraphApi.syncSource(source.id)
-      const [sources, recordRows] = await Promise.all([dataGraphApi.listSources(), dataGraphApi.syncRecords(source.id)])
-      setSource(sources.find((item) => item.id === source.id) || source)
-      setRecords(recordRows)
-      setToast(result.message)
-    } catch (actionError) { setToast(actionError instanceof Error ? actionError.message : '同步执行失败') }
-  }
 
   if (loading) return <div className="loading-state page-loading"><i/><span>正在加载数据源详情…</span></div>
   if (!source) return <><button className="back-button" onClick={() => navigate('/graphs?tab=sources')}>‹ 返回数据源列表</button><EmptyState title="数据源不可访问" description={error || '请返回数据源列表重新选择。'}/></>
@@ -299,43 +289,34 @@ export function DataSourceDetailPage() {
   return <>
     <div className="data-source-detail-header"><div><button className="back-button" onClick={() => navigate('/graphs?tab=sources')}>‹ 返回数据源列表</button><p className="eyebrow">图谱管理 / 数据源详情 / {source.id}</p><h1>{source.name}</h1><div className="editor-meta"><StatusTag>{source.status}</StatusTag><span>{source.mode}</span><span>{source.syncMode}同步</span><span>责任人：{source.owner}</span><span>最近成功：{source.lastSuccess}</span></div></div><div className="page-actions"><Button onClick={() => void test()}>测试连接</Button><Button variant={source.status === '启用' ? 'danger' : 'primary'} disabled={source.status !== '启用' && validMappings === 0} title={source.status !== '启用' && validMappings === 0 ? '请先解析元数据并完成映射校验' : undefined} onClick={() => void toggle()}>{source.status === '启用' ? '停用数据源' : '启用数据源'}</Button></div></div>
     <section className="stats-grid four source-detail-stats"><article className="mini-stat"><span>元数据对象</span><strong>{metadata.length}</strong><small>{metadata.length ? '已完成结构解析' : '等待解析'}</small></article><article className="mini-stat"><span>映射建议</span><strong>{mappings.length}</strong><small>节点实例、关系</small></article><article className="mini-stat"><span>有效映射</span><strong>{validMappings}</strong><small>{mappings.length - validMappings} 条待校验</small></article><article className="mini-stat"><span>同步批次</span><strong>{records.length}</strong><small>仅当前数据源</small></article></section>
-    <Panel className="data-source-detail-panel"><Tabs value={tab} onChange={changeTab} items={[{ key: 'basic', label: '基本配置' }, { key: 'metadata', label: '元数据', count: metadata.length }, { key: 'mapping', label: '语义映射', count: mappings.length }, { key: 'sync', label: '同步管理', count: records.length }]}/>
-      {tab === 'basic' && <SourceBasicConfig source={source} metadataCount={metadata.length} mappings={mappings}/>}
-      {tab === 'metadata' && <SourceMetadata source={source} rows={metadata} onTest={() => void test()} onParse={() => void parse()} onMapping={() => changeTab('mapping')}/>}
+    <Panel className="data-source-detail-panel"><Tabs value={tab} onChange={changeTab} items={[{ key: 'basic', label: '基本配置' }, { key: 'mapping', label: '语义映射', count: mappings.length }]}/>
+      {tab === 'basic' && <SourceBasicConfig source={source} metadata={metadata} onParse={() => void parse()} onMapping={() => changeTab('mapping')}/>}
       {tab === 'mapping' && <div className="semantic-mapping-view"><div className="semantic-mapping-toolbar"><div><strong>公共语义映射</strong><span>按“数据源 + 本体”统一维护，可被多个图谱版本复用</span></div><div className="segmented">{(['节点实例','关系'] as MappingGroup[]).map((type) => <button key={type} className={mappingType === type ? 'active' : ''} onClick={() => changeMappingType(type)}>{type}</button>)}</div></div><SourceMapping type={mappingType} source={source} rows={mappings} onSubmit={() => void validate()}/></div>}
-      {tab === 'sync' && <SourceSyncManagement source={source} rows={records} onSync={() => void sync()}/>}
     </Panel>
   </>
 }
 
-function SourceBasicConfig({ source, metadataCount, mappings }: { source: DataSourceItem; metadataCount: number; mappings: MappingItem[] }) {
-  const validMappings = mappings.filter((item) => item.status === '有效').length
-  const checks = [
-    ['基本配置已登记', Boolean(source.name && source.mode && source.range)],
-    ['元数据已解析', metadataCount > 0],
-    ['语义映射已校验', validMappings > 0],
-    ['数据源已启用', source.status === '启用'],
-  ] as const
-  return <div className="detail-grid source-basic-grid"><Panel title="来源基本信息"><KeyValue items={[{ label: '来源名称', value: source.name }, { label: '来源编码', value: source.id }, { label: '来源方式', value: source.mode }, { label: '数据范围', value: source.range }, { label: '责任人', value: source.owner }, { label: '同步方式', value: source.syncMode }, { label: '最近成功时间', value: source.lastSuccess }, { label: '当前状态', value: <StatusTag>{source.status}</StatusTag> }]}/></Panel><Panel title="接入流程" subtitle="按顺序完成测试、解析、映射校验和启用"><div className="publish-checklist compact">{checks.map(([label, passed]) => <div key={label}><Icon name={passed ? 'check' : 'clock'}/><span>{label}</span><StatusTag>{passed ? '已完成' : '待完成'}</StatusTag></div>)}</div></Panel></div>
-}
-
-function SourceSyncManagement({ source, rows, onSync }: { source: DataSourceItem; rows: SyncRecordItem[]; onSync: () => void }) {
-  return <div className="source-sync-layout"><Panel title="同步配置" subtitle="同步任务仅作用于当前数据源"><KeyValue items={[{ label: '数据源', value: source.name }, { label: '同步方式', value: source.syncMode }, { label: '数据范围', value: source.range }, { label: '运行状态', value: <StatusTag>{source.status === '启用' ? '可同步' : '未启用'}</StatusTag> }, { label: '最近成功', value: source.lastSuccess }]}/><div className="panel-actions bottom"><Button variant="primary" disabled={source.status !== '启用'} title={source.status !== '启用' ? '请先完成映射校验并启用数据源' : undefined} onClick={onSync}>立即同步</Button></div></Panel><Panel title="当前数据源同步记录" subtitle={rows.length ? `共 ${rows.length} 个批次` : '尚未执行同步'}>{rows.length ? <SyncRecords rows={rows}/> : <EmptyState title="暂无同步记录" description="数据源启用后，可执行一次同步生成运行记录。"/>}</Panel></div>
+function SourceBasicConfig({ source, metadata, onParse, onMapping }: { source: DataSourceItem; metadata: SourceMetadataItem[]; onParse: () => void; onMapping: () => void }) {
+  return <div className="detail-grid source-basic-grid">
+    <Panel title="来源基本信息"><KeyValue items={[{ label: '来源名称', value: source.name }, { label: '来源编码', value: source.id }, { label: '来源方式', value: source.mode }, { label: '数据范围', value: source.range }, { label: '责任人', value: source.owner }, { label: '同步方式', value: source.syncMode }, { label: '最近同步成功', value: source.lastSuccess }, { label: '当前状态', value: <StatusTag>{source.status}</StatusTag> }]}/></Panel>
+    <Panel title="来源结构解析" subtitle="读取来源表、接口或消息结构，并生成语义映射建议">
+      <KeyValue items={[{ label: '解析状态', value: <StatusTag>{metadata.length ? '已解析' : '待解析'}</StatusTag> }, { label: '已解析对象', value: metadata.length }]}/>
+      {metadata.length ? <div className="metadata-list">{metadata.map((item) => <button key={item.id}><span><strong>{item.displayName}</strong><small>{item.tableName} · {item.fieldCount}字段</small></span><Icon name="chevron" size={14}/></button>)}</div> : <EmptyState title="尚未解析来源结构" description="请先通过页面顶部的连接测试，再解析来源结构。"/>}
+      <div className="panel-actions bottom source-basic-actions">
+        <Button onClick={onParse}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button>
+        <Button variant="primary" disabled={!metadata.length} title={!metadata.length ? '请先解析来源结构' : undefined} onClick={onMapping}>进入语义映射</Button>
+      </div>
+    </Panel>
+  </div>
 }
 function SourceTable({ data, onSelect, onTest, onToggle, onDelete }: { data: DataSourceItem[]; onSelect: (item: DataSourceItem) => void; onTest: (item: DataSourceItem) => void; onToggle: (item: DataSourceItem) => void; onDelete: (item: DataSourceItem) => void }) {
   return <div className="table-container"><table><thead><tr><th>来源名称 / 编码</th><th>来源方式</th><th>数据范围</th><th>责任人</th><th>同步方式</th><th>最近成功</th><th>状态</th><th>操作</th></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => onSelect(item)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.mode}</td><td>{item.range}</td><td>{item.owner}</td><td>{item.syncMode}</td><td>{item.lastSuccess}</td><td><StatusTag>{item.status}</StatusTag></td><td><div className="row-actions"><button onClick={() => onSelect(item)}>进入详情</button><button onClick={() => onTest(item)}>测试</button><button onClick={() => onToggle(item)}>{item.status === '启用' ? '停用' : '启用'}</button>{item.status !== '启用' && <button className="danger-link" onClick={() => onDelete(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
 }
 
-function SourceMetadata({ source, rows, onTest, onParse, onMapping }: { source: DataSourceItem; rows: SourceMetadataItem[]; onTest: () => void; onParse: () => void; onMapping: () => void }) {
-  return <div className="detail-grid"><Panel title="解析控制" subtitle="先确认连接可用，再读取来源表、接口或消息结构"><KeyValue items={[{ label: '当前数据源', value: source.name }, { label: '来源方式', value: source.mode }, { label: '最近成功时间', value: source.lastSuccess }, { label: '已解析对象', value: rows.length }]}/><div className="panel-actions bottom"><Button onClick={onTest}>测试连接</Button><Button variant="primary" onClick={onParse}>{rows.length ? '重新解析元数据' : '解析元数据'}</Button></div></Panel><Panel title="已解析元数据" subtitle="仅展示当前数据源的结构">{rows.length ? <><div className="metadata-list">{rows.map((item) => <button key={item.id}><span><strong>{item.displayName}</strong><small>{item.tableName} · {item.fieldCount}字段</small></span><Icon name="chevron" size={14}/></button>)}</div><Button variant="primary" onClick={onMapping}>进入语义映射</Button></> : <EmptyState title="尚未解析元数据" description="完成连接测试后，点击“解析元数据”生成来源结构。"/>}</Panel></div>
-}
 function SourceMapping({ type, source, rows, onSubmit }: { type: MappingGroup; source: DataSourceItem; rows: MappingItem[]; onSubmit: () => void }) {
   const visible = rows.filter((row) => row.type === type)
   const mapping = visible[0] || rows[0]
-  return visible.length ? <><div className="mapping-header"><div><span>当前公共映射</span><strong>{source.name}</strong><small>{source.id} + {mapping?.ontologyId || 'ONT-PROC'} · {type}映射</small></div><div className="mapping-status-summary"><span>映射版本</span><strong>R{mapping?.revision || 1} · {visible.length} 条</strong><small>{mapping?.setStatus || '待校验'} · 最近校验 {mapping?.lastValidatedAt || '—'}</small></div><Button variant="primary" onClick={onSubmit}>校验公共映射</Button></div>{type === '节点实例' && <div className="alert-box"><Icon name="graph"/><span>节点实例映射包含类实例识别和属性值映射；带时间语义的类可通过普通发生时间属性和关联对象关系表达。</span></div>}<div className="mapping-canvas"><aside><h3>{type === '节点实例' ? '来源字段 / 节点识别键' : '来源字段 / 关联键'}</h3>{visible.map((row) => <button key={row.id}>{row.sourceField}<small>{row.status}</small></button>)}</aside><main><h3>{type === '节点实例' ? '节点构建与属性规则' : '转换与识别规则'}</h3>{visible.map((row) => <div key={row.id}><span>{row.transform}</span><Icon name="chevron"/></div>)}</main><aside><h3>{type === '节点实例' ? '目标本体类 / 属性' : '目标本体关系'}</h3>{visible.map((row) => <button key={row.id}>{row.targetCode}<small>核验状态：{row.status}</small></button>)}</aside></div></> : <EmptyState title={`暂无${type}公共映射`} description="请先在“元数据”页完成结构解析，系统将生成可复用的公共映射建议。"/>
-}
-function SyncRecords({ rows }: { rows: SyncRecordItem[] }) {
-  return <div className="table-container"><table><thead><tr><th>批次号</th><th>数据源</th><th>方式</th><th>开始时间</th><th>处理数量</th><th>异常</th><th>耗时</th><th>结果</th></tr></thead><tbody>{rows.map((row) => <tr key={row.id}><td>{row.id}</td><td>{row.sourceName}</td><td>{row.mode}</td><td>{row.startedAt}</td><td>{row.processed.toLocaleString()}</td><td>{row.errors}</td><td>{row.duration}</td><td><StatusTag>{row.result}</StatusTag></td></tr>)}</tbody></table></div>
+  return visible.length ? <><div className="mapping-header"><div><span>当前公共映射</span><strong>{source.name}</strong><small>{source.id} + {mapping?.ontologyId || 'ONT-PROC'} · {type}映射</small></div><div className="mapping-status-summary"><span>映射版本</span><strong>R{mapping?.revision || 1} · {visible.length} 条</strong><small>{mapping?.setStatus || '待校验'} · 最近校验 {mapping?.lastValidatedAt || '—'}</small></div><Button variant="primary" onClick={onSubmit}>校验公共映射</Button></div>{type === '节点实例' && <div className="alert-box"><Icon name="graph"/><span>节点实例映射包含类实例识别和属性值映射；带时间语义的类可通过普通发生时间属性和关联对象关系表达。</span></div>}<div className="mapping-canvas"><aside><h3>{type === '节点实例' ? '来源字段 / 节点识别键' : '来源字段 / 关联键'}</h3>{visible.map((row) => <button key={row.id}>{row.sourceField}<small>{row.status}</small></button>)}</aside><main><h3>{type === '节点实例' ? '节点构建与属性规则' : '转换与识别规则'}</h3>{visible.map((row) => <div key={row.id}><span>{row.transform}</span><Icon name="chevron"/></div>)}</main><aside><h3>{type === '节点实例' ? '目标本体类 / 属性' : '目标本体关系'}</h3>{visible.map((row) => <button key={row.id}>{row.targetCode}<small>核验状态：{row.status}</small></button>)}</aside></div></> : <EmptyState title={`暂无${type}公共映射`} description="请先在“基本配置”中完成来源结构解析，系统将生成可复用的公共映射建议。"/>
 }
 
 function GraphTable({ data, onPublish, onEdit, onHistory, onDelete }: { data: GraphVersion[]; onPublish: (item: GraphVersion) => void; onEdit: (item: GraphVersion) => void; onHistory: (item: GraphVersion) => void; onDelete: (item: GraphVersion) => void }) {
