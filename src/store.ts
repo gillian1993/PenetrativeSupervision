@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { demoDataApi } from './demoDataApi'
 import {
@@ -426,15 +426,15 @@ export const useAppStore = create<AppState>()(
         },
         copyOntology: (id) => {
           const item = get().ontologies.find((row) => row.id === id)
-          if (!item) return { ok: false, message: '本体不存在' }
+          if (!item) return { ok: false, message: '图谱结构不存在' }
           const next = { ...item, id: `${id}-DRAFT`, version: `v${Number(item.version.slice(1).split('.')[0]) + 1}.0`, status: '草稿' as const, updatedAt: '刚刚' }
           set((state) => ({ ontologies: [next, ...state.ontologies.filter((row) => row.id !== next.id)] }))
-          return { ok: true, message: '本体新草稿版本已创建', objectId: next.id }
+          return { ok: true, message: '图谱结构新草稿版本已创建', objectId: next.id }
         },
         publishOntology: (id) => {
           set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, status: '已发布', updatedAt: '刚刚' } : row) }))
-          appendAudit({ operator: '陈洁', organization: '数据管理部', action: '发布本体版本', objectType: '本体', objectId: id, summary: '类、属性、关系和事件校验通过', result: '成功', risk: '高危' })
-          return { ok: true, message: '本体版本已发布' }
+          appendAudit({ operator: '陈洁', organization: '数据管理部', action: '发布图谱结构版本', objectType: '图谱结构', objectId: id, summary: '类、属性、关系和事件校验通过', result: '成功', risk: '高危' })
+          return { ok: true, message: '图谱结构版本已发布' }
         },
         createDataSource: (payload) => {
           const id = `SRC-${String(get().dataSources.length + 1).padStart(3, '0')}`
@@ -458,13 +458,13 @@ export const useAppStore = create<AppState>()(
           const graph = get().graphVersions.find((item) => item.id === id)
           if (!graph || graph.blockers > 0) return { ok: false, message: `存在${graph?.blockers || 0}个阻断问题，不能发布` }
           set((state) => ({ graphVersions: state.graphVersions.map((item) => item.id === id ? { ...item, status: '已发布', publishedAt: '刚刚' } : item) }))
-          appendAudit({ operator: '陈洁', organization: '数据管理部', action: '发布图谱版本', objectType: '图谱版本', objectId: id, summary: '质量校验通过', result: '成功', risk: '高危' })
-          return { ok: true, message: '图谱版本发布成功' }
+          appendAudit({ operator: '陈洁', organization: '数据管理部', action: '发布知识图谱', objectType: '知识图谱', objectId: id, summary: '质量校验通过', result: '成功', risk: '高危' })
+          return { ok: true, message: '知识图谱发布成功' }
         },
         governEntity: (taskId, result, reason) => {
-          if (!reason.trim()) return { ok: false, message: '治理原因不能为空' }
-          appendAudit({ operator: '陈洁', organization: '数据管理部', action: `实体${result}`, objectType: '实体治理任务', objectId: taskId, summary: reason, result: '成功', risk: '高危' })
-          return { ok: true, message: `实体${result}完成，影响记录已生成` }
+          if (!reason.trim()) return { ok: false, message: '处理原因不能为空' }
+          appendAudit({ operator: '陈洁', organization: '数据管理部', action: `实例${result}`, objectType: '实例处理任务', objectId: taskId, summary: reason, result: '成功', risk: '高危' })
+          return { ok: true, message: `实例${result}完成，影响记录已生成` }
         },
         createUser: (payload) => {
           if (!payload.name.trim() || !payload.account.trim() || !payload.organization.trim()) return { ok: false, message: '请填写姓名、账号和所属组织' }
@@ -574,3 +574,4 @@ export const useAppStore = create<AppState>()(
     },
   ),
 )
+

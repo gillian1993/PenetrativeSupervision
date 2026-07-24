@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { AuditPage, DataAccessPage, DataSourceDetailPage, GraphManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
+import { AuditPage, DataSourceDetailPage, GraphManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
 import { GraphCreatePage } from './pages/GraphCreateWizard'
 import { SceneEditorPage, SceneListPage } from './pages/SceneRulePages'
 import { RuleAssetEditorPage, RuleAssetManagementPage } from './pages/RuleAssetPages'
 import { SkillAssetEditorPage, SkillAssetManagementPage } from './pages/SkillAssetPages'
-import { OntologyEditorPage, OntologyListPage } from './pages/OntologyLocalPages'
+import { OntologyEditorPage } from './pages/OntologyLocalPages'
 import { SituationPage, WorkbenchPage } from './pages/OverviewPages'
 import { RiskEventDetailPage, RiskEventListPage, WarningDetailPage, WarningListPage } from './pages/RiskPages'
 import { demoDataApi } from './demoDataApi'
@@ -22,7 +22,7 @@ const navGroups: NavGroup[] = [
   { id: 'situation', label: '监管态势', icon: 'situation', path: '/situation' },
   { id: 'risk', label: '风险监管', icon: 'shield', children: [{ label: '统一预警', path: '/risk/warnings', permission: '查看统一预警' }, { label: '风险事件', path: '/risk/events', permission: '查看风险事件' }] },
   { id: 'scene', label: '场景与规则', icon: 'rules', children: [{ label: '风险场景', path: '/scenes' }, { label: '规则管理', path: '/rules' }, { label: 'Skill管理', path: '/skills' }] },
-  { id: 'ontology', label: '本体与图谱', icon: 'graph', children: [{ label: '本体管理', path: '/ontology' }, { label: '数据接入', path: '/data-access' }, { label: '图谱管理', path: '/graphs' }] },
+  { id: 'ontology', label: '知识图谱', icon: 'graph', children: [{ label: '图谱结构', path: '/graphs/structures' }, { label: '数据源', path: '/graphs/sources' }] },
   { id: 'system', label: '系统管理', icon: 'system', children: [{ label: '用户与组织', path: '/system/users' }, { label: '角色与权限', path: '/system/roles' }, { label: '审计日志', path: '/system/audit', permission: '查看审计日志' }] },
 ]
 
@@ -65,7 +65,7 @@ function AppEnhanced() {
   const [resettingWorkflow, setResettingWorkflow] = useState(false)
 
   useEffect(() => {
-    void loadOntologies().then((result) => { if (!result.ok) setToast(`MySQL本体数据加载失败：${result.message}`) })
+    void loadOntologies().then((result) => { if (!result.ok) setToast(`MySQL图谱结构数据加载失败：${result.message}`) })
   }, [loadOntologies, setToast])
   useEffect(() => {
     void loadWarningsFromDatabase().then((result) => { if (!result.ok) setToast(`MySQL演示预警加载失败，已保留本地数据：${result.message}`) })
@@ -93,23 +93,27 @@ function AppEnhanced() {
     if (currentRole === '领域监管专员') return new Set(['workbench','situation','risk','scene'])
     if (currentRole === '业务责任人') return new Set(['workbench','risk'])
     if (currentRole.includes('规则')) return new Set(['workbench','scene'])
-    if (currentRole.includes('本体') || currentRole.includes('数据')) return new Set(['workbench','ontology','system'])
+    if (currentRole.includes('图谱结构') || currentRole.includes('本体') || currentRole.includes('数据')) return new Set(['workbench','ontology','system'])
     const allowed = new Set(['workbench'])
     if (rolePermissions.some((item) => item.includes('预警') || item.includes('风险'))) allowed.add('risk')
     if (rolePermissions.some((item) => item.includes('场景') || item.includes('规则'))) allowed.add('scene')
-    if (rolePermissions.some((item) => item.includes('本体') || item.includes('图谱'))) allowed.add('ontology')
+    if (rolePermissions.some((item) => item.includes('图谱结构') || item.includes('本体') || item.includes('图谱'))) allowed.add('ontology')
     if (rolePermissions.some((item) => item.includes('用户') || item.includes('角色') || item.includes('审计'))) allowed.add('system')
     return allowed
   }, [currentRole, rolePermissions])
 
   const visibleNavGroups = navGroups.filter((group) => permittedGroups.has(group.id)).map((group) => {
-    if (group.id === 'ontology' && group.children) return { ...group, children: group.children.filter((item) => item.path !== '/data-access') }
     if (!group.children || currentRole === '监管负责人') return group
-    if (group.id === 'system' && (currentRole.includes('本体') || currentRole.includes('数据'))) return { ...group, children: group.children.filter((item) => item.path === '/system/audit') }
+    if (group.id === 'system' && (currentRole.includes('图谱结构') || currentRole.includes('本体') || currentRole.includes('数据'))) return { ...group, children: group.children.filter((item) => item.path === '/system/audit') }
     return group
   }).filter((group) => group.path || (group.children && group.children.length > 0))
 
-  const activeGroup = useMemo(() => visibleNavGroups.find((group) => group.path ? location.pathname.startsWith(group.path) : group.children?.some((child) => location.pathname.startsWith(child.path.split('/:')[0])))?.id, [location.pathname, visibleNavGroups])
+  const isNavItemActive = (path: string) => {
+    if (path === '/graphs/structures') return location.pathname.startsWith('/graphs/structures') || location.pathname.startsWith('/ontology') || (location.pathname === '/graphs' && (!location.search || location.search.includes('tab=structures')))
+    if (path === '/graphs/sources') return location.pathname.startsWith('/graphs/sources') || location.pathname.startsWith('/data-access') || (location.pathname === '/graphs' && location.search.includes('tab=sources'))
+    return location.pathname === path || location.pathname.startsWith(`${path}/`)
+  }
+  const activeGroup = useMemo(() => visibleNavGroups.find((group) => group.path ? isNavItemActive(group.path) : group.children?.some((child) => isNavItemActive(child.path)))?.id, [location.pathname, location.search, visibleNavGroups])
   const unread = messages.filter((item) => item.unread).length
   const searchResults = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -134,8 +138,8 @@ function AppEnhanced() {
     if (path.startsWith('/scenes')) return { page: '风险场景', guide: '这里维护风险场景，并组织标准规则和智能Skill。', next: '建议先确认场景状态和版本，再进入编辑页面维护规则或发布新版本。', data: `当前共有${scenes.length}个风险场景，其中${scenes.filter((item) => item.status === '已发布').length}个已发布。` }
     if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里配置规则判断逻辑、风险等级、证据要求和运行策略。', next: '建议先选择所属场景，再检查判断条件、输出证据和失败策略。', data: '规则数据按所属场景和版本管理，发布前需要完成配置与校验。' }
     if (path.startsWith('/skills')) return { page: 'Skill管理', guide: '这里维护文档分析、语义判断和复杂研判等智能检测能力。', next: '填写基本信息和审查需求，生成并确认审查内容、审查要求与输出结果后，即可在风险场景中选择使用。', data: 'Skill独立版本化，可被多个风险场景引用。' }
-    if (path.startsWith('/ontology')) return { page: '本体管理', guide: '这里维护本体类、属性和关系的统一语义定义。', next: '需要表达带时间的业务记录时，为普通本体类配置标识、发生时间属性及关联对象关系。', data: '本体版本会影响规则配置、数据映射和图谱构建，请在发布前确认影响范围。' }
-    if (path.startsWith('/graphs')) return { page: '图谱管理', guide: '这里管理图谱版本、数据来源、语义映射和图谱质量。', next: '建议先确认数据源和本体版本，再检查映射、质量问题和发布条件。', data: '图谱数据用于证据关联和风险穿透分析，版本发布后会被后续规则运行引用。' }
+    if (path.startsWith('/ontology')) return { page: '图谱结构', guide: '这里维护知识图谱中的类、属性和关系定义。', next: '需要表达带时间的业务记录时，为普通类配置标识、发生时间属性及关联对象关系。', data: '图谱结构版本会影响规则配置、字段映射和图谱构建，请在发布前确认影响范围。' }
+    if (path.startsWith('/graphs')) return { page: '知识图谱', guide: '这里维护图谱结构、数据源、字段映射和知识图谱发布状态。', next: '建议先确认数据源和图谱结构，再检查映射模板和发布条件。', data: '知识图谱用于证据关联和风险穿透分析，发布后会被后续规则运行引用。' }
     if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
     if (path.startsWith('/system/roles')) return { page: '角色与权限', guide: '这里维护角色、数据范围、菜单权限和高危操作权限。', next: '建议先确认角色使用人数，再调整权限并检查敏感操作影响。', data: `当前共有${roles.length}个角色，权限调整会影响菜单、数据范围和可执行操作。` }
     if (path.startsWith('/system/audit')) return { page: '审计日志', guide: '这里查询用户操作、对象变化、执行结果和审计追踪编号。', next: '可按操作人、对象类型、风险级别或追踪编号定位具体操作记录。', data: '审计记录用于追踪关键配置和业务处置操作，历史记录不会被普通业务操作覆盖。' }
@@ -195,7 +199,7 @@ function AppEnhanced() {
         const isActive = activeGroup === group.id
         if (group.path) return <button key={group.id} className={`nav-main ${isActive ? 'active' : ''}`} title={group.label} onClick={() => navigate(group.path!)}><Icon name={group.icon}/><span>{group.label}</span></button>
         const isOpen = openGroups[group.id]
-        return <div key={group.id} className={`nav-group ${isActive ? 'active' : ''} ${isOpen ? 'open' : ''}`}><button className="nav-main" title={group.label} onClick={() => setOpenGroups((value) => ({ ...value, [group.id]: !value[group.id] }))}><Icon name={group.icon}/><span>{group.label}</span><i><Icon name="chevron" size={14}/></i></button><div className="nav-children">{group.children!.map((child) => <button key={child.path} className={location.pathname.startsWith(child.path) ? 'active' : ''} onClick={() => navigate(child.path)}><span>{child.label}</span></button>)}</div></div>
+        return <div key={group.id} className={`nav-group ${isActive ? 'active' : ''} ${isOpen ? 'open' : ''}`}><button className="nav-main" title={group.label} onClick={() => setOpenGroups((value) => ({ ...value, [group.id]: !value[group.id] }))}><Icon name={group.icon}/><span>{group.label}</span><i><Icon name="chevron" size={14}/></i></button><div className="nav-children">{group.children!.map((child) => <button key={child.path} className={isNavItemActive(child.path) ? 'active' : ''} onClick={() => navigate(child.path)}><span>{child.label}</span></button>)}</div></div>
       })}</nav>
       <div className="sidebar-footer"><button onClick={() => setCollapsed((value) => !value)}><Icon name="menu"/><span>{collapsed ? '展开导航' : '收起导航'}</span></button><button onClick={() => setResetWorkflowOpen(true)}><Icon name="refresh"/><span>重置演示工作流</span></button></div>
     </aside>
@@ -213,11 +217,13 @@ function AppEnhanced() {
       <Route path="/rules/:id" element={<RuleAssetEditorPage/>}/>
       <Route path="/skills" element={<SkillAssetManagementPage/>}/>
       <Route path="/skills/:id" element={<SkillAssetEditorPage/>}/>
-      <Route path="/ontology" element={<OntologyListPage/>}/>
+      <Route path="/ontology" element={<Navigate to="/graphs/structures" replace/>}/>
       <Route path="/ontology/:id" element={<OntologyEditorPage/>}/>
-      <Route path="/data-access" element={<Navigate to="/graphs?tab=sources" replace/>}/>
+      <Route path="/data-access" element={<Navigate to="/graphs/sources" replace/>}/>
       <Route path="/data-access/:id" element={<DataSourceDetailPage/>}/>
       <Route path="/graphs" element={<GraphManagementPage/>}/>
+      <Route path="/graphs/structures" element={<GraphManagementPage/>}/>
+      <Route path="/graphs/sources" element={<GraphManagementPage/>}/>
       <Route path="/graphs/new" element={<GraphCreatePage/>}/>
       <Route path="/graphs/:id/edit" element={<GraphCreatePage/>}/>
       <Route path="/graphs/sources/:id" element={<DataSourceDetailPage/>}/>

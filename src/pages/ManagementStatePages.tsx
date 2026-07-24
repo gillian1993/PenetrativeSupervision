@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store'
 import type { AuditItem, DataSourceItem, GraphVersion, OntologyItem, RoleItem, SceneItem, UserItem } from '../types'
 import { dataGraphApi, type MappingItem, type SourceMetadataItem, type SyncRecordItem } from '../dataGraphApi'
@@ -7,8 +7,7 @@ import { ontologyApi } from '../ontologyApi'
 import type { OntologyElement } from '../ontologyLocalStore'
 import { Button, Drawer, EmptyState, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, RiskTag, StatusTag, Tabs } from '../ui'
 import { GraphCreateDialog } from './GraphCreateWizard'
-
-type MappingGroup = '节点实例' | '关系'
+import { OntologyListPage as GraphStructureListPage } from './OntologyLocalPages'
 
 const sceneInitial = {
   name: '',
@@ -124,10 +123,10 @@ export function OntologyListPage() {
     if (result.ok && result.objectId) navigate(`/ontology/${result.objectId}`)
   }
   return <>
-    <PageHeader eyebrow="本体与图谱 / 本体管理" title="本体管理" description="维护监管基础本体和领域扩展本体，统一类、属性、关系与事件语义。" actions={<><Button icon="refresh" onClick={() => setToast('本体列表已刷新')}>刷新</Button><Button variant="primary" icon="plus" onClick={() => setToast('请从已发布本体复制新版本，以保留语义继承关系')}>新建本体</Button></>}/>
-    <FilterGrid onReset={() => setKeyword('')} onSearch={() => setToast(`查询完成，共${rows.length}个本体`)}><Field label="关键词"><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="本体名称、编码或领域"/></Field><Field label="状态"><select><option>全部状态</option><option>草稿</option><option>待校验</option><option>已发布</option></select></Field></FilterGrid>
-    <Panel title="本体列表" subtitle="已发布版本只读，变更必须复制新版本"><div className="table-container"><table><thead><tr><th>本体名称 / 编码</th><th>范围 / 领域</th><th>版本</th><th>类 / 属性 / 关系</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/ontology/${item.id}`)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.scope}<small className="cell-sub">{item.domain}</small></td><td>{item.version}</td><td><span className="metrics-inline"><b>{item.classes}</b>类（{Math.max(0, item.classes - item.events)}对象 / {item.events}事件） · <b>{item.properties}</b>属性 · <b>{item.relations}</b>关系</span></td><td><StatusTag>{item.status}</StatusTag></td><td>{item.updatedAt}</td><td><div className="row-actions"><button onClick={() => navigate(`/ontology/${item.id}`)}>{item.status === '已发布' ? '查看' : '编辑'}</button><button onClick={() => setTarget(item)}>{item.status === '已发布' ? '复制版本' : '发布'}</button></div></td></tr>)}</tbody></table></div></Panel>
-    <Modal open={!!target} title={target?.status === '已发布' ? '复制本体新版本' : '发布本体版本'} description={target ? `${target.name} ${target.version}` : ''} onClose={() => setTarget(null)} onConfirm={confirm}><PublishChecklist/></Modal>
+    <PageHeader eyebrow="知识图谱 / 图谱结构" title="图谱结构" description="维护基础图谱结构和领域图谱结构，统一类、属性和关系定义。" actions={<><Button icon="refresh" onClick={() => setToast('图谱结构列表已刷新')}>刷新</Button><Button variant="primary" icon="plus" onClick={() => setToast('请从已发布图谱结构复制草稿，以保留语义继承关系')}>新建图谱结构</Button></>}/>
+    <FilterGrid onReset={() => setKeyword('')} onSearch={() => setToast(`查询完成，共${rows.length}个图谱结构`)}><Field label="关键词"><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="结构名称、编码或领域"/></Field><Field label="状态"><select><option>全部状态</option><option>草稿</option><option>待校验</option><option>已发布</option></select></Field></FilterGrid>
+    <Panel title="图谱结构列表" subtitle="已发布版本只读，变更必须复制新版本"><div className="table-container"><table><thead><tr><th>结构名称 / 编码</th><th>范围 / 领域</th><th>版本</th><th>类 / 属性 / 关系</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/ontology/${item.id}`)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.scope}<small className="cell-sub">{item.domain}</small></td><td>{item.version}</td><td><span className="metrics-inline"><b>{item.classes}</b>类（{Math.max(0, item.classes - item.events)}对象 / {item.events}事件） · <b>{item.properties}</b>属性 · <b>{item.relations}</b>关系</span></td><td><StatusTag>{item.status}</StatusTag></td><td>{item.updatedAt}</td><td><div className="row-actions"><button onClick={() => navigate(`/ontology/${item.id}`)}>{item.status === '已发布' ? '查看' : '编辑'}</button><button onClick={() => setTarget(item)}>{item.status === '已发布' ? '复制版本' : '发布'}</button></div></td></tr>)}</tbody></table></div></Panel>
+    <Modal open={!!target} title={target?.status === '已发布' ? '复制图谱结构' : '发布图谱结构'} description={target ? `${target.name} ${target.version}` : ''} onClose={() => setTarget(null)} onConfirm={confirm}><PublishChecklist/></Modal>
   </>
 }
 
@@ -142,14 +141,14 @@ export function OntologyEditorPage() {
   const [tab, setTab] = useState('class')
   const [selected, setSelected] = useState('供应商')
   const [drawer, setDrawer] = useState(false)
-  if (!item) return <EmptyState title="本体版本不存在" description="请从本体列表选择可访问版本。"/>
+  if (!item) return <EmptyState title="图谱结构版本不存在" description="请从图谱结构列表选择可访问版本。"/>
   const readonly = item.status === '已发布'
   const copy = () => { const result = copyOntology(item.id); setToast(result.message); if (result.ok && result.objectId) navigate(`/ontology/${result.objectId}`) }
   const publish = () => { const result = publishOntology(item.id); setToast(result.message) }
   return <>
-    <div className="editor-header"><div><button className="back-button" onClick={() => navigate('/ontology')}>‹ 返回本体列表</button><p className="eyebrow">本体版本编辑 / {item.id}</p><h1>{item.name}</h1><div className="editor-meta"><StatusTag>{item.status}</StatusTag><span>版本 {item.version}</span><span>{item.scope}</span><span>最近保存：{item.updatedAt}</span></div></div><div className="page-actions">{readonly ? <Button variant="primary" onClick={copy}>复制新版本</Button> : <><Button onClick={() => setToast('本体草稿已保存')}>保存草稿</Button><Button onClick={() => setToast('校验完成：0个阻断项')}>校验</Button><Button variant="primary" onClick={publish}>发布</Button></>}</div></div>
-    <section className="ontology-editor-layout"><Panel title="本体类" subtitle={`${item.classes} 个类`} className="class-tree"><input placeholder="搜索名称或编码"/><div className="tree-list">{['组织','人员','主体','供应商','采购项目','合同','审批记录','资金记录','账户','文档/附件','预警','风险事件'].map((name) => <button key={name} className={selected === name ? 'active' : ''} onClick={() => setSelected(name)}><Icon name={name === '人员' ? 'user' : name === '预警' ? 'warning' : 'graph'} size={15}/><span>{name}</span><small>{name === '供应商' ? 'PROC.Supplier' : `BASE.${name}`}</small></button>)}</div><Button icon="plus" onClick={() => setDrawer(true)} disabled={readonly}>新增本体类</Button></Panel><Panel className="ontology-element-panel"><div className="selected-class-header"><div><p className="eyebrow">当前本体类</p><h2>{selected}</h2><span>主识别属性：统一社会信用代码 / 主体编码</span></div><Button icon="edit" onClick={() => setDrawer(true)} disabled={readonly}>编辑类定义</Button></div><Tabs value={tab} onChange={setTab} items={[{ key: 'class', label: '类定义' }, { key: 'property', label: '属性', count: 12 }, { key: 'relation', label: '关系', count: 8 }, { key: 'diff', label: '版本差异' }]}/>{tab === 'class' && <KeyValue items={[{ label: '类编码', value: 'PROC.Supplier' }, { label: '中文名称', value: selected }, { label: '别名', value: '供应商、服务商、投标主体' }, { label: '默认敏感等级', value: <StatusTag>内部</StatusTag> }, { label: '主识别属性', value: '统一社会信用代码、供应商编码' }]}/>} {tab === 'property' && <OntologyElements rows={['supplier_code|供应商编码|文本|主标识','credit_code|统一社会信用代码|文本|主标识','supplier_name|供应商名称|文本|必填','contact_phone|联系电话|文本|强敏感']}/>} {tab === 'relation' && <OntologyElements rows={['participate|参与|供应商 → 采购项目|多对多','sign|签订|供应商 → 合同|一对多','controlled_by|受控制于|供应商 → 主体|多对多']}/>} {tab === 'diff' && <VersionTimeline labels={['新增：共同联系方式关系','修改：主标识质量要求','修改：联系电话敏感等级']}/>}</Panel></section>
-    <Drawer open={drawer} title={`${readonly ? '查看' : '编辑'}本体类：${selected}`} eyebrow="本体元素" onClose={() => setDrawer(false)} footer={<><Button onClick={() => setDrawer(false)}>取消</Button><Button variant="primary" disabled={readonly} onClick={() => { setDrawer(false); setToast('本体类定义已保存') }}>保存</Button></>}><div className="form-stack"><Field label="类编码"><input defaultValue="PROC.Supplier" disabled/></Field><Field label="中文名称"><input defaultValue={selected} disabled={readonly}/></Field><Field label="别名"><input defaultValue="供应商、服务商、投标主体" disabled={readonly}/></Field><Field label="默认敏感等级"><select defaultValue="内部" disabled={readonly}><option>普通</option><option>内部</option><option>敏感</option><option>强敏感</option></select></Field></div></Drawer>
+    <div className="editor-header"><div><button className="back-button" onClick={() => navigate('/ontology')}>‹ 返回图谱结构列表</button><p className="eyebrow">图谱结构版本编辑 / {item.id}</p><h1>{item.name}</h1><div className="editor-meta"><StatusTag>{item.status}</StatusTag><span>版本 {item.version}</span><span>{item.scope}</span><span>最近保存：{item.updatedAt}</span></div></div><div className="page-actions">{readonly ? <Button variant="primary" onClick={copy}>复制新版本</Button> : <><Button onClick={() => setToast('图谱结构草稿已保存')}>保存草稿</Button><Button onClick={() => setToast('校验完成：0个阻断项')}>校验</Button><Button variant="primary" onClick={publish}>发布</Button></>}</div></div>
+    <section className="ontology-editor-layout"><Panel title="类" subtitle={`${item.classes} 个类`} className="class-tree"><input placeholder="搜索名称或编码"/><div className="tree-list">{['组织','人员','主体','供应商','采购项目','合同','审批记录','资金记录','账户','文档/附件','预警','风险事件'].map((name) => <button key={name} className={selected === name ? 'active' : ''} onClick={() => setSelected(name)}><Icon name={name === '人员' ? 'user' : name === '预警' ? 'warning' : 'graph'} size={15}/><span>{name}</span><small>{name === '供应商' ? 'PROC.Supplier' : `BASE.${name}`}</small></button>)}</div><Button icon="plus" onClick={() => setDrawer(true)} disabled={readonly}>新增类</Button></Panel><Panel className="ontology-element-panel"><div className="selected-class-header"><div><p className="eyebrow">当前类</p><h2>{selected}</h2><span>主识别属性：统一社会信用代码 / 主体编码</span></div><Button icon="edit" onClick={() => setDrawer(true)} disabled={readonly}>编辑类定义</Button></div><Tabs value={tab} onChange={setTab} items={[{ key: 'class', label: '类定义' }, { key: 'property', label: '属性', count: 12 }, { key: 'relation', label: '关系', count: 8 }, { key: 'diff', label: '版本差异' }]}/>{tab === 'class' && <KeyValue items={[{ label: '类编码', value: 'PROC.Supplier' }, { label: '中文名称', value: selected }, { label: '别名', value: '供应商、服务商、投标主体' }, { label: '默认敏感等级', value: <StatusTag>内部</StatusTag> }, { label: '主识别属性', value: '统一社会信用代码、供应商编码' }]}/>} {tab === 'property' && <OntologyElements rows={['supplier_code|供应商编码|文本|主标识','credit_code|统一社会信用代码|文本|主标识','supplier_name|供应商名称|文本|必填','contact_phone|联系电话|文本|强敏感']}/>} {tab === 'relation' && <OntologyElements rows={['participate|参与|供应商 → 采购项目|多对多','sign|签订|供应商 → 合同|一对多','controlled_by|受控制于|供应商 → 主体|多对多']}/>} {tab === 'diff' && <VersionTimeline labels={['新增：共同联系方式关系','修改：主标识质量要求','修改：联系电话敏感等级']}/>}</Panel></section>
+    <Drawer open={drawer} title={`${readonly ? '查看' : '编辑'}类：${selected}`} eyebrow="结构元素" onClose={() => setDrawer(false)} footer={<><Button onClick={() => setDrawer(false)}>取消</Button><Button variant="primary" disabled={readonly} onClick={() => { setDrawer(false); setToast('类定义已保存') }}>保存</Button></>}><div className="form-stack"><Field label="类编码"><input defaultValue="PROC.Supplier" disabled/></Field><Field label="中文名称"><input defaultValue={selected} disabled={readonly}/></Field><Field label="别名"><input defaultValue="供应商、服务商、投标主体" disabled={readonly}/></Field><Field label="默认敏感等级"><select defaultValue="内部" disabled={readonly}><option>普通</option><option>内部</option><option>敏感</option><option>强敏感</option></select></Field></div></Drawer>
   </>
 }
 
@@ -203,7 +202,7 @@ export function DataAccessPage() {
   return <>
     <FilterGrid onReset={() => { const value = { keyword: '', status: '全部' }; setSearchDraft(value); setFilters(value) }} onSearch={() => setFilters(searchDraft)} actions={<Button variant="primary" icon="plus" onClick={() => setDrawer(true)}>新建数据源</Button>}><Field label="关键词"><input value={searchDraft.keyword} onChange={(event) => setSearchDraft({ ...searchDraft, keyword: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter') setFilters(searchDraft) }} placeholder="数据源名称、编码、方式或责任人"/></Field><Field label="状态"><select value={searchDraft.status} onChange={(event) => setSearchDraft({ ...searchDraft, status: event.target.value })}><option>全部</option><option>草稿</option><option>启用</option><option>停用</option><option>异常</option></select></Field></FilterGrid>
     <section className="stats-grid four"><article className="mini-stat"><span>数据源总数</span><strong>{dataSources.length}</strong><small>含草稿、启用和停用</small></article><article className="mini-stat"><span>启用数据源</span><strong>{dataSources.filter((item) => item.status === '启用').length}</strong><small>正常参与数据同步</small></article><article className="mini-stat"><span>异常数据源</span><strong>{dataSources.filter((item) => item.status === '异常').length}</strong><small>需要检查连接或结构</small></article><article className="mini-stat"><span>近期处理数据</span><strong>{records.reduce((sum, item) => sum + item.processed, 0).toLocaleString()}</strong><small>全部数据源同步记录</small></article></section>
-    <Panel className="data-access-panel" title="数据源列表" subtitle="数据源可被多个图谱复用，进入详情维护接入配置和语义映射">{loading ? <div className="loading-state"><i/><span>正在加载数据源…</span></div> : filteredSources.length ? <SourceTable data={filteredSources} onSelect={(item) => navigate(`/graphs/sources/${item.id}`)} onTest={test} onToggle={toggle} onDelete={setDeleteTarget}/> : <EmptyState title={dataSources.length ? '未找到数据源' : '暂无数据源'} description={dataSources.length ? '请调整关键词或状态条件。' : '点击“新建数据源”开始配置数据接入。'}/>}</Panel>
+    <Panel className="data-access-panel" title="数据源列表" subtitle="数据源可被多个图谱复用，进入详情维护接入配置和字段映射">{loading ? <div className="loading-state"><i/><span>正在加载数据源…</span></div> : filteredSources.length ? <SourceTable data={filteredSources} onSelect={(item) => navigate(`/graphs/sources/${item.id}`)} onTest={test} onToggle={toggle} onDelete={setDeleteTarget}/> : <EmptyState title={dataSources.length ? '未找到数据源' : '暂无数据源'} description={dataSources.length ? '请调整关键词或状态条件。' : '点击“新建数据源”开始配置数据接入。'}/>}</Panel>
     <Drawer open={drawer} title="新建数据源" eyebrow="数据源向导" onClose={() => setDrawer(false)} footer={<><Button onClick={() => setDrawer(false)}>取消</Button><Button variant="primary" onClick={create}>保存并继续</Button></>}><div className="step-indicator"><span className="active">1 基本配置</span><span>2 连接测试</span><span>3 元数据解析</span></div><div className="form-stack"><Field label="来源系统名称 *"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })}/></Field><Field label="来源方式"><select value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value })}><option>数据库视图</option><option>API</option><option>消息</option><option>批量文件</option></select></Field><Field label="责任人"><select value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })}><option>张海</option><option>陈洁</option></select></Field><Field label="同步方式"><select value={form.syncMode} onChange={(event) => setForm({ ...form, syncMode: event.target.value })}><option>全量</option><option>增量</option><option>事件</option></select></Field><Field label="数据范围 *"><textarea value={form.range} onChange={(event) => setForm({ ...form, range: event.target.value })} placeholder="说明对象、时间和组织范围"/></Field></div></Drawer>
     <Modal open={!!deleteTarget} title="删除数据源" description={deleteTarget ? `${deleteTarget.name} · ${deleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()}><div className="alert-box danger"><Icon name="warning"/><span>仅未启用且没有同步记录的数据源可以删除，元数据和映射草稿将一并清理。</span></div></Modal>
   </>
@@ -222,19 +221,12 @@ export function DataSourceDetailPage() {
   const [error, setError] = useState('')
   const requestedTab = searchParams.get('tab') || 'basic'
   const tab = requestedTab === 'mapping' ? 'mapping' : 'basic'
-  const requestedType = searchParams.get('type')
-  const mappingType: MappingGroup = requestedType === '关系' ? '关系' : '节点实例'
+  const currentOntologyId = mappings.find((item) => item.type === '节点实例')?.ontologyId || mappings[0]?.ontologyId || 'ONT-PROC'
 
   const changeTab = (nextTab: string) => {
     const next = new URLSearchParams(searchParams)
     next.set('tab', nextTab)
     if (nextTab !== 'mapping') next.delete('type')
-    setSearchParams(next, { replace: true })
-  }
-  const changeMappingType = (nextType: MappingGroup) => {
-    const next = new URLSearchParams(searchParams)
-    next.set('tab', 'mapping')
-    next.set('type', nextType)
     setSearchParams(next, { replace: true })
   }
   const load = async () => {
@@ -272,22 +264,22 @@ export function DataSourceDetailPage() {
   const parse = async () => {
     if (!source) return
     try {
-      const metadataRows = await dataGraphApi.parseMetadata(source.id)
-      const mappingRows = await dataGraphApi.mappings(source.id)
+      const metadataRows = await dataGraphApi.parseMetadata(source.id, currentOntologyId)
+      const mappingRows = await dataGraphApi.mappings(source.id, undefined, currentOntologyId)
       setMetadata(metadataRows)
       setMappings(mappingRows)
-      setToast(`元数据解析完成，已生成 ${mappingRows.length} 条映射建议`)
+      setToast(`元数据解析完成，已生成 ${mappingRows.filter((item) => item.type === '节点实例').length} 条字段映射建议`)
     } catch (actionError) { setToast(actionError instanceof Error ? actionError.message : '元数据解析失败') }
   }
   const validate = async () => {
     if (!source) return
-    try { const result = await dataGraphApi.validateMappings(source.id); setMappings(await dataGraphApi.mappings(source.id)); setToast(result.message) } catch (actionError) { setToast(actionError instanceof Error ? actionError.message : '语义映射校验失败') }
+    try { const result = await dataGraphApi.validateMappings(source.id, currentOntologyId); setMappings(await dataGraphApi.mappings(source.id, undefined, currentOntologyId)); setToast(result.message) } catch (actionError) { setToast(actionError instanceof Error ? actionError.message : '字段映射校验失败') }
   }
-  const updateMapping = async (row: MappingItem, payload: { targetCode: string; transform: string; confidence: number }) => {
+  const updateMapping = async (row: MappingItem, payload: { targetCode: string; transform: string }) => {
     if (!source) return
     await dataGraphApi.updateMapping(source.id, row.id, { ontologyId: row.ontologyId, ...payload })
     setMappings(await dataGraphApi.mappings(source.id, undefined, row.ontologyId))
-    setToast('映射已保存，公共映射状态已变更为待校验')
+    setToast('字段映射已保存，状态已变更为待校验')
   }
   const toggle = async () => {
     if (!source) return
@@ -295,25 +287,26 @@ export function DataSourceDetailPage() {
   }
 
   if (loading) return <div className="loading-state page-loading"><i/><span>正在加载数据源详情…</span></div>
-  if (!source) return <><button className="back-button" onClick={() => navigate('/graphs?tab=sources')}>‹ 返回数据源列表</button><EmptyState title="数据源不可访问" description={error || '请返回数据源列表重新选择。'}/></>
+  if (!source) return <><button className="back-button" onClick={() => navigate('/graphs/sources')}>‹ 返回数据源列表</button><EmptyState title="数据源不可访问" description={error || '请返回数据源列表重新选择。'}/></>
 
-  const validMappings = mappings.filter((item) => item.status === '有效').length
+  const fieldMappings = mappings.filter((item) => item.type === '节点实例')
+  const validMappings = fieldMappings.filter((item) => item.status === '有效').length
   return <>
-    <div className="data-source-detail-header"><div><button className="back-button" onClick={() => navigate('/graphs?tab=sources')}>‹ 返回数据源列表</button><p className="eyebrow">图谱管理 / 数据源详情 / {source.id}</p><h1>{source.name}</h1><div className="editor-meta"><StatusTag>{source.status}</StatusTag><span>{source.mode}</span><span>{source.syncMode}同步</span><span>责任人：{source.owner}</span><span>最近成功：{source.lastSuccess}</span></div></div><div className="page-actions"><Button onClick={() => void test()}>测试连接</Button><Button variant={source.status === '启用' ? 'danger' : 'primary'} disabled={source.status !== '启用' && validMappings === 0} title={source.status !== '启用' && validMappings === 0 ? '请先解析元数据并完成映射校验' : undefined} onClick={() => void toggle()}>{source.status === '启用' ? '停用数据源' : '启用数据源'}</Button></div></div>
-    <section className="stats-grid four source-detail-stats"><article className="mini-stat"><span>元数据对象</span><strong>{metadata.length}</strong><small>{metadata.length ? '已完成结构解析' : '等待解析'}</small></article><article className="mini-stat"><span>映射建议</span><strong>{mappings.length}</strong><small>节点实例、关系</small></article><article className="mini-stat"><span>有效映射</span><strong>{validMappings}</strong><small>{mappings.length - validMappings} 条待校验</small></article><article className="mini-stat"><span>同步批次</span><strong>{records.length}</strong><small>仅当前数据源</small></article></section>
-    <Panel className="data-source-detail-panel"><Tabs value={tab} onChange={changeTab} items={[{ key: 'basic', label: '基本配置' }, { key: 'mapping', label: '语义映射', count: mappings.length }]}/>
+    <div className="data-source-detail-header"><div><button className="back-button" onClick={() => navigate('/graphs/sources')}>‹ 返回数据源列表</button><p className="eyebrow">知识图谱 / 数据源详情 / {source.id}</p><h1>{source.name}</h1><div className="editor-meta"><StatusTag>{source.status}</StatusTag><span>{source.mode}</span><span>{source.syncMode}同步</span><span>责任人：{source.owner}</span><span>最近成功：{source.lastSuccess}</span></div></div><div className="page-actions"><Button onClick={() => void test()}>测试连接</Button><Button variant={source.status === '启用' ? 'danger' : 'primary'} disabled={source.status !== '启用' && validMappings === 0} title={source.status !== '启用' && validMappings === 0 ? '请先解析元数据并完成映射校验' : undefined} onClick={() => void toggle()}>{source.status === '启用' ? '停用数据源' : '启用数据源'}</Button></div></div>
+    <section className="stats-grid four source-detail-stats"><article className="mini-stat"><span>元数据对象</span><strong>{metadata.length}</strong><small>{metadata.length ? '已完成结构解析' : '等待解析'}</small></article><article className="mini-stat"><span>字段映射</span><strong>{fieldMappings.length}</strong><small>来源字段到图谱字段</small></article><article className="mini-stat"><span>有效映射</span><strong>{validMappings}</strong><small>{fieldMappings.length - validMappings} 条待校验</small></article><article className="mini-stat"><span>同步批次</span><strong>{records.length}</strong><small>仅当前数据源</small></article></section>
+    <Panel className="data-source-detail-panel"><Tabs value={tab} onChange={changeTab} items={[{ key: 'basic', label: '基本配置' }, { key: 'mapping', label: '字段映射', count: fieldMappings.length }]}/>
       {tab === 'basic' && <SourceBasicConfig source={source} metadata={metadata} onParse={() => void parse()} onMapping={() => changeTab('mapping')}/>}
-      {tab === 'mapping' && <div className="semantic-mapping-view"><div className="semantic-mapping-toolbar"><div><strong>公共语义映射</strong><span>按“数据源 + 本体”统一维护，可被多个图谱版本复用</span></div><div className="segmented">{(['节点实例','关系'] as MappingGroup[]).map((type) => <button key={type} className={mappingType === type ? 'active' : ''} onClick={() => changeMappingType(type)}>{type}</button>)}</div></div><SourceMapping type={mappingType} source={source} rows={mappings} ontologyElements={ontologyElements} onSave={updateMapping} onSubmit={() => void validate()}/></div>}
+      {tab === 'mapping' && <div className="semantic-mapping-view"><div className="semantic-mapping-toolbar"><div><strong>字段映射</strong><span>只维护来源字段到图谱字段；实例关系由系统在生成知识图谱时自动构建。</span></div><div className="semantic-mapping-controls"><Button icon="refresh" onClick={() => void parse()}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button><Button variant="primary" onClick={() => void validate()}>校验字段映射</Button></div></div><SourceMapping source={source} metadata={metadata} rows={mappings} ontologyElements={ontologyElements} onParse={() => void parse()} onSave={updateMapping}/></div>}
     </Panel>
   </>
 }
 
 function SourceBasicConfig({ source, metadata, onParse, onMapping }: { source: DataSourceItem; metadata: SourceMetadataItem[]; onParse: () => void; onMapping: () => void }) {
   return <>
-    <div className="source-basic-navigation"><div><strong>下一步：维护语义映射</strong><span>来源结构解析完成后，进入公共映射维护来源字段与本体元素的对应关系。</span></div><Button variant="primary" disabled={!metadata.length} title={!metadata.length ? '请先解析来源结构' : undefined} onClick={onMapping}>进入语义映射</Button></div>
+    <div className="source-basic-navigation"><div><strong>下一步：维护字段映射</strong><span>{metadata.length ? '进入字段映射维护来源字段与图谱字段的对应关系。' : '也可以先进入字段映射页，在那里一键解析并生成映射建议。'}</span></div><Button variant="primary" onClick={onMapping}>进入字段映射</Button></div>
     <div className="detail-grid source-basic-grid">
       <Panel title="来源基本信息"><KeyValue items={[{ label: '来源名称', value: source.name }, { label: '来源编码', value: source.id }, { label: '来源方式', value: source.mode }, { label: '数据范围', value: source.range }, { label: '责任人', value: source.owner }, { label: '同步方式', value: source.syncMode }, { label: '最近同步成功', value: source.lastSuccess }, { label: '当前状态', value: <StatusTag>{source.status}</StatusTag> }]}/></Panel>
-      <Panel title="来源结构解析" subtitle="读取来源表、接口或消息结构，并生成语义映射建议" actions={<Button onClick={onParse}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button>}>
+      <Panel title="来源结构解析" subtitle="读取来源表、接口或消息结构，并生成字段映射建议" actions={<Button onClick={onParse}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button>}>
         <KeyValue items={[{ label: '解析状态', value: <StatusTag>{metadata.length ? '已解析' : '待解析'}</StatusTag> }, { label: '已解析对象', value: metadata.length }]}/>
         {metadata.length ? <div className="metadata-list">{metadata.map((item) => <button key={item.id}><span><strong>{item.displayName}</strong><small>{item.tableName} · {item.fieldCount}字段</small></span><Icon name="chevron" size={14}/></button>)}</div> : <EmptyState title="尚未解析来源结构" description="请先通过页面顶部的连接测试，再解析来源结构。"/>}
       </Panel>
@@ -324,21 +317,21 @@ function SourceTable({ data, onSelect, onTest, onToggle, onDelete }: { data: Dat
   return <div className="table-container"><table><thead><tr><th>来源名称 / 编码</th><th>来源方式</th><th>数据范围</th><th>责任人</th><th>同步方式</th><th>最近成功</th><th>状态</th><th>操作</th></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => onSelect(item)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.mode}</td><td>{item.range}</td><td>{item.owner}</td><td>{item.syncMode}</td><td>{item.lastSuccess}</td><td><StatusTag>{item.status}</StatusTag></td><td><div className="row-actions"><button onClick={() => onSelect(item)}>进入详情</button><button onClick={() => onTest(item)}>测试</button><button onClick={() => onToggle(item)}>{item.status === '启用' ? '停用' : '启用'}</button>{item.status !== '启用' && <button className="danger-link" onClick={() => onDelete(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
 }
 
-function SourceMapping({ type, source, rows, ontologyElements, onSave, onSubmit }: { type: MappingGroup; source: DataSourceItem; rows: MappingItem[]; ontologyElements: OntologyElement[]; onSave: (row: MappingItem, payload: { targetCode: string; transform: string; confidence: number }) => Promise<void>; onSubmit: () => void }) {
+function SourceMapping({ source, metadata, rows, ontologyElements, onParse, onSave }: { source: DataSourceItem; metadata: SourceMetadataItem[]; rows: MappingItem[]; ontologyElements: OntologyElement[]; onParse: () => void; onSave: (row: MappingItem, payload: { targetCode: string; transform: string }) => Promise<void> }) {
   const setToast = useAppStore((state) => state.setToast)
   const [editing, setEditing] = useState<MappingItem | null>(null)
-  const [draft, setDraft] = useState({ targetCode: '', transform: '', confidence: 0 })
+  const [draft, setDraft] = useState({ targetCode: '', transform: '' })
   const [saving, setSaving] = useState(false)
-  const visible = rows.filter((row) => row.type === type)
+  const visible = rows.filter((row) => row.type === '节点实例')
   const mapping = visible[0] || rows[0]
-  const targetOptions = ontologyElements.filter((item) => type === '节点实例' ? item.type === 'class' || item.type === 'property' : item.type === 'relation')
+  const targetOptions = ontologyElements.filter((item) => item.type === 'class' || item.type === 'property')
   const openEditor = (row: MappingItem) => {
     setEditing(row)
-    setDraft({ targetCode: row.targetCode, transform: row.transform, confidence: row.confidence })
+    setDraft({ targetCode: row.targetCode, transform: row.transform })
   }
   const save = async () => {
     if (!editing) return
-    if (!draft.targetCode) { setToast('请选择目标本体元素'); return }
+    if (!draft.targetCode) { setToast('请选择目标图谱字段'); return }
     if (!draft.transform.trim()) { setToast('请输入转换与识别规则'); return }
     setSaving(true)
     try {
@@ -351,60 +344,62 @@ function SourceMapping({ type, source, rows, ontologyElements, onSave, onSubmit 
     }
   }
   return visible.length ? <>
-    <div className="mapping-header"><div><span>当前公共映射</span><strong>{source.name}</strong><small>{source.id} + {mapping?.ontologyId || 'ONT-PROC'} · {type}映射</small></div><div className="mapping-status-summary"><span>映射版本</span><strong>R{mapping?.revision || 1} · {visible.length} 条</strong><small>{mapping?.setStatus || '待校验'} · 最近校验 {mapping?.lastValidatedAt || '—'}</small></div><Button variant="primary" onClick={onSubmit}>校验公共映射</Button></div>
-    {type === '节点实例' && <div className="alert-box"><Icon name="graph"/><span>节点实例映射包含类实例识别和属性值映射；带时间语义的类可通过普通发生时间属性和关联对象关系表达。</span></div>}
-    <div className="mapping-canvas"><aside><h3>{type === '节点实例' ? '来源字段 / 节点识别键' : '来源字段 / 关联键'}</h3>{visible.map((row) => <button key={row.id}>{row.sourceField}<small>{row.status}</small></button>)}</aside><main><h3>{type === '节点实例' ? '节点构建与属性规则' : '转换与识别规则'}</h3>{visible.map((row) => <div key={row.id}><span>{row.transform}</span><Icon name="chevron"/></div>)}</main><aside><h3>{type === '节点实例' ? '目标本体类 / 属性' : '目标本体关系'}</h3>{visible.map((row) => <button key={row.id}>{row.targetCode}<small>核验状态：{row.status}</small></button>)}</aside></div>
-    <Panel className="mapping-detail-panel" title="映射明细" subtitle="逐条修改转换规则和目标本体元素；保存后需要重新校验公共映射">
-      <div className="table-container mapping-detail-table"><table><thead><tr><th>来源字段</th><th>转换与识别规则</th><th>目标本体元素</th><th>置信度</th><th>状态</th><th>操作</th></tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><strong>{row.sourceField}</strong><small className="cell-sub">{row.type}</small></td><td>{row.transform}</td><td><strong>{row.targetCode}</strong><small className="cell-sub">{ontologyElements.find((item) => item.code === row.targetCode)?.name || '本体元素'}</small></td><td>{row.confidence}%</td><td><StatusTag>{row.status}</StatusTag></td><td><div className="row-actions"><button onClick={() => openEditor(row)}>编辑</button></div></td></tr>)}</tbody></table></div>
+    <div className="mapping-header"><div><span>当前字段映射</span><strong>{source.name}</strong><small>{source.id} + {mapping?.ontologyId || 'ONT-PROC'} · 来源字段到图谱字段</small></div><div className="mapping-status-summary"><span>映射版本</span><strong>R{mapping?.revision || 1} · {visible.length} 条</strong><small>{mapping?.setStatus || '待校验'} · 最近校验 {mapping?.lastValidatedAt || '—'}</small></div></div>
+    <div className="alert-box"><Icon name="graph"/><span>字段映射只处理来源字段到图谱字段的对应关系；实例之间的关系会在生成知识图谱时根据图谱结构和业务键自动构建。</span></div>
+    <Panel className="mapping-detail-panel" title="映射明细" subtitle="逐条修改转换规则和目标图谱字段；保存后需要重新校验字段映射">
+      <div className="table-container mapping-detail-table"><table><thead><tr><th>来源字段</th><th>转换与识别规则</th><th>目标图谱字段</th><th>状态</th><th>操作</th></tr></thead><tbody>{visible.map((row) => <tr key={row.id}><td><strong>{row.sourceField}</strong></td><td>{row.transform}</td><td><strong>{row.targetCode}</strong><small className="cell-sub">{ontologyElements.find((item) => item.code === row.targetCode)?.name || '图谱字段'}</small></td><td><StatusTag>{row.status}</StatusTag></td><td><div className="row-actions"><button onClick={() => openEditor(row)}>编辑</button></div></td></tr>)}</tbody></table></div>
     </Panel>
-    <Drawer open={!!editing} title="编辑语义映射" eyebrow={`${type}公共映射`} onClose={() => { if (!saving) setEditing(null) }} footer={<><Button disabled={saving} onClick={() => setEditing(null)}>取消</Button><Button variant="primary" disabled={saving} onClick={() => void save()}>{saving ? '保存中…' : '保存映射'}</Button></>}>
-      {editing && <div className="form-stack mapping-edit-form"><KeyValue items={[{ label: '来源字段', value: editing.sourceField }, { label: '映射类型', value: editing.type }, { label: '所属本体', value: editing.ontologyId }, { label: '当前状态', value: <StatusTag>{editing.status}</StatusTag> }]}/><Field label="目标本体元素 *"><select value={draft.targetCode} onChange={(event) => setDraft({ ...draft, targetCode: event.target.value })}><option value="">请选择目标本体元素</option>{targetOptions.map((item) => <option key={item.id} value={item.code}>{item.name} · {item.code}</option>)}</select></Field><Field label="转换与识别规则 *"><textarea value={draft.transform} onChange={(event) => setDraft({ ...draft, transform: event.target.value })} placeholder="例如：trim + uppercase"/></Field><Field label="映射置信度（0-100）"><input type="number" min="0" max="100" value={draft.confidence} onChange={(event) => setDraft({ ...draft, confidence: Math.max(0, Math.min(100, Number(event.target.value))) })}/></Field><div className="alert-box"><Icon name="warning"/><span>修改公共映射会影响后续引用该数据源和本体的图谱版本；保存后映射状态将变为“待校验”。</span></div></div>}
+    <Drawer open={!!editing} title="编辑字段映射" eyebrow="字段映射" onClose={() => { if (!saving) setEditing(null) }} footer={<><Button disabled={saving} onClick={() => setEditing(null)}>取消</Button><Button variant="primary" disabled={saving} onClick={() => void save()}>{saving ? '保存中…' : '保存映射'}</Button></>}>
+      {editing && <div className="form-stack mapping-edit-form"><KeyValue items={[{ label: '来源字段', value: editing.sourceField }, { label: '所属图谱结构', value: editing.ontologyId }, { label: '当前状态', value: <StatusTag>{editing.status}</StatusTag> }]}/><Field label="目标图谱字段 *"><select value={draft.targetCode} onChange={(event) => setDraft({ ...draft, targetCode: event.target.value })}><option value="">请选择目标图谱字段</option>{targetOptions.map((item) => <option key={item.id} value={item.code}>{item.name} · {item.code}</option>)}</select></Field><Field label="转换与识别规则 *"><textarea value={draft.transform} onChange={(event) => setDraft({ ...draft, transform: event.target.value })} placeholder="例如：trim + uppercase"/></Field><div className="alert-box"><Icon name="warning"/><span>修改字段映射会影响后续使用该数据源生成的知识图谱；保存后状态将变为“待校验”。</span></div></div>}
     </Drawer>
-  </> : <EmptyState title={`暂无${type}公共映射`} description="请先在“基本配置”中完成来源结构解析，系统将生成可复用的公共映射建议。"/>
-}
-function GraphTable({ data, onPublish, onEdit, onHistory, onDelete }: { data: GraphVersion[]; onPublish: (item: GraphVersion) => void; onEdit: (item: GraphVersion) => void; onHistory: (item: GraphVersion) => void; onDelete: (item: GraphVersion) => void }) {
-  return data.length ? <div className="table-container"><table><thead><tr><th>图谱 / 版本</th><th>本体与数据源</th><th>数据范围</th><th>节点 / 关系</th><th>状态</th><th>发布时间</th><th>操作</th></tr></thead><tbody>{data.map((item) => { const editable = ['校验中', '待发布', '失败'].includes(item.status); return <tr key={item.id}><td><strong>{item.graphName}</strong><small className="cell-sub">{item.graphCode} · {item.id}</small></td><td>{item.ontologyVersion}<small className="cell-sub">{item.sourceNames.join('、') || '历史版本未记录数据源'} · {item.mappingVersion}</small></td><td>{item.range}</td><td>{(item.entities + item.events).toLocaleString()} 节点<small className="cell-sub">{item.relations.toLocaleString()} 关系</small></td><td><StatusTag>{item.status}</StatusTag></td><td>{item.publishedAt}</td><td><div className="row-actions">{editable && <button title="编辑本体、数据源和数据范围" onClick={() => onEdit(item)}>编辑</button>}{item.status === '待发布' && <button onClick={() => onPublish(item)}>发布</button>}<button onClick={() => onHistory(item)}>版本记录</button>{editable && <button className="danger-link" onClick={() => onDelete(item)}>删除</button>}</div></td></tr>})}</tbody></table></div> : <EmptyState title="未找到图谱版本" description="请调整检索条件，或点击“新建图谱”创建版本。"/>
+  </> : <EmptyState title="暂无字段映射" description={metadata.length ? '当前数据源暂无字段映射，可重新解析来源结构生成映射建议。' : '请先解析来源结构，系统会生成可复用的字段映射建议。'} action={<Button variant="primary" icon="refresh" onClick={onParse}>{metadata.length ? '重新解析并生成字段映射' : '解析来源结构并生成字段映射'}</Button>}/>
 }
 
 export function GraphManagementPage() {
   const setToast = useAppStore((state) => state.setToast)
-  const [searchParams, setSearchParams] = useSearchParams()
+  const location = useLocation()
+  const [searchParams] = useSearchParams()
   const [graphs, setGraphs] = useState<GraphVersion[]>([])
   const [target, setTarget] = useState<GraphVersion | null>(null)
-  const [deleteTarget, setDeleteTarget] = useState<GraphVersion | null>(null)
+  const [resultTarget, setResultTarget] = useState<GraphVersion | null>(null)
   const [graphDialogOpen, setGraphDialogOpen] = useState(false)
   const [dialogGraphId, setDialogGraphId] = useState<string | undefined>()
 
-  const [historyTarget, setHistoryTarget] = useState<GraphVersion | null>(null)
+  const pathTab = location.pathname.startsWith('/graphs/sources') ? 'sources' : location.pathname.startsWith('/graphs/structures') ? 'structures' : ''
+  const requestedTab = pathTab || searchParams.get('tab') || 'structures'
+  const tab = ['structures', 'sources'].includes(requestedTab) ? requestedTab : 'structures'
+  const isSources = tab === 'sources'
+  const latestGraph = graphs[0]
 
-  const [searchDraft, setSearchDraft] = useState({ keyword: '', status: '全部' })
-  const [filters, setFilters] = useState({ keyword: '', status: '全部' })
-  const requestedTab = searchParams.get('tab') || 'versions'
-  const tab = ['versions', 'sources'].includes(requestedTab) ? requestedTab : 'versions'
-  const filteredGraphs = useMemo(() => { const keyword = filters.keyword.trim().toLowerCase(); return graphs.filter((item) => { const matchesKeyword = !keyword || [item.graphName, item.graphCode, item.id, item.ontologyVersion, item.mappingVersion, item.range, item.status, ...item.sourceNames].join(' ').toLowerCase().includes(keyword); const matchesStatus = filters.status === '全部' || item.status === filters.status; return matchesKeyword && matchesStatus }) }, [graphs, filters])
-  const historyRows = historyTarget ? graphs.filter((item) => item.graphCode === historyTarget.graphCode) : []
-
-  const changeTab = (nextTab: string) => { const next = new URLSearchParams(searchParams); next.set('tab', nextTab); setSearchParams(next, { replace: true }) }
   const loadGraphs = async () => {
     try {
-      const rows = await dataGraphApi.listGraphs(); setGraphs(rows)
-    } catch (error) { setToast(error instanceof Error ? error.message : '图谱版本加载失败') }
+      const rows = await dataGraphApi.listGraphs(); setGraphs(rows); return rows
+    } catch (error) { setToast(error instanceof Error ? error.message : '知识图谱生成结果加载失败'); return [] as GraphVersion[] }
   }
   useEffect(() => { void loadGraphs() }, [])
-  const confirmPublish = async () => { if (!target) return; try { await dataGraphApi.publishGraph(target.id); setToast('图谱版本发布成功，同一图谱的原生产版本已归档'); setTarget(null); await loadGraphs() } catch (error) { setToast(error instanceof Error ? error.message : '图谱发布失败') } }
-  const confirmDelete = async () => { if (!deleteTarget) return; try { const result = await dataGraphApi.deleteGraph(deleteTarget.id); setDeleteTarget(null); setToast(result.message); await loadGraphs() } catch (error) { setToast(error instanceof Error ? error.message : '图谱任务删除失败') } }
+  const confirmPublish = async () => {
+    if (!target) return
+    try {
+      const published = await dataGraphApi.publishGraph(target.id)
+      setToast('知识图谱发布成功，后台生成快照已归档留痕')
+      setTarget(null)
+      setResultTarget(published)
+      await loadGraphs()
+    } catch (error) { setToast(error instanceof Error ? error.message : '知识图谱发布失败') }
+  }
   const openCreate = () => { setDialogGraphId(undefined); setGraphDialogOpen(true) }
-  const openEdit = (graph: GraphVersion) => { setDialogGraphId(graph.id); setGraphDialogOpen(true) }
+  const openLatestResult = () => {
+    if (!latestGraph) { setToast('暂无知识图谱生成结果，请先生成知识图谱'); return }
+    setResultTarget(latestGraph)
+  }
 
 
   return <>
-    <PageHeader eyebrow="本体与图谱 / 图谱管理" title="图谱管理" description="围绕本体、数据源和公共映射快照完成图谱版本构建与发布。"/>
-    <Panel className="graph-management-panel"><Tabs value={tab} onChange={changeTab} items={[{ key: 'versions', label: '图谱版本' }, { key: 'sources', label: '数据源' }]}/>{tab === 'versions' && <><FilterGrid onReset={() => { const value = { keyword: '', status: '全部' }; setSearchDraft(value); setFilters(value) }} onSearch={() => setFilters(searchDraft)} actions={<Button variant="primary" icon="plus" onClick={openCreate}>新建图谱</Button>}><Field label="关键词"><input value={searchDraft.keyword} onChange={(event) => setSearchDraft({ ...searchDraft, keyword: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter') setFilters(searchDraft) }} placeholder="图谱名称、编码、版本、本体或数据源"/></Field><Field label="状态"><select value={searchDraft.status} onChange={(event) => setSearchDraft({ ...searchDraft, status: event.target.value })}><option>全部</option><option>待发布</option><option>已发布</option><option>已归档</option><option>校验中</option><option>失败</option></select></Field></FilterGrid><GraphTable data={filteredGraphs} onPublish={setTarget} onEdit={openEdit} onHistory={setHistoryTarget} onDelete={setDeleteTarget}/></>} {tab === 'sources' && <div className="embedded-data-access"><DataAccessPage/></div>}</Panel>
-    <Drawer open={!!historyTarget} title={historyTarget ? `${historyTarget.graphName} · 版本记录` : '图谱版本记录'} eyebrow="版本记录" onClose={() => setHistoryTarget(null)}><KeyValue items={[{ label: '图谱编码', value: historyTarget?.graphCode }, { label: '版本数量', value: historyRows.length }, { label: '当前发布版本', value: historyRows.find((item) => item.status === '已发布')?.id || '暂无已发布版本' }, { label: '关联本体', value: historyTarget?.ontologyVersion }]}/><Panel title="版本历史" subtitle="按当前图谱编码展示全部构建和发布记录" className="drawer-section"><VersionTimeline labels={historyRows.map((item) => `${item.id} · ${item.status} · ${item.publishedAt === '—' ? '尚未发布' : `发布于${item.publishedAt}`} · ${item.ontologyVersion}`)}/></Panel></Drawer>
-    <Modal open={!!target} title="发布图谱版本" description={target ? `${target.graphName} · ${target.id} · ${target.ontologyVersion}` : ''} onClose={() => setTarget(null)} onConfirm={confirmPublish}><PublishChecklist/>{target && <div className="alert-box"><Icon name="graph"/><span>数据源：{target.sourceNames.join('、')}；语义映射：{target.mappingVersion}</span></div>}{target && target.blockers > 0 && <div className="alert-box danger"><Icon name="warning"/><span>该历史版本存在阻断状态，不能发布；请重新构建图谱版本。</span></div>}</Modal>
-
-    <Modal open={!!deleteTarget} title="删除图谱任务" description={deleteTarget ? `${deleteTarget.graphName} · ${deleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setDeleteTarget(null)} onConfirm={() => void confirmDelete()}><div className="alert-box danger"><Icon name="warning"/><span>仅待发布或失败且未被规则引用的图谱版本可以删除。</span></div></Modal>
-    <GraphCreateDialog open={graphDialogOpen} graphId={dialogGraphId} onClose={() => setGraphDialogOpen(false)} onSaved={async () => { setGraphDialogOpen(false); await loadGraphs() }}/>
+    <PageHeader eyebrow={`知识图谱 / ${isSources ? '数据源' : '图谱结构'}`} title={isSources ? '数据源' : '图谱结构'} description={isSources ? '维护数据源接入、来源结构解析和字段映射模板。' : '维护知识图谱中的类、属性和关系定义，并从结构入口生成知识图谱。'} actions={isSources ? undefined : <><Button onClick={openLatestResult}>最近生成结果</Button><Button variant="primary" icon="plus" onClick={openCreate}>生成知识图谱</Button></>}/>
+    <Panel className="graph-management-panel">{isSources ? <div className="embedded-data-access"><DataAccessPage/></div> : <div className="embedded-graph-structure"><GraphStructureListPage embedded/></div>}</Panel>
+    <Drawer open={!!resultTarget} title={resultTarget ? `${resultTarget.graphName} · 生成结果` : '最近生成结果'} eyebrow="知识图谱" onClose={() => setResultTarget(null)} footer={resultTarget?.status === '待发布' ? <><Button onClick={() => setResultTarget(null)}>稍后处理</Button><Button variant="primary" onClick={() => setTarget(resultTarget)}>发布知识图谱</Button></> : undefined}><KeyValue items={[{ label: '图谱名称', value: resultTarget?.graphName || '—' }, { label: '图谱编码', value: resultTarget?.graphCode || '—' }, { label: '生成状态', value: resultTarget ? <StatusTag>{resultTarget.status}</StatusTag> : '—' }, { label: '图谱结构', value: resultTarget?.ontologyVersion || '—' }, { label: '数据源', value: resultTarget?.sourceNames.join('、') || '—' }, { label: '字段映射快照', value: resultTarget?.mappingVersion || '—' }, { label: '数据范围', value: resultTarget?.range || '—' }, { label: '发布时间', value: resultTarget?.publishedAt || '—' }]}/><Panel title="结果说明" subtitle="这里只展示最近一次生成结果，完整追溯仍由后台快照保留" className="drawer-section"><div className="alert-box"><Icon name="graph"/><span>产品入口已弱化版本概念；若需要重新生成，请从“生成知识图谱”重新选择图谱结构、数据源和字段映射。</span></div></Panel></Drawer>
+    <Modal open={!!target} title="发布知识图谱" description={target ? `${target.graphName} · ${target.ontologyVersion}` : ''} onClose={() => setTarget(null)} onConfirm={confirmPublish}><PublishChecklist/>{target && <div className="alert-box"><Icon name="graph"/><span>数据源：{target.sourceNames.join('、')}；字段映射：{target.mappingVersion}</span></div>}{target && target.blockers > 0 && <div className="alert-box danger"><Icon name="warning"/><span>当前生成结果存在阻断状态，不能发布；请调整配置后重新生成知识图谱。</span></div>}</Modal>
+    <GraphCreateDialog open={graphDialogOpen} graphId={dialogGraphId} onClose={() => setGraphDialogOpen(false)} onSaved={async (graph) => { setGraphDialogOpen(false); await loadGraphs(); setResultTarget(graph) }}/>
   </>
 }
 
@@ -444,14 +439,14 @@ export function UsersPage() {
   return <>
     <PageHeader eyebrow="系统管理 / 用户与组织" title="用户与组织" description="同步或维护组织、用户、岗位和账号状态，停用前完成未办任务转派。" actions={<><Button onClick={() => setToast('组织用户同步任务已创建')}>同步组织用户</Button><Button variant="primary" icon="plus" onClick={() => setCreateUserOpen(true)}>新建用户</Button></>}/>
     <section className="users-layout"><Panel title="组织树" className="organization-panel"><input placeholder="搜索组织"/><div className="org-tree">{['中国电子云','集团监管部','采购管理部','财务共享中心','数据管理部','审计纪检部'].map((name, index) => <button key={name} className={`${org === name ? 'active' : ''} ${index ? 'child' : ''}`} onClick={() => setOrg(name)}><Icon name={index ? 'graph' : 'home'} size={15}/><span>{name}</span><small>{index ? users.filter((user) => user.organization === name).length : users.length}</small></button>)}</div></Panel><Panel title={org} subtitle={`${rows.length} 名用户`} className="user-list-panel"><FilterGrid onReset={() => { setKeyword(''); setStatus('全部') }} onSearch={() => setToast(`查询到${rows.length}名用户`)}><Field label="关键词"><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="姓名、账号或人员编码"/></Field><Field label="账号状态"><select value={status} onChange={(event) => setStatus(event.target.value)}><option>全部</option><option>启用</option><option>锁定</option><option>停用</option></select></Field></FilterGrid><div className="table-container"><table><thead><tr><th>姓名 / 账号</th><th>所属组织 / 岗位</th><th>当前角色</th><th>状态</th><th>未完成待办</th><th>最后登录</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => openUser(item)}><strong>{item.name}</strong><span>{item.account} · {item.id}</span></button></td><td>{item.organization}<small className="cell-sub">{item.position}</small></td><td>{item.roles.map((role) => <StatusTag key={role}>{role}</StatusTag>)}</td><td><StatusTag>{item.status}</StatusTag></td><td><button className={item.todos ? 'count-link' : ''} onClick={() => item.todos && setTransferTarget(item)}>{item.todos}</button></td><td>{item.lastLogin}</td><td><div className="row-actions"><button onClick={() => openUser(item)}>查看</button><button disabled={!item.todos} onClick={() => setTransferTarget(item)}>转派</button>{item.lastLogin === '从未登录' && item.todos === 0 && <button className="danger-link" onClick={() => setDeleteTarget(item)}>删除</button>}</div></td></tr>)}</tbody></table></div></Panel></section>
-    <Drawer open={!!selected} title={selected?.name || ''} eyebrow="用户详情" onClose={() => setSelected(null)} footer={<><Button onClick={() => setSelected(null)}>关闭</Button><Button variant="primary" onClick={save}>保存</Button></>}><KeyValue items={[{ label: '账号', value: selected?.account }, { label: '人员编码', value: selected?.id }, { label: '所属组织', value: selected?.organization }, { label: '岗位', value: selected?.position }, { label: '未完成待办', value: `${selected?.todos || 0} 项` }, { label: '最后登录', value: selected?.lastLogin }]}/><Panel title="账号状态" className="drawer-section"><Field label="状态"><select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as UserItem['status'])}><option>启用</option><option>锁定</option><option>停用</option></select></Field></Panel><Panel title="角色分配" className="drawer-section"><div className="check-grid vertical">{['监管负责人','领域监管专员','业务责任人','本体管理员','数据管理员'].map((role) => <label key={role}><input type="checkbox" checked={selectedRoles.includes(role)} onChange={() => setSelectedRoles((value) => value.includes(role) ? value.filter((item) => item !== role) : [...value, role])}/><span>{role}</span></label>)}</div></Panel>{selected && selected.todos > 0 && selectedStatus === '停用' && <div className="alert-box danger"><Icon name="warning"/><span>该用户存在{selected.todos}项未完成待办，停用前必须完成转派。</span></div>}</Drawer>
+    <Drawer open={!!selected} title={selected?.name || ''} eyebrow="用户详情" onClose={() => setSelected(null)} footer={<><Button onClick={() => setSelected(null)}>关闭</Button><Button variant="primary" onClick={save}>保存</Button></>}><KeyValue items={[{ label: '账号', value: selected?.account }, { label: '人员编码', value: selected?.id }, { label: '所属组织', value: selected?.organization }, { label: '岗位', value: selected?.position }, { label: '未完成待办', value: `${selected?.todos || 0} 项` }, { label: '最后登录', value: selected?.lastLogin }]}/><Panel title="账号状态" className="drawer-section"><Field label="状态"><select value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value as UserItem['status'])}><option>启用</option><option>锁定</option><option>停用</option></select></Field></Panel><Panel title="角色分配" className="drawer-section"><div className="check-grid vertical">{['监管负责人','领域监管专员','业务责任人','图谱结构管理员','数据管理员'].map((role) => <label key={role}><input type="checkbox" checked={selectedRoles.includes(role)} onChange={() => setSelectedRoles((value) => value.includes(role) ? value.filter((item) => item !== role) : [...value, role])}/><span>{role}</span></label>)}</div></Panel>{selected && selected.todos > 0 && selectedStatus === '停用' && <div className="alert-box danger"><Icon name="warning"/><span>该用户存在{selected.todos}项未完成待办，停用前必须完成转派。</span></div>}</Drawer>
     <Modal open={!!transferTarget} title="批量转派未完成待办" description={transferTarget ? `${transferTarget.name} · ${transferTarget.todos}项待办` : ''} confirmText="确认转派" danger onClose={() => setTransferTarget(null)} onConfirm={submitTransfer}><div className="form-stack"><Field label="接收人 *"><select value={transfer.owner} onChange={(event) => setTransfer({ ...transfer, owner: event.target.value })}><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option></select></Field><Field label="转派原因 *"><textarea value={transfer.reason} onChange={(event) => setTransfer({ ...transfer, reason: event.target.value })} placeholder="说明离岗、调岗或职责调整原因"/></Field></div></Modal>
     <Modal open={createUserOpen} title="新建用户" description="创建本地用户后，可在用户详情中继续调整角色和账号状态。" confirmText="确认创建" onClose={() => setCreateUserOpen(false)} onConfirm={submitUser}><div className="form-stack"><div className="form-section two-column"><Field label="姓名 *"><input value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} placeholder="请输入用户姓名"/></Field><Field label="登录账号 *"><input value={userForm.account} onChange={(event) => setUserForm({ ...userForm, account: event.target.value })} placeholder="例如 zhangsan"/></Field><Field label="所属组织 *"><select value={userForm.organization} onChange={(event) => setUserForm({ ...userForm, organization: event.target.value })}>{['集团监管部','采购管理部','财务共享中心','数据管理部','审计纪检部'].map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="岗位"><input value={userForm.position} onChange={(event) => setUserForm({ ...userForm, position: event.target.value })} placeholder="例如 采购监管专员"/></Field><Field label="初始角色"><select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value })}><option value="">暂不分配</option>{roles.map((item) => <option value={item.name} key={item.id}>{item.name}</option>)}</select></Field><Field label="账号状态"><select value={userForm.status} onChange={(event) => setUserForm({ ...userForm, status: event.target.value as UserItem['status'] })}><option>启用</option><option>锁定</option><option>停用</option></select></Field></div></div></Modal>
     <Modal open={!!deleteTarget} title="删除未登录用户" description={deleteTarget ? `${deleteTarget.name} · ${deleteTarget.account}` : ''} confirmText="确认删除" danger onClose={() => setDeleteTarget(null)} onConfirm={removeUser}><div className="alert-box danger"><Icon name="warning"/><span>仅从未登录且没有未完成待办的新增用户可以删除；已有活动记录的账号请使用停用。</span></div></Modal>
   </>
 }
 
-const permissionOptions = ['查看工作台','查看监管态势','查看统一预警','查看风险事件','转派任务','监管复核','解除重大预警','升级风险事件','复核关闭风险事件','编辑场景规则','发布场景规则','发布本体版本','发布图谱版本','实体合并与拆分','管理用户','调整角色权限','查看审计日志']
+const permissionOptions = ['查看工作台','查看监管态势','查看统一预警','查看风险事件','转派任务','监管复核','解除重大预警','升级风险事件','复核关闭风险事件','编辑场景规则','发布场景规则','发布图谱结构','发布知识图谱','实例合并与拆分','管理用户','调整角色权限','查看审计日志']
 
 export function RolesPage() {
   const roles = useAppStore((state) => state.roles)
@@ -502,8 +497,8 @@ export function RolesPage() {
 
 function PermissionEditor({ tab, role, permissions, onToggle }: { tab: string; role: RoleItem; permissions: string[]; onToggle: (value: string) => void }) {
   if (tab === 'org') return <div className="detail-grid"><Panel title="数据范围"><div className="radio-list"><label><input type="radio" name="scope" defaultChecked/>当前组织</label><label><input type="radio" name="scope"/>当前组织及授权下级</label><label><input type="radio" name="scope"/>自定义组织节点</label></div></Panel><Panel title="授权摘要"><KeyValue items={[{ label: '当前范围', value: role.scope }, { label: '组织节点', value: '12个' }, { label: '监管领域', value: '采购、合同、财务' }]}/></Panel></div>
-  if (tab === 'field') return <div className="table-container"><table><thead><tr><th>本体类 / 字段</th><th>敏感等级</th><th>明文</th><th>脱敏</th><th>隐藏</th></tr></thead><tbody>{[['人员','证件号码','强敏感'],['账户','银行账号','强敏感'],['合同','合同金额','敏感'],['供应商','联系电话','敏感']].map((row, index) => <tr key={row[1]}><td><strong>{row[0]}</strong><small className="cell-sub">{row[1]}</small></td><td><StatusTag>{row[2]}</StatusTag></td><td><input type="radio" name={`field-${index}`}/></td><td><input type="radio" name={`field-${index}`} defaultChecked/></td><td><input type="radio" name={`field-${index}`}/></td></tr>)}</tbody></table></div>
-  const visible = tab === 'menu' ? permissionOptions.filter((item) => item.startsWith('查看') || ['转派任务','监管复核'].includes(item)) : tab === 'danger' ? permissionOptions.filter((item) => ['解除重大预警','升级风险事件','复核关闭风险事件','发布场景规则','发布本体版本','发布图谱版本','实体合并与拆分','调整角色权限'].includes(item)) : tab === 'relation' ? ['查看统一预警','查看风险事件','实体合并与拆分'] : ['查看统一预警','查看风险事件','查看审计日志']
+  if (tab === 'field') return <div className="table-container"><table><thead><tr><th>图谱结构类 / 字段</th><th>敏感等级</th><th>明文</th><th>脱敏</th><th>隐藏</th></tr></thead><tbody>{[['人员','证件号码','强敏感'],['账户','银行账号','强敏感'],['合同','合同金额','敏感'],['供应商','联系电话','敏感']].map((row, index) => <tr key={row[1]}><td><strong>{row[0]}</strong><small className="cell-sub">{row[1]}</small></td><td><StatusTag>{row[2]}</StatusTag></td><td><input type="radio" name={`field-${index}`}/></td><td><input type="radio" name={`field-${index}`} defaultChecked/></td><td><input type="radio" name={`field-${index}`}/></td></tr>)}</tbody></table></div>
+  const visible = tab === 'menu' ? permissionOptions.filter((item) => item.startsWith('查看') || ['转派任务','监管复核'].includes(item)) : tab === 'danger' ? permissionOptions.filter((item) => ['解除重大预警','升级风险事件','复核关闭风险事件','发布场景规则','发布图谱结构','发布知识图谱','实例合并与拆分','调整角色权限'].includes(item)) : tab === 'relation' ? ['查看统一预警','查看风险事件','实例合并与拆分'] : ['查看统一预警','查看风险事件','查看审计日志']
   return <div className={tab === 'danger' ? 'danger-permissions' : 'check-grid permission-cards'}>{visible.map((item) => <label key={item}><div><Icon name={tab === 'danger' ? 'lock' : 'shield'}/><span>{item}</span></div><input type="checkbox" checked={permissions.includes(item)} onChange={() => onToggle(item)}/></label>)}</div>
 }
 
@@ -527,5 +522,6 @@ function VersionTimeline({ labels }: { labels: string[] }) {
 }
 
 function PublishChecklist() {
-  return <div className="publish-checklist">{['基本信息与编码校验','本体和图谱依赖有效','事件与证据要求配置完整','权限范围校验通过','试跑或质量校验通过'].map((item) => <div key={item}><Icon name="check"/><span>{item}</span><StatusTag>通过</StatusTag></div>)}</div>
+  return <div className="publish-checklist">{['基本信息与编码校验','图谱结构和图谱依赖有效','事件与证据要求配置完整','权限范围校验通过','试跑或质量校验通过'].map((item) => <div key={item}><Icon name="check"/><span>{item}</span><StatusTag>通过</StatusTag></div>)}</div>
 }
+

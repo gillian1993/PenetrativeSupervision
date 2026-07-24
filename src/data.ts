@@ -1,4 +1,4 @@
-import type {
+﻿import type {
   AuditItem,
   DataSourceItem,
   GraphVersion,
@@ -56,10 +56,10 @@ export const scenes: SceneItem[] = [
 ]
 
 export const ontologies: OntologyItem[] = [
-  { id: 'ONT-BASE', name: '平台监管基础本体', scope: '监管基础本体', domain: '通用', version: 'v1.6', classes: 14, properties: 126, relations: 28, events: 32, status: '已发布', updatedAt: '今天 08:30' },
-  { id: 'ONT-PROC', name: '采购监管扩展本体', scope: '领域扩展本体', domain: '采购', version: 'v2.2', classes: 12, properties: 94, relations: 21, events: 18, status: '已发布', updatedAt: '昨天 16:10' },
-  { id: 'ONT-CONTRACT', name: '合同监管扩展本体', scope: '领域扩展本体', domain: '合同', version: 'v1.4', classes: 8, properties: 67, relations: 16, events: 14, status: '已发布', updatedAt: '07-16 10:20' },
-  { id: 'ONT-FIN', name: '财务资金扩展本体', scope: '领域扩展本体', domain: '财务', version: 'v1.1', classes: 10, properties: 88, relations: 19, events: 21, status: '待校验', updatedAt: '07-15 18:05' },
+  { id: 'ONT-BASE', name: '平台基础图谱结构', scope: '基础图谱结构', domain: '通用', version: 'v1.6', classes: 14, properties: 126, relations: 28, events: 32, status: '已发布', updatedAt: '今天 08:30' },
+  { id: 'ONT-PROC', name: '采购监管扩展图谱结构', scope: '领域图谱结构', domain: '采购', version: 'v2.2', classes: 12, properties: 94, relations: 21, events: 18, status: '已发布', updatedAt: '昨天 16:10' },
+  { id: 'ONT-CONTRACT', name: '合同监管扩展图谱结构', scope: '领域图谱结构', domain: '合同', version: 'v1.4', classes: 8, properties: 67, relations: 16, events: 14, status: '已发布', updatedAt: '07-16 10:20' },
+  { id: 'ONT-FIN', name: '财务资金扩展图谱结构', scope: '领域图谱结构', domain: '财务', version: 'v1.1', classes: 10, properties: 88, relations: 19, events: 21, status: '待校验', updatedAt: '07-15 18:05' },
 ]
 
 export const dataSources: DataSourceItem[] = [
@@ -79,7 +79,7 @@ export const users: UserItem[] = [
   { id: 'U001', name: '尹晨阳', account: 'yinchenyang', organization: '集团监管部', position: '监管负责人', roles: ['监管负责人'], status: '启用', todos: 5, lastLogin: '今天 08:52' },
   { id: 'U002', name: '李华', account: 'lihua', organization: '采购管理部', position: '采购专员', roles: ['领域监管专员', '业务责任人'], status: '启用', todos: 3, lastLogin: '今天 09:10' },
   { id: 'U003', name: '王宁', account: 'wangning', organization: '财务共享中心', position: '资金主管', roles: ['业务责任人'], status: '启用', todos: 2, lastLogin: '今天 08:36' },
-  { id: 'U004', name: '陈洁', account: 'chenjie', organization: '数据管理部', position: '数据治理专家', roles: ['本体管理员', '数据管理员'], status: '启用', todos: 1, lastLogin: '昨天 17:20' },
+  { id: 'U004', name: '陈洁', account: 'chenjie', organization: '数据管理部', position: '数据治理专家', roles: ['图谱结构员', '数据管理员'], status: '启用', todos: 1, lastLogin: '昨天 17:20' },
   { id: 'U005', name: '周航', account: 'zhouhang', organization: '审计纪检部', position: '审计经理', roles: ['审计纪检人员'], status: '锁定', todos: 4, lastLogin: '07-16 14:22' },
 ]
 
@@ -94,7 +94,7 @@ export const roles: RoleItem[] = [
 export const audits: AuditItem[] = [
   { id: 'AUD-001', time: '2026-07-17 12:06:32', operator: '尹晨阳', organization: '集团监管部', action: '升级风险事件', objectType: '预警', objectId: 'WA-20260713-006', summary: '确认存在同一控制主体参与多家投标风险', result: '成功', risk: '高危', traceId: 'trace-7f21a9c1' },
   { id: 'AUD-002', time: '2026-07-17 11:58:10', operator: '刘敏', organization: '云安全事业部', action: '提交整改', objectType: '风险事件', objectId: 'RE-20260711-004', summary: '补充法务会签说明与整改证明材料', result: '成功', risk: '普通', traceId: 'trace-a52c11d8' },
-  { id: 'AUD-003', time: '2026-07-17 10:42:08', operator: '陈洁', organization: '数据管理部', action: '发布图谱版本', objectType: '图谱版本', objectId: 'GRAPH-20260717.2', summary: '发布采购监管生产图谱版本', result: '成功', risk: '高危', traceId: 'trace-c81f06ea' },
+  { id: 'AUD-003', time: '2026-07-17 10:42:08', operator: '陈洁', organization: '数据管理部', action: '发布知识图谱', objectType: '知识图谱', objectId: 'GRAPH-20260717.2', summary: '发布采购监管生产知识图谱', result: '成功', risk: '高危', traceId: 'trace-c81f06ea' },
   { id: 'AUD-004', time: '2026-07-17 09:20:41', operator: '安全管理员', organization: '信息化部', action: '调整字段权限', objectType: '角色', objectId: 'ROLE-02', summary: '账户号权限由明文调整为脱敏', result: '成功', risk: '高危', traceId: 'trace-b610a14d' },
   { id: 'AUD-005', time: '2026-07-17 08:52:16', operator: '周航', organization: '审计纪检部', action: '查看敏感证据', objectType: '证据', objectId: 'EVI-00918', summary: '查看供应商共同联系方式来源记录', result: '成功', risk: '敏感访问', traceId: 'trace-2c19eb06' },
 ]
@@ -115,3 +115,4 @@ export const graphEdges = [
   { from: 'project', to: 'bid', label: '产生事件', hit: false },
   { from: 'supplier', to: 'file', label: '来源于', hit: false },
 ]
+

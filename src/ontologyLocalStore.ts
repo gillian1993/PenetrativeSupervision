@@ -1,4 +1,4 @@
-import { create } from 'zustand'
+﻿import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { ontologies as initialOntologyItems } from './data'
 import type { OntologyItem } from './types'
@@ -50,10 +50,10 @@ interface OntologyState {
 }
 
 const sampleElements: OntologyElement[] = [
-  { id: 'EL-PROC-001', type: 'class', code: 'PROC.Supplier', name: '供应商', dataType: '本体类', constraint: '统一社会信用代码为主标识', description: '参与采购、合同或服务活动的业务主体。' },
+  { id: 'EL-PROC-001', type: 'class', code: 'PROC.Supplier', name: '供应商', dataType: '类', constraint: '统一社会信用代码为主标识', description: '参与采购、合同或服务活动的业务主体。' },
   { id: 'EL-PROC-002', type: 'property', code: 'PROC.Supplier.credit_code', name: '统一社会信用代码', dataType: '文本', constraint: '主标识、必填', description: '供应商工商登记主标识。' },
   { id: 'EL-PROC-003', type: 'relation', code: 'PROC.participate', name: '参与采购', dataType: '供应商 → 采购项目', constraint: '多对多', description: '供应商报名或参与采购项目。' },
-  { id: 'EL-PROC-004', type: 'class', code: 'PROC.BidConfirmed', name: '中标确认', dataType: '本体类', constraint: '发生时间必填', description: '采购项目确认中标结果的业务记录。' },
+  { id: 'EL-PROC-004', type: 'class', code: 'PROC.BidConfirmed', name: '中标确认', dataType: '类', constraint: '发生时间必填', description: '采购项目确认中标结果的业务记录。' },
 ]
 
 const descriptions: Record<string, string> = {
@@ -77,9 +77,9 @@ export const useOntologyStore = create<OntologyState>()(
       ontologies: createInitial(),
       createOntology: (payload) => {
         const id = payload.id.trim()
-        if (!id) return { ok: false, message: '本体编码不能为空' }
-        if (!payload.name.trim()) return { ok: false, message: '本体名称不能为空' }
-        if (get().ontologies.some((item) => item.id === id)) return { ok: false, message: `本体编码 ${id} 已存在` }
+        if (!id) return { ok: false, message: '结构编码不能为空' }
+        if (!payload.name.trim()) return { ok: false, message: '结构名称不能为空' }
+        if (get().ontologies.some((item) => item.id === id)) return { ok: false, message: `结构编码 ${id} 已存在` }
         const ontology: OntologyRecord = {
           id,
           name: payload.name.trim(),
@@ -96,49 +96,49 @@ export const useOntologyStore = create<OntologyState>()(
           elements: [],
         }
         set((state) => ({ ontologies: [ontology, ...state.ontologies] }))
-        return { ok: true, message: `本体草稿 ${id} 已创建`, objectId: id }
+        return { ok: true, message: `图谱结构草稿 ${id} 已创建`, objectId: id }
       },
       updateOntology: (id, patch) => {
         const item = get().ontologies.find((row) => row.id === id)
-        if (!item) return { ok: false, message: '本体不存在' }
-        if (item.status === '已发布') return { ok: false, message: '已发布本体不可直接修改，请复制新版本' }
-        if (patch.name !== undefined && !patch.name.trim()) return { ok: false, message: '本体名称不能为空' }
+        if (!item) return { ok: false, message: '图谱结构不存在' }
+        if (item.status === '已发布') return { ok: false, message: '已发布图谱结构不可直接修改，请复制新版本' }
+        if (patch.name !== undefined && !patch.name.trim()) return { ok: false, message: '结构名称不能为空' }
         set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, ...patch, updatedAt: '刚刚' } : row) }))
-        return { ok: true, message: '本体草稿已保存' }
+        return { ok: true, message: '图谱结构草稿已保存' }
       },
       copyOntology: (id) => {
         const item = get().ontologies.find((row) => row.id === id)
-        if (!item) return { ok: false, message: '本体不存在' }
+        if (!item) return { ok: false, message: '图谱结构不存在' }
         const major = Number(item.version.replace(/^v/, '').split('.')[0]) || 0
         const objectId = `${id.replace(/-DRAFT-[A-Z0-9]+$/, '')}-DRAFT-${Date.now().toString(36).toUpperCase()}`
         const next: OntologyRecord = { ...item, id: objectId, version: `v${major + 1}.0`, status: '草稿', updatedAt: '刚刚', elements: item.elements.map((element) => ({ ...element, id: `${element.id}-${Date.now().toString(36)}` })) }
         set((state) => ({ ontologies: [next, ...state.ontologies] }))
-        return { ok: true, message: '本体新草稿版本已创建', objectId }
+        return { ok: true, message: '图谱结构新草稿版本已创建', objectId }
       },
       publishOntology: (id) => {
         const item = get().ontologies.find((row) => row.id === id)
-        if (!item) return { ok: false, message: '本体不存在' }
-        if (item.classes < 1) return { ok: false, message: '本体至少需要一个本体类才能发布' }
+        if (!item) return { ok: false, message: '图谱结构不存在' }
+        if (item.classes < 1) return { ok: false, message: '图谱结构至少需要一个类才能发布' }
         set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, status: '已发布', updatedAt: '刚刚' } : row) }))
-        return { ok: true, message: '本体版本已发布' }
+        return { ok: true, message: '图谱结构版本已发布' }
       },
       addElement: (id, payload) => {
         const item = get().ontologies.find((row) => row.id === id)
-        if (!item) return { ok: false, message: '本体不存在' }
-        if (item.status === '已发布') return { ok: false, message: '已发布本体不可新增元素' }
+        if (!item) return { ok: false, message: '图谱结构不存在' }
+        if (item.status === '已发布') return { ok: false, message: '已发布图谱结构不可新增元素' }
         if (!payload.code.trim() || !payload.name.trim()) return { ok: false, message: '元素编码和名称不能为空' }
         if (item.elements.some((element) => element.type === payload.type && element.code === payload.code.trim())) return { ok: false, message: '同类型元素编码已存在' }
         const key = countKey[payload.type]
         const element: OntologyElement = { ...payload, id: `EL-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`, code: payload.code.trim(), name: payload.name.trim() }
         set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, [key]: row[key] + 1, events: 0, elements: [...row.elements, element], updatedAt: '刚刚' } : row) }))
-        return { ok: true, message: `${payload.name}已添加到本体` }
+        return { ok: true, message: `${payload.name}已添加到图谱结构` }
       },
       deleteElement: (id, elementId) => {
         const item = get().ontologies.find((row) => row.id === id)
-        if (!item) return { ok: false, message: '本体不存在' }
-        if (item.status === '已发布') return { ok: false, message: '已发布本体不可删除元素' }
+        if (!item) return { ok: false, message: '图谱结构不存在' }
+        if (item.status === '已发布') return { ok: false, message: '已发布图谱结构不可删除元素' }
         const element = item.elements.find((row) => row.id === elementId)
-        if (!element) return { ok: false, message: '本体元素不存在' }
+        if (!element) return { ok: false, message: '结构元素不存在' }
         const key = countKey[element.type]
         set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, [key]: Math.max(0, row[key] - 1), events: 0, elements: row.elements.filter((value) => value.id !== elementId), updatedAt: '刚刚' } : row) }))
         return { ok: true, message: `${element.name}已删除` }
@@ -148,3 +148,4 @@ export const useOntologyStore = create<OntologyState>()(
     { name: 'penetrative-supervision-ontology-v1' },
   ),
 )
+

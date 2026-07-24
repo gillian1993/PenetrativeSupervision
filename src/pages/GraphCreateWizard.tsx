@@ -6,7 +6,7 @@ import { useAppStore } from '../store'
 import type { DataSourceItem, GraphVersion } from '../types'
 import { Button, EmptyState, Field, Icon, StatusTag } from '../ui'
 
-const steps = ['基本信息', '选择本体', '选择数据源', '确认构建']
+const steps = ['基本信息', '图谱结构', '数据源与字段映射', '确认生成']
 const draftStorageKey = 'graph-create-workspace-draft'
 const dependencyLabels: Record<MappingDependencyItem['status'], string> = { ready: '已就绪', missing: '未配置', pending: '待校验', invalid: '已失效', disabled: '未启用' }
 const initialForm = (): CreateGraphPayload => ({
@@ -88,14 +88,14 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
         setSources(sourceRows)
         if (editingGraphId) {
           const graph = graphRows.find((item) => item.id === editingGraphId)
-          if (!graph) throw new Error('图谱版本不存在或已被删除')
-          if (!['校验中', '待发布', '失败'].includes(graph.status)) throw new Error('已发布或已归档图谱版本不能编辑')
+          if (!graph) throw new Error('知识图谱生成结果不存在或已被删除')
+          if (!['校验中', '待发布', '失败'].includes(graph.status)) throw new Error('已发布或已归档的生成结果不能编辑')
           setEditingGraph(graph)
           setForm({ graphCode: graph.graphCode, graphName: graph.graphName, ontologyId: graph.ontologyId, sourceIds: graph.sourceIds, range: graph.range })
           setStep(0)
         }
       })
-      .catch((error) => { setToast(error instanceof Error ? error.message : '图谱配置加载失败'); if (editingGraphId) { if (onClose) onClose(); else navigate('/graphs') } })
+      .catch((error) => { setToast(error instanceof Error ? error.message : '图谱配置加载失败'); if (editingGraphId) { if (onClose) onClose(); else navigate('/graphs/structures') } })
       .finally(() => { if (active) setLoading(false) })
     return () => { active = false }
   }, [editing, editingGraphId, loaded, loadOntologies, navigate, onClose, setToast])
@@ -127,7 +127,7 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
       const result = await dataGraphApi.checkGraphDependencies({ ontologyId: form.ontologyId, sourceIds })
       setDependencies(result.items)
     } catch (error) {
-      setToast(error instanceof Error ? error.message : '公共映射状态检查失败')
+      setToast(error instanceof Error ? error.message : '映射模板状态检查失败')
     } finally {
       setCheckingDependencies(false)
     }
@@ -149,7 +149,7 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
     try {
       setMappingRows(await dataGraphApi.mappings(sourceId, undefined, form.ontologyId))
     } catch (error) {
-      setToast(error instanceof Error ? error.message : '公共语义映射加载失败')
+      setToast(error instanceof Error ? error.message : '映射模板加载失败')
     } finally {
       setMappingLoading(false)
     }
@@ -173,7 +173,7 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
       await dataGraphApi.parseMetadata(mappingSourceId, form.ontologyId)
       setMappingRows(await dataGraphApi.mappings(mappingSourceId, undefined, form.ontologyId))
       await checkDependencies()
-      setToast(`已为 ${mappingSourceId} 生成公共映射建议，请确认后保存并校验`)
+      setToast(`已为 ${mappingSourceId} 生成映射模板建议，请确认后保存并校验`)
     } catch (error) {
       setToast(error instanceof Error ? error.message : '映射建议生成失败')
     } finally {
@@ -187,9 +187,9 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
       await dataGraphApi.updateMapping(mappingSourceId, row.id, { ontologyId: form.ontologyId, targetCode })
       setMappingRows(await dataGraphApi.mappings(mappingSourceId, undefined, form.ontologyId))
       await checkDependencies()
-      setToast('公共映射已更新，保存并校验后才能继续构建')
+      setToast('映射模板已更新，保存并校验后才能继续构建')
     } catch (error) {
-      setToast(error instanceof Error ? error.message : '公共映射更新失败')
+      setToast(error instanceof Error ? error.message : '映射模板更新失败')
     }
   }
 
@@ -203,7 +203,7 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
       setMappingSourceId('')
       setMappingRows([])
     } catch (error) {
-      setToast(error instanceof Error ? error.message : '公共语义映射校验失败')
+      setToast(error instanceof Error ? error.message : '映射模板校验失败')
     } finally {
       setMappingLoading(false)
     }
@@ -217,21 +217,21 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
 
   const next = () => {
     if (step === 0 && (!form.graphName.trim() || !/^[A-Z0-9_-]{3,64}$/.test(form.graphCode) || !form.range.trim())) { setToast('请填写图谱名称、规范编码和数据范围'); return }
-    if (step === 1 && !selectedOntology) { setToast('请选择一个已发布本体版本'); return }
+    if (step === 1 && !selectedOntology) { setToast('请选择一个已发布图谱结构'); return }
     if (step === 2 && !form.sourceIds.length) { setToast('请至少选择一个已启用数据源'); return }
-    if (step === 2 && !dependenciesReady) { const blocked = selectedDependencies.find((item) => item.status !== 'ready'); setToast(blocked?.message || '所选数据源的公共映射尚未就绪'); return }
+    if (step === 2 && !dependenciesReady) { const blocked = selectedDependencies.find((item) => item.status !== 'ready'); setToast(blocked?.message || '所选数据源的映射模板尚未就绪'); return }
     setStep((value) => Math.min(steps.length - 1, value + 1))
   }
 
   const saveDraft = () => {
     window.sessionStorage.setItem(draftStorageKey, JSON.stringify({ step, form }))
-    setToast('新建图谱草稿已暂存到当前浏览器')
+    setToast('知识图谱生成草稿已暂存到当前浏览器')
   }
 
   const leave = () => {
-    const message = dialogMode ? '当前内容尚未保存，确认关闭弹框吗？' : editing ? '当前修改尚未保存，确认返回图谱管理吗？' : '当前新建图谱内容已暂存，确认返回图谱管理吗？'
+    const message = dialogMode ? '当前内容尚未保存，确认关闭弹框吗？' : editing ? '当前修改尚未保存，确认返回知识图谱吗？' : '当前生成草稿已暂存，确认返回知识图谱吗？'
     if (hasDraft && !window.confirm(message)) return
-    if (onClose) onClose(); else navigate('/graphs')
+    if (onClose) onClose(); else navigate('/graphs/structures')
   }
 
   const submit = async () => {
@@ -240,10 +240,10 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
       const graph = editingGraphId ? await dataGraphApi.updateGraph(editingGraphId, form) : await dataGraphApi.createGraph(form)
       if (!editing && !dialogMode) window.sessionStorage.removeItem(draftStorageKey)
       setEditingGraph(null)
-      setToast(editing ? `图谱版本 ${graph.id} 已重新构建，并绑定 ${graph.mappingVersion}` : `图谱版本 ${graph.id} 已创建，并绑定 ${graph.mappingVersion}`)
-      if (onSaved) await onSaved(graph); if (onClose) onClose(); else navigate('/graphs')
+      setToast(editing ? `知识图谱已重新生成，并绑定 ${graph.mappingVersion}` : `知识图谱已生成，并绑定 ${graph.mappingVersion}`)
+      if (onSaved) await onSaved(graph); if (onClose) onClose(); else navigate('/graphs/structures')
     } catch (error) {
-      setToast(error instanceof Error ? error.message : editing ? '图谱重新构建失败' : '图谱创建失败')
+      setToast(error instanceof Error ? error.message : editing ? '知识图谱重新生成失败' : '知识图谱生成失败')
     } finally {
       setCreating(false)
     }
@@ -253,21 +253,21 @@ function GraphCreateWorkspace({ dialogMode = false, graphId, onClose, onSaved }:
   const hostClass = dialogMode ? (mappingFullscreen ? 'graph-create-fullscreen-overlay' : 'graph-create-dialog-overlay') : 'graph-create-route-host'
   return <div className={hostClass} onMouseDown={(event) => { if (dialogMode && !mappingFullscreen && event.target === event.currentTarget) leave() }}><div className={`graph-create-page ${mappingSourceId ? 'mapping-step' : ''} ${dialogMode && !mappingFullscreen ? 'graph-create-dialog' : ''} ${mappingFullscreen ? 'graph-create-mapping-fullscreen' : ''}`} role={dialogMode && !mappingFullscreen ? 'dialog' : undefined} aria-modal={dialogMode && !mappingFullscreen ? true : undefined}>
     <header className="graph-create-header">
-      <div><button className="back-button" onClick={leave}>{dialogMode ? '关闭' : '‹ 返回图谱管理'}</button><p className="eyebrow">{editing ? '图谱管理 / 编辑图谱' : '图谱管理 / 新建图谱'}</p><h1>{editing ? '编辑图谱构建配置' : '新建图谱构建任务'}</h1><p>{editing ? `修改 ${editingGraphId} 的本体、数据源和范围，保存后重新构建当前版本。` : '选择本体和数据源，系统自动检查公共映射后生成可发布图谱版本。'}</p></div>
+      <div><button className="back-button" onClick={leave}>{dialogMode ? '关闭' : '‹ 返回知识图谱'}</button><p className="eyebrow">{editing ? '知识图谱 / 重新生成' : '知识图谱 / 生成'}</p><h1>{editing ? '调整知识图谱生成配置' : '生成知识图谱'}</h1><p>{editing ? '修改图谱结构、数据源和范围，保存后重新生成知识图谱。' : '选择图谱结构和数据源，系统自动检查映射模板后生成可发布的知识图谱。'}</p></div>
       <div className="graph-create-header-actions">{!editing && !dialogMode && <Button onClick={saveDraft}>保存草稿</Button>}<Button onClick={leave}>{dialogMode ? '关闭' : '退出'}</Button></div>
     </header>
     <div className="graph-create-progress"><div className="step-indicator graph-wizard-steps">{steps.map((item, index) => <span className={index === step ? 'active' : index < step ? 'done' : ''} key={item}>{index + 1} {item}</span>)}</div></div>
     <main className="graph-create-main">
       <div className={`graph-create-content ${mappingSourceId ? 'mapping-mode' : ''}`}>
         {loading && <div className="loading-state graph-create-loading"><i/><span>正在加载配置…</span></div>}
-        {!loading && step === 0 && <div className="form-section two-column"><Field label="图谱名称 *"><input value={form.graphName} onChange={(event) => setForm({ ...form, graphName: event.target.value })} placeholder="例如：采购监管图谱"/></Field><Field label="图谱编码 *"><input value={form.graphCode} onChange={(event) => setForm({ ...form, graphCode: event.target.value.toUpperCase() })} placeholder="例如：PROCUREMENT_RISK"/></Field><Field label="数据范围 *"><textarea value={form.range} onChange={(event) => setForm({ ...form, range: event.target.value })}/></Field><Field label="版本编号"><input value={editing ? `${editingGraphId}（保存后重新构建）` : '系统自动生成图谱版本号'} disabled/></Field></div>}
-        {!loading && step === 1 && <div className="wizard-choice-grid">{publishedOntologies.length ? publishedOntologies.map((ontology) => <button className={form.ontologyId === ontology.id ? 'selected' : ''} onClick={() => chooseOntology(ontology.id)} key={ontology.id}><Icon name="graph"/><div><strong>{ontology.name}</strong><span>{ontology.version} · {ontology.domain}</span><small>{ontology.id} · {ontology.classes}类 / {ontology.properties}属性 / {ontology.relations}关系</small></div><StatusTag>{ontology.status}</StatusTag></button>) : <EmptyState title="暂无已发布本体" description="请先在本体管理中完成本体校验和发布。"/>}</div>}
-        {!loading && step === 2 && !mappingSourceId && <><div className="wizard-source-grid">{sources.map((source) => { const dependency = dependencyBySource.get(source.id); return <label className={`${form.sourceIds.includes(source.id) ? 'selected' : ''} ${source.status !== '启用' ? 'disabled' : ''}`} key={source.id}><input type="checkbox" disabled={source.status !== '启用'} checked={form.sourceIds.includes(source.id)} onChange={() => toggleSource(source)}/><div><strong>{source.name}</strong><span>{source.id} · {source.mode} · {source.syncMode}</span><small>{source.range}</small></div><div className="source-readiness"><StatusTag>{source.status}</StatusTag>{source.status === '启用' && <small className={dependency?.status === 'ready' ? 'ready' : 'blocked'}>{checkingDependencies ? '检查中' : dependency ? dependencyLabels[dependency.status] : '待检查'}</small>}</div></label> })}</div><section className="dependency-check-panel"><header><div><strong>公共映射自动检查</strong><span>图谱只引用已校验的公共映射，正常情况下无需重复维护。</span></div><Button onClick={() => void checkDependencies()} disabled={checkingDependencies}>{checkingDependencies ? '检查中…' : '重新检查'}</Button></header>{selectedSources.length ? <div className="dependency-list">{selectedSources.map((source) => { const dependency = dependencyBySource.get(source.id); return <article key={source.id}><div><strong>{source.name}</strong><span>{dependency ? `公共映射 R${dependency.revision} · ${dependency.mappingCount} 条` : '正在获取公共映射状态'}</span></div><StatusTag>{dependency ? dependencyLabels[dependency.status] : '检查中'}</StatusTag><small>{dependency?.message || '请稍候'}</small>{dependency && dependency.status !== 'ready' && <Button variant="primary" onClick={() => maintainMapping(source.id)}>维护公共映射</Button>}</article> })}</div> : <EmptyState title="请选择数据源" description="选择后系统会自动检查该数据源与当前本体的公共映射。"/>}</section></>}
-        {!loading && step === 2 && mappingSourceId && <><div className="mapping-public-warning"><Icon name="warning"/><div><strong>正在维护公共语义映射</strong><span>当前修改会同步到“{mappingSource?.name} + {selectedOntology?.name}”的公共映射，并影响后续使用该映射的新图谱。</span></div><Button onClick={closeMapping}>返回数据源选择</Button></div><section className="mapping-workbench-summary"><div><span>数据源</span><strong>{mappingSource?.name}</strong><small>{mappingSourceId}</small></div><div><span>当前本体</span><strong>{selectedOntology?.name} {selectedOntology?.version}</strong><small>{selectedOntology?.id}</small></div><div><span>公共映射</span><strong>R{mappingRows[0]?.revision || mappingDependency?.revision || 1}</strong><small>{mappingRows[0]?.setStatus || dependencyLabels[mappingDependency?.status || 'pending']} · 最近校验 {mappingRows[0]?.lastValidatedAt || mappingDependency?.lastValidatedAt || '—'}</small></div></section>{mappingLoading ? <div className="loading-state graph-create-loading"><i/><span>正在加载公共映射…</span></div> : mappingRows.length ? <div className="wizard-mapping-list"><section><header><div><strong>{mappingSource?.name}</strong><span>{mappingRows.length} 条公共映射 · 修改后需要重新校验</span></div><Button variant="primary" onClick={() => void validateMapping()}>保存并校验</Button></header><div className="table-container mapping-table-container"><table><thead><tr><th>类型</th><th>来源字段</th><th>转换与识别规则</th><th>目标本体元素</th><th>状态</th></tr></thead><tbody>{mappingRows.map((row) => <tr key={row.id}><td><StatusTag>{row.type}</StatusTag></td><td><strong>{row.sourceField}</strong></td><td>{row.transform}</td><td><select value={row.targetCode} onChange={(event) => void updateTarget(row, event.target.value)}>{targetOptions(row).map((item) => <option value={item.code} key={item.code}>{item.name} · {item.code}</option>)}</select></td><td><StatusTag>{row.status}</StatusTag></td></tr>)}</tbody></table></div></section></div> : <EmptyState title="尚未配置公共映射" description="读取数据源元数据，并基于当前本体生成可复用的公共映射建议。" action={<Button variant="primary" onClick={() => void generateMappings()}>生成映射建议</Button>}/>}</>}
-        {!loading && step === 3 && <div className="wizard-confirm-grid"><article><span>图谱</span><strong>{form.graphName}</strong><small>{form.graphCode}</small></article><article><span>本体版本</span><strong>{selectedOntology?.name}</strong><small>{selectedOntology?.version} · {selectedOntology?.id}</small></article><article><span>数据源</span><strong>{selectedSources.length} 个</strong><small>{selectedSources.map((item) => item.name).join('、')}</small></article><article><span>公共映射快照</span><strong>{totalMappingCount} 条</strong><small>{selectedDependencies.map((item) => `${item.sourceId}:R${item.revision}`).join(' / ')}</small></article><article className="wide"><span>数据范围</span><strong>{form.range}</strong><small>构建时保存公共映射快照，后续映射修改不会影响当前图谱版本。</small></article></div>}
+        {!loading && step === 0 && <div className="form-section two-column"><Field label="图谱名称 *"><input value={form.graphName} onChange={(event) => setForm({ ...form, graphName: event.target.value })} placeholder="例如：采购监管图谱"/></Field><Field label="图谱编码 *"><input value={form.graphCode} onChange={(event) => setForm({ ...form, graphCode: event.target.value.toUpperCase() })} placeholder="例如：PROCUREMENT_RISK"/></Field><Field label="数据范围 *"><textarea value={form.range} onChange={(event) => setForm({ ...form, range: event.target.value })}/></Field></div>}
+        {!loading && step === 1 && <div className="wizard-choice-grid">{publishedOntologies.length ? publishedOntologies.map((ontology) => <button className={form.ontologyId === ontology.id ? 'selected' : ''} onClick={() => chooseOntology(ontology.id)} key={ontology.id}><Icon name="graph"/><div><strong>{ontology.name}</strong><span>{ontology.version} · {ontology.domain}</span><small>{ontology.id} · {ontology.classes}类 / {ontology.properties}属性 / {ontology.relations}关系</small></div><StatusTag>{ontology.status}</StatusTag></button>) : <EmptyState title="暂无已发布图谱结构" description="请先在图谱结构中完成校验和发布。"/>}</div>}
+        {!loading && step === 2 && !mappingSourceId && <><div className="wizard-source-grid">{sources.map((source) => { const dependency = dependencyBySource.get(source.id); return <label className={`${form.sourceIds.includes(source.id) ? 'selected' : ''} ${source.status !== '启用' ? 'disabled' : ''}`} key={source.id}><input type="checkbox" disabled={source.status !== '启用'} checked={form.sourceIds.includes(source.id)} onChange={() => toggleSource(source)}/><div><strong>{source.name}</strong><span>{source.id} · {source.mode} · {source.syncMode}</span><small>{source.range}</small></div><div className="source-readiness"><StatusTag>{source.status}</StatusTag>{source.status === '启用' && <small className={dependency?.status === 'ready' ? 'ready' : 'blocked'}>{checkingDependencies ? '检查中' : dependency ? dependencyLabels[dependency.status] : '待检查'}</small>}</div></label> })}</div><section className="dependency-check-panel"><header><div><strong>映射模板自动检查</strong><span>图谱只引用已校验的映射模板，正常情况下无需重复维护。</span></div><Button onClick={() => void checkDependencies()} disabled={checkingDependencies}>{checkingDependencies ? '检查中…' : '重新检查'}</Button></header>{selectedSources.length ? <div className="dependency-list">{selectedSources.map((source) => { const dependency = dependencyBySource.get(source.id); return <article key={source.id}><div><strong>{source.name}</strong><span>{dependency ? `映射模板 R${dependency.revision} · ${dependency.mappingCount} 条` : '正在获取映射模板状态'}</span></div><StatusTag>{dependency ? dependencyLabels[dependency.status] : '检查中'}</StatusTag><small>{dependency?.message || '请稍候'}</small>{dependency && dependency.status !== 'ready' && <Button variant="primary" onClick={() => maintainMapping(source.id)}>维护映射模板</Button>}</article> })}</div> : <EmptyState title="请选择数据源" description="选择后系统会自动检查该数据源与当前图谱结构的映射模板。"/>}</section></>}
+        {!loading && step === 2 && mappingSourceId && <><div className="mapping-public-warning"><Icon name="warning"/><div><strong>正在维护映射模板</strong><span>当前修改会同步到“{mappingSource?.name} + {selectedOntology?.name}”的映射模板，并影响后续使用该模板的新图谱。</span></div><Button onClick={closeMapping}>返回数据源选择</Button></div><section className="mapping-workbench-summary"><div><span>数据源</span><strong>{mappingSource?.name}</strong><small>{mappingSourceId}</small></div><div><span>当前图谱结构</span><strong>{selectedOntology?.name} {selectedOntology?.version}</strong><small>{selectedOntology?.id}</small></div><div><span>映射模板</span><strong>R{mappingRows[0]?.revision || mappingDependency?.revision || 1}</strong><small>{mappingRows[0]?.setStatus || dependencyLabels[mappingDependency?.status || 'pending']} · 最近校验 {mappingRows[0]?.lastValidatedAt || mappingDependency?.lastValidatedAt || '—'}</small></div></section>{mappingLoading ? <div className="loading-state graph-create-loading"><i/><span>正在加载映射模板…</span></div> : mappingRows.length ? <div className="wizard-mapping-list"><section><header><div><strong>{mappingSource?.name}</strong><span>{mappingRows.length} 条映射模板 · 修改后需要重新校验</span></div><Button variant="primary" onClick={() => void validateMapping()}>保存并校验</Button></header><div className="table-container mapping-table-container"><table><thead><tr><th>类型</th><th>来源字段</th><th>转换与识别规则</th><th>目标图谱元素</th><th>状态</th></tr></thead><tbody>{mappingRows.map((row) => <tr key={row.id}><td><StatusTag>{row.type}</StatusTag></td><td><strong>{row.sourceField}</strong></td><td>{row.transform}</td><td><select value={row.targetCode} onChange={(event) => void updateTarget(row, event.target.value)}>{targetOptions(row).map((item) => <option value={item.code} key={item.code}>{item.name} · {item.code}</option>)}</select></td><td><StatusTag>{row.status}</StatusTag></td></tr>)}</tbody></table></div></section></div> : <EmptyState title="尚未配置映射模板" description="读取数据源元数据，并基于当前图谱结构生成可复用的映射建议。" action={<Button variant="primary" onClick={() => void generateMappings()}>生成映射建议</Button>}/>}</>}
+        {!loading && step === 3 && <div className="wizard-confirm-grid"><article><span>图谱</span><strong>{form.graphName}</strong><small>{form.graphCode}</small></article><article><span>图谱结构</span><strong>{selectedOntology?.name}</strong><small>{selectedOntology?.version} · {selectedOntology?.id}</small></article><article><span>数据源</span><strong>{selectedSources.length} 个</strong><small>{selectedSources.map((item) => item.name).join('、')}</small></article><article><span>映射模板快照</span><strong>{totalMappingCount} 条</strong><small>{selectedDependencies.map((item) => `${item.sourceId}:R${item.revision}`).join(' / ')}</small></article><article className="wide"><span>数据范围</span><strong>{form.range}</strong><small>生成时保存映射模板快照，后续映射修改不会影响已生成的知识图谱。</small></article></div>}
       </div>
     </main>
-    <footer className="graph-create-footer"><div><span>步骤 {step + 1} / {steps.length}</span><strong>{mappingSourceId ? '维护公共映射' : steps[step]}</strong></div><div>{mappingSourceId ? <><Button onClick={closeMapping}>返回数据源选择</Button>{mappingRows.length ? <Button variant="primary" disabled={mappingLoading} onClick={() => void validateMapping()}>保存并校验</Button> : <Button variant="primary" disabled={mappingLoading} onClick={() => void generateMappings()}>生成映射建议</Button>}</> : <>{!editing && !dialogMode && <Button onClick={saveDraft}>保存草稿</Button>}{step > 0 && <Button onClick={() => setStep((value) => value - 1)}>上一步</Button>}{step < steps.length - 1 ? <Button variant="primary" disabled={step === 2 && checkingDependencies} onClick={next}>下一步</Button> : <Button variant="primary" disabled={creating} onClick={() => void submit()}>{creating ? (editing ? '正在重新构建…' : '正在构建…') : (editing ? '保存并重新构建' : '构建图谱版本')}</Button>}</>}</div></footer>
+    <footer className="graph-create-footer"><div><span>步骤 {step + 1} / {steps.length}</span><strong>{mappingSourceId ? '维护映射模板' : steps[step]}</strong></div><div>{mappingSourceId ? <><Button onClick={closeMapping}>返回数据源选择</Button>{mappingRows.length ? <Button variant="primary" disabled={mappingLoading} onClick={() => void validateMapping()}>保存并校验</Button> : <Button variant="primary" disabled={mappingLoading} onClick={() => void generateMappings()}>生成映射建议</Button>}</> : <>{!editing && !dialogMode && <Button onClick={saveDraft}>保存草稿</Button>}{step > 0 && <Button onClick={() => setStep((value) => value - 1)}>上一步</Button>}{step < steps.length - 1 ? <Button variant="primary" disabled={step === 2 && checkingDependencies} onClick={next}>下一步</Button> : <Button variant="primary" disabled={creating} onClick={() => void submit()}>{creating ? (editing ? '正在重新生成…' : '正在生成…') : (editing ? '保存并重新生成' : '生成知识图谱')}</Button>}</>}</div></footer>
   </div></div>
 }
 

@@ -22,14 +22,14 @@ const levels:RiskLevel[]=['重大','高','中','低']
 const domains=['采购','合同','财务','投资','通用']
 const defaultOutputs=['主体名称与编码','命中条件及实际值','来源记录与版本','规则执行时间']
 const fallbackElements:OntologyElement[]=[
-  {id:'c1',type:'class',code:'PROC.Supplier',name:'供应商',dataType:'本体类',constraint:'',description:''},
-  {id:'c2',type:'class',code:'PROC.PurchaseProject',name:'采购项目',dataType:'本体类',constraint:'',description:''},
+  {id:'c1',type:'class',code:'PROC.Supplier',name:'供应商',dataType:'类',constraint:'',description:''},
+  {id:'c2',type:'class',code:'PROC.PurchaseProject',name:'采购项目',dataType:'类',constraint:'',description:''},
   {id:'p1',type:'property',code:'PROC.Supplier.phone',name:'供应商联系电话',dataType:'文本',constraint:'',description:''},
   {id:'p2',type:'property',code:'PROC.Reviewer.phone',name:'评审人员联系电话',dataType:'文本',constraint:'',description:''},
   {id:'p3',type:'property',code:'PROC.Contract.change_rate',name:'合同金额变更比例',dataType:'数字',constraint:'',description:''},
   {id:'p4',type:'property',code:'PROC.Contract.change_amount',name:'合同变更金额',dataType:'金额',constraint:'',description:''},
   {id:'r1',type:'relation',code:'PROC.shared_contact',name:'共同使用',dataType:'联系方式 → 评审人员',constraint:'',description:''},
-  {id:'e1',type:'class',code:'PROC.BidConfirmed',name:'中标确认',dataType:'本体类',constraint:'发生时间必填',description:'用于表达中标确认业务记录的普通本体类'},
+  {id:'e1',type:'class',code:'PROC.BidConfirmed',name:'中标确认',dataType:'类',constraint:'发生时间必填',description:'用于表达中标确认业务记录的普通类'},
 ]
 type OntologyOption={id:string;name:string;status?:string;elements:OntologyElement[]}
 type GraphOption={id:string;status:string;ontologyId:string}
@@ -162,8 +162,8 @@ export function RuleAssetManagementPage(){
   }
   const create=async()=>{
     if(!draft.name.trim()){setToast('规则名称不能为空');return}
-    if(!draft.ontologyId||!draft.objectCode){setToast('请先选择已发布本体和主对象');return}
-    if(!draft.graphVersion){setToast('请先选择与本体匹配的已发布图谱版本');return}
+    if(!draft.ontologyId||!draft.objectCode){setToast('请先选择已发布图谱结构和主对象');return}
+    if(!draft.graphVersion){setToast('请先选择与图谱结构匹配的已发布知识图谱');return}
     try{
       const sceneId=routeParams().get('sceneId')||''
       const rule=await ruleClosureApi.createRule({...draft,level:draft.levelMode==='inherit'?'继承场景':draft.level,code:draft.code||undefined})
@@ -181,7 +181,7 @@ export function RuleAssetManagementPage(){
     <PageHeader eyebrow="场景与规则 / 规则管理" title="规则管理" description="规则独立维护基本信息、检测口径、制度依据和证据要求，可被多个风险场景引用。" actions={<><Button icon="refresh" onClick={()=>void load()}>刷新</Button><Button variant="primary" icon="plus" onClick={openNew}>新增规则</Button></>}/>
     <FilterGrid onReset={()=>{setKeyword('');void load('')}} onSearch={()=>void load()}><Field label="关键词"><input value={keyword} onChange={(event)=>setKeyword(event.target.value)} placeholder="规则名称、编码或领域"/></Field></FilterGrid>
     <Panel title="规则资产列表" subtitle="删除规则与移出场景是两个独立操作；被场景引用的规则不可删除">
-      {loading?<div className="loading-state"><i/><span>正在加载规则库…</span></div>:error?<div className="error-state"><Icon name="warning"/><div><strong>规则加载失败</strong><span>{error}</span></div><Button onClick={()=>void load()}>重试</Button></div>:rows.length===0?<EmptyState title="暂无规则资产" description="点击“新增规则”创建第一条可复用规则。"/>:<div className="table-container"><table><thead><tr><th>规则名称 / 编码</th><th>检测范围</th><th>判断类型</th><th>命中等级</th><th>依据与证据</th><th>场景引用</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>{rows.map((rule)=>{const status=displayStatus(rule);const readonly=['已发布','已停用'].includes(status);const canDelete=!readonly&&(rule.bindingCount||0)===0;const deleteReason=readonly?'已发布或已停用规则不可删除':(rule.bindingCount||0)>0?`已被 ${rule.bindingCount} 个场景版本引用，请先解除关联`:'删除规则';return <tr key={rule.versionId}><td><strong>{rule.name}</strong><small className="cell-sub">{rule.code} · {rule.version}</small></td><td>{rule.objectName||'未配置主对象'}<small className="cell-sub">{rule.ontologyId||'未配置本体'} · {rule.graphVersion||'未配置图谱'}{(['时序','聚合'].includes(rule.type)&&rule.eventName)?` · ${rule.eventName}`:''}</small></td><td>{rule.type}</td><td>{rule.levelMode==='inherit'?<span>继承场景</span>:<RiskTag level={rule.defaultLevel||rule.level}/>}</td><td><strong>{rule.policies?.length||0} 条制度依据</strong><small className="cell-sub">{rule.evidenceRequirements?.length||rule.evidence.length} 项证据要求</small></td><td><strong>{rule.bindingCount||0} 个场景版本</strong><small className="cell-sub">{rule.sceneNames?.join('、')||'尚未被场景引用'}</small></td><td><StatusTag>{status}</StatusTag></td><td>{dateText(rule.updatedAt)}</td><td><div className="row-actions"><button onClick={()=>navigate('/rules/'+rule.versionId)}>{readonly?'查看':'编辑'}</button><span className="disabled-action-tip" title={deleteReason}><button className="danger-link" disabled={!canDelete} aria-label={`删除 ${rule.name}`} onClick={()=>void remove(rule)}>删除</button></span></div></td></tr>})}</tbody></table></div>}
+      {loading?<div className="loading-state"><i/><span>正在加载规则库…</span></div>:error?<div className="error-state"><Icon name="warning"/><div><strong>规则加载失败</strong><span>{error}</span></div><Button onClick={()=>void load()}>重试</Button></div>:rows.length===0?<EmptyState title="暂无规则资产" description="点击“新增规则”创建第一条可复用规则。"/>:<div className="table-container"><table><thead><tr><th>规则名称 / 编码</th><th>检测范围</th><th>判断类型</th><th>命中等级</th><th>依据与证据</th><th>场景引用</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>{rows.map((rule)=>{const status=displayStatus(rule);const readonly=['已发布','已停用'].includes(status);const canDelete=!readonly&&(rule.bindingCount||0)===0;const deleteReason=readonly?'已发布或已停用规则不可删除':(rule.bindingCount||0)>0?`已被 ${rule.bindingCount} 个场景版本引用，请先解除关联`:'删除规则';return <tr key={rule.versionId}><td><strong>{rule.name}</strong><small className="cell-sub">{rule.code} · {rule.version}</small></td><td>{rule.objectName||'未配置主对象'}<small className="cell-sub">{rule.ontologyId||'未配置图谱结构'} · {rule.graphVersion||'未配置图谱'}{(['时序','聚合'].includes(rule.type)&&rule.eventName)?` · ${rule.eventName}`:''}</small></td><td>{rule.type}</td><td>{rule.levelMode==='inherit'?<span>继承场景</span>:<RiskTag level={rule.defaultLevel||rule.level}/>}</td><td><strong>{rule.policies?.length||0} 条制度依据</strong><small className="cell-sub">{rule.evidenceRequirements?.length||rule.evidence.length} 项证据要求</small></td><td><strong>{rule.bindingCount||0} 个场景版本</strong><small className="cell-sub">{rule.sceneNames?.join('、')||'尚未被场景引用'}</small></td><td><StatusTag>{status}</StatusTag></td><td>{dateText(rule.updatedAt)}</td><td><div className="row-actions"><button onClick={()=>navigate('/rules/'+rule.versionId)}>{readonly?'查看':'编辑'}</button><span className="disabled-action-tip" title={deleteReason}><button className="danger-link" disabled={!canDelete} aria-label={`删除 ${rule.name}`} onClick={()=>void remove(rule)}>删除</button></span></div></td></tr>})}</tbody></table></div>}
     </Panel>
     <Modal open={open} title="新增风险规则" description={routeParams().get('sceneId')?'创建后自动关联当前风险场景。':'规则创建后进入规则管理，可被一个或多个场景引用。'} confirmText="下一步：完善规则" onClose={()=>setOpen(false)} onConfirm={()=>void create()}>
       <div className="form-stack"><div className="form-section two-column">
@@ -190,10 +190,10 @@ export function RuleAssetManagementPage(){
         <Field label="规则类型 *"><select value={draft.type} onChange={(event)=>setDraft({...draft,type:event.target.value as RuleItem['type']})}>{ruleTypes.map((item)=><option key={item}>{item}</option>)}</select></Field>
         <Field label="命中风险等级"><select value={draft.levelMode==='inherit'?'inherit':draft.level} onChange={(event)=>event.target.value==='inherit'?setDraft({...draft,levelMode:'inherit'}):setDraft({...draft,levelMode:'override',level:event.target.value as RiskLevel})}><option value="inherit">继承场景默认等级</option>{levels.map((item)=><option value={item} key={item}>固定为：{item}</option>)}</select></Field>
         <Field label="监管领域"><select value={draft.domain} onChange={(event)=>setDraft({...draft,domain:event.target.value})}>{domains.map((item)=><option key={item}>{item}</option>)}</select></Field>
-        <Field label="适用本体（由图谱带出）"><select value={draft.ontologyId} disabled>{ontologies.map((item)=><option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
+        <Field label="适用图谱结构（由图谱带出）"><select value={draft.ontologyId} disabled>{ontologies.map((item)=><option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
         <Field label="主对象"><select value={draft.objectCode} onChange={(event)=>{const item=classes.find((candidate)=>candidate.code===event.target.value);setDraft({...draft,objectCode:event.target.value,objectName:item?.name||''})}}>{classes.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>
         {draft.type==='时序'&&<Field label="目标类"><select value={draft.eventCode} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);setDraft({...draft,eventCode:event.target.value,eventName:item?.name||''})}}><option value="">请选择目标类</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>}
-        <Field label="图谱版本"><select value={draft.graphVersion} onChange={(event)=>chooseGraph(event.target.value)}><option value="">请选择已发布图谱</option>{availableGraphs.map((item)=><option value={item.id} key={item.id}>{item.id}</option>)}</select></Field>
+        <Field label="已发布知识图谱"><select value={draft.graphVersion} onChange={(event)=>chooseGraph(event.target.value)}><option value="">请选择已发布知识图谱</option>{availableGraphs.map((item)=><option value={item.id} key={item.id}>{item.id}</option>)}</select></Field>
       </div></div>
     </Modal>
   </>
@@ -385,8 +385,8 @@ export function RuleAssetEditorPage(){
         <div className="rule-editor-section detection-scope-section">
           <header><div><strong>检测范围</strong><span>图谱和主对象始终必填；只有时序、聚合规则需要时间范围</span></div><em className={scopeDone?'complete':'pending'}>{scopeDone?'已完成':'待完成'}</em></header>
           <div className="form-section detection-scope-grid">
-            <Field label="图谱版本 *"><select value={draft.graphVersion||''} disabled={readonly} onChange={(event)=>changeGraph(event.target.value)}><option value="">请选择已发布图谱</option>{availableEditorGraphs.map((item)=><option value={item.id} key={item.id}>{item.id}</option>)}</select></Field>
-            <Field label="适用本体（由图谱带出）"><select value={draft.ontologyId} disabled>{ontologies.map((item)=><option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
+            <Field label="已发布知识图谱 *"><select value={draft.graphVersion||''} disabled={readonly} onChange={(event)=>changeGraph(event.target.value)}><option value="">请选择已发布知识图谱</option>{availableEditorGraphs.map((item)=><option value={item.id} key={item.id}>{item.id}</option>)}</select></Field>
+            <Field label="适用图谱结构（由图谱带出）"><select value={draft.ontologyId} disabled>{ontologies.map((item)=><option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
             <Field label="主对象 *"><select value={draft.objectCode||''} disabled={readonly} onChange={(event)=>{const item=classes.find((candidate)=>candidate.code===event.target.value);patch({objectCode:event.target.value,objectName:item?.name||''})}}>{classes.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>
             {usesTimeWindow&&<>
               <Field label="计算基准 *"><select value={scopeBaseline} disabled={readonly} onChange={(event)=>{const baseline=event.target.value as 'event'|'runtime';const target=events[0];patch({timeConfig:{...draft.timeConfig,baseline},eventCode:baseline==='event'?(draft.eventCode||target?.code||''):'',eventName:baseline==='event'?(draft.eventName||target?.name||''):''})}}><option value="event">目标类节点的发生时间</option><option value="runtime">规则运行时间</option></select></Field>
@@ -442,7 +442,7 @@ function TimeConditionRows({conditions,events,readonly,onAdd,onUpdate,onRemove}:
   return <div className="time-condition-list">
     {conditions.length>0&&<div className="time-condition-head"><span>序号</span><span>判断类节点</span><span>发生要求</span><span>操作</span></div>}
     {conditions.map((condition,index)=><div className="time-condition-row" key={condition.id}><b>{index+1}</b><select value={condition.eventCode} disabled={readonly} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);onUpdate(condition.id,{eventCode:event.target.value,eventName:item?.name||''})}}><option value="">选择判断类</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select><select value={condition.requirement} disabled={readonly} onChange={(event)=>onUpdate(condition.id,{requirement:event.target.value as TimeCondition['requirement']})}><option>必须发生</option><option>不得发生</option></select>{!readonly&&<button type="button" onClick={()=>onRemove(condition.id)}><Icon name="close" size={14}/></button>}</div>)}
-    {!conditions.length&&<EmptyState title="尚未配置时序条件" description="选择一个或多个本体类，并判断对应类节点必须发生或不得发生。"/>}
+    {!conditions.length&&<EmptyState title="尚未配置时序条件" description="选择一个或多个类，并判断对应类节点必须发生或不得发生。"/>}
     {!readonly&&<Button icon="plus" onClick={onAdd}>添加类节点条件</Button>}
   </div>
 }
@@ -466,7 +466,7 @@ function AdvancedExpressionEditor({expression,elements,readonly,onChange}:{expre
   const append=(token:string)=>onChange(`${expression}${expression.trim()?'\nAND ':''}${token}`)
   const functionToken=(name:string)=>name==='EVENT_COUNT'?`EVENT_COUNT("", 30, "DAY", "BEFORE")`:name==='EXISTS_PATH'?`EXISTS_PATH("")`:name==='DATE_DIFF'?`DATE_DIFF("", "")`:name==='ABS'?`ABS()`:`${name}("", 30, "DAY", "BEFORE")`
   return <div className="advanced-expression-editor">
-    <header><div><strong>高级表达式</strong><span>仅支持当前本体元素和白名单函数，不允许 SQL、JavaScript 或外部调用</span></div><b>受控 DSL</b></header>
+    <header><div><strong>高级表达式</strong><span>仅支持当前结构元素和白名单函数，不允许 SQL、JavaScript 或外部调用</span></div><b>受控 DSL</b></header>
     <textarea value={expression} disabled={readonly} maxLength={2000} spellCheck={false} onChange={(event)=>onChange(event.target.value)} placeholder={'例如：\nPROC.Supplier.status == "异常"\nAND EVENT_COUNT("PROC.BidConfirmed", 30, "DAY", "BEFORE") > 0'}/>
     <div className={`expression-validation ${issue?'error':'valid'}`}><Icon name={issue?'warning':'check'} size={14}/><span>{issue||'表达式基础语法检查通过'}</span><small>{expression.length}/2000</small></div>
     {!readonly&&<div className="expression-palette">
@@ -478,3 +478,4 @@ function AdvancedExpressionEditor({expression,elements,readonly,onChange}:{expre
     <div className="expression-help"><strong>支持内容</strong><span>AND、OR、NOT、括号、比较和算术运算；时间单位使用 HOUR、DAY、MONTH，方向使用 BEFORE、AFTER。</span></div>
   </div>
 }
+
