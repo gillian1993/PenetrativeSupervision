@@ -1,12 +1,11 @@
 ﻿import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store'
-import type { AuditItem, DataSourceItem, GraphVersion, OntologyItem, RoleItem, SceneItem, UserItem } from '../types'
+import type { AuditItem, DataSourceItem, OntologyItem, RoleItem, SceneItem, UserItem } from '../types'
 import { dataGraphApi, type MappingItem, type SourceMetadataItem, type SyncRecordItem } from '../dataGraphApi'
 import { ontologyApi } from '../ontologyApi'
 import type { OntologyElement, OntologyRecord } from '../ontologyLocalStore'
 import { Button, Drawer, EmptyState, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, RiskTag, StatusTag, Tabs } from '../ui'
-import { GraphCreateDialog } from './GraphCreateWizard'
 import { OntologyListPage as GraphStructureListPage } from './OntologyLocalPages'
 
 const sceneInitial = {
@@ -229,17 +228,13 @@ export function DataSourceDetailPage() {
   const requestedOntologyId = searchParams.get('ontologyId') || ''
   const sourceOntologyIds = source?.ontologyIds || []
   const currentOntologyId = requestedOntologyId && sourceOntologyIds.includes(requestedOntologyId) ? requestedOntologyId : sourceOntologyIds[0] || mappings.find((item) => item.type === '节点实例')?.ontologyId || mappings[0]?.ontologyId || 'ONT-PROC'
+  const currentOntologyIndex = sourceOntologyIds.indexOf(currentOntologyId)
+  const currentOntologyName = ontologies.find((item) => item.id === currentOntologyId)?.name || source?.ontologyNames?.[currentOntologyIndex] || currentOntologyId
 
   const changeTab = (nextTab: string) => {
     const next = new URLSearchParams(searchParams)
     next.set('tab', nextTab)
     if (nextTab !== 'mapping') next.delete('type')
-    setSearchParams(next, { replace: true })
-  }
-  const changeOntology = (ontologyId: string) => {
-    const next = new URLSearchParams(searchParams)
-    next.set('tab', 'mapping')
-    next.set('ontologyId', ontologyId)
     setSearchParams(next, { replace: true })
   }
   const load = async () => {
@@ -318,7 +313,7 @@ export function DataSourceDetailPage() {
     <section className="stats-grid four source-detail-stats"><article className="mini-stat"><span>元数据对象</span><strong>{metadata.length}</strong><small>{metadata.length ? `已解析 · ${records.length} 个同步批次` : '等待解析'}</small></article><article className="mini-stat"><span>图谱字段</span><strong>{targetFields.length}</strong><small>当前图谱结构属性字段</small></article><article className="mini-stat"><span>字段映射</span><strong>{fieldMappings.length}</strong><small>{validMappings} 条有效</small></article><article className="mini-stat"><span>必填覆盖</span><strong>{mappedRequired}/{requiredTargetFields.length}</strong><small>主标识和必填字段</small></article></section>
     <Panel className="data-source-detail-panel"><Tabs value={tab} onChange={changeTab} items={[{ key: 'basic', label: '基本配置' }, { key: 'mapping', label: '字段映射', count: fieldMappings.length }]}/>
       {tab === 'basic' && <SourceBasicConfig source={source} metadata={metadata} onParse={() => void parse()} onMapping={() => changeTab('mapping')}/>}
-      {tab === 'mapping' && <div className="semantic-mapping-view"><div className="semantic-mapping-toolbar"><div><strong>字段映射</strong><span>以当前图谱结构字段为主线，匹配数据源解析出的来源字段；实例关系由系统在生成知识图谱时自动构建。</span></div><div className="semantic-mapping-controls"><select value={currentOntologyId} onChange={(event) => changeOntology(event.target.value)}>{(source.ontologyIds?.length ? source.ontologyIds : [currentOntologyId]).map((ontologyId, index) => { const option = ontologies.find((item) => item.id === ontologyId); return <option value={ontologyId} key={ontologyId}>{option?.name || source.ontologyNames?.[index] || ontologyId}</option> })}</select><Button icon="refresh" onClick={() => void parse()}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button><Button variant="primary" onClick={() => void validate()}>校验字段映射</Button></div></div><SourceMapping source={source} currentOntologyId={currentOntologyId} metadata={metadata} rows={mappings} ontologyElements={ontologyElements} onParse={() => void parse()} onSave={updateMapping}/></div>}
+      {tab === 'mapping' && <div className="semantic-mapping-view"><div className="semantic-mapping-toolbar"><div><strong>字段映射</strong><span>以当前图谱结构字段为主线，匹配数据源解析出的来源字段；实例关系由系统在生成知识图谱时自动构建。</span></div><div className="semantic-mapping-controls"><div className="mapping-structure-readonly"><span>当前图谱结构</span><strong>{currentOntologyName}</strong><small>{currentOntologyId}</small></div><Button icon="refresh" onClick={() => void parse()}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button><Button variant="primary" onClick={() => void validate()}>校验字段映射</Button></div></div><SourceMapping source={source} currentOntologyId={currentOntologyId} metadata={metadata} rows={mappings} ontologyElements={ontologyElements} onParse={() => void parse()} onSave={updateMapping}/></div>}
     </Panel>
   </>
 }
@@ -384,50 +379,17 @@ function SourceMapping({ source, currentOntologyId, metadata, rows, ontologyElem
 }
 
 export function GraphManagementPage() {
-  const setToast = useAppStore((state) => state.setToast)
   const location = useLocation()
   const [searchParams] = useSearchParams()
-  const [graphs, setGraphs] = useState<GraphVersion[]>([])
-  const [target, setTarget] = useState<GraphVersion | null>(null)
-  const [resultTarget, setResultTarget] = useState<GraphVersion | null>(null)
-  const [graphDialogOpen, setGraphDialogOpen] = useState(false)
-  const [dialogGraphId, setDialogGraphId] = useState<string | undefined>()
 
   const pathTab = location.pathname.startsWith('/graphs/sources') ? 'sources' : location.pathname.startsWith('/graphs/structures') ? 'structures' : ''
   const requestedTab = pathTab || searchParams.get('tab') || 'structures'
   const tab = ['structures', 'sources'].includes(requestedTab) ? requestedTab : 'structures'
   const isSources = tab === 'sources'
-  const latestGraph = graphs[0]
-
-  const loadGraphs = async () => {
-    try {
-      const rows = await dataGraphApi.listGraphs(); setGraphs(rows); return rows
-    } catch (error) { setToast(error instanceof Error ? error.message : '知识图谱生成结果加载失败'); return [] as GraphVersion[] }
-  }
-  useEffect(() => { void loadGraphs() }, [])
-  const confirmPublish = async () => {
-    if (!target) return
-    try {
-      const published = await dataGraphApi.publishGraph(target.id)
-      setToast('知识图谱发布成功，后台生成快照已归档留痕')
-      setTarget(null)
-      setResultTarget(published)
-      await loadGraphs()
-    } catch (error) { setToast(error instanceof Error ? error.message : '知识图谱发布失败') }
-  }
-  const openCreate = () => { setDialogGraphId(undefined); setGraphDialogOpen(true) }
-  const openLatestResult = () => {
-    if (!latestGraph) { setToast('暂无知识图谱生成结果，请先生成知识图谱'); return }
-    setResultTarget(latestGraph)
-  }
-
 
   return <>
-    <PageHeader eyebrow={`知识图谱 / ${isSources ? '数据源' : '图谱结构'}`} title={isSources ? '数据源' : '图谱结构'} description={isSources ? '维护数据源接入、来源结构解析和字段映射模板。' : '维护知识图谱中的类、属性和关系定义，并从结构入口生成知识图谱。'} actions={isSources ? undefined : <><Button onClick={openLatestResult}>最近生成结果</Button><Button variant="primary" icon="plus" onClick={openCreate}>生成知识图谱</Button></>}/>
+    <PageHeader eyebrow={`知识图谱 / ${isSources ? '数据源' : '图谱结构'}`} title={isSources ? '数据源' : '图谱结构'} description={isSources ? '维护数据源接入、来源结构解析和字段映射模板。' : '维护知识图谱中的类、属性和关系定义。'}/>
     <Panel className="graph-management-panel">{isSources ? <div className="embedded-data-access"><DataAccessPage/></div> : <div className="embedded-graph-structure"><GraphStructureListPage embedded/></div>}</Panel>
-    <Drawer open={!!resultTarget} title={resultTarget ? `${resultTarget.graphName} · 生成结果` : '最近生成结果'} eyebrow="知识图谱" onClose={() => setResultTarget(null)} footer={resultTarget?.status === '待发布' ? <><Button onClick={() => setResultTarget(null)}>稍后处理</Button><Button variant="primary" onClick={() => setTarget(resultTarget)}>发布知识图谱</Button></> : undefined}><KeyValue items={[{ label: '图谱名称', value: resultTarget?.graphName || '—' }, { label: '图谱编码', value: resultTarget?.graphCode || '—' }, { label: '生成状态', value: resultTarget ? <StatusTag>{resultTarget.status}</StatusTag> : '—' }, { label: '图谱结构', value: resultTarget?.ontologyVersion || '—' }, { label: '数据源', value: resultTarget?.sourceNames.join('、') || '—' }, { label: '字段映射快照', value: resultTarget?.mappingVersion || '—' }, { label: '数据范围', value: resultTarget?.range || '—' }, { label: '发布时间', value: resultTarget?.publishedAt || '—' }]}/><Panel title="结果说明" subtitle="这里只展示最近一次生成结果，完整追溯仍由后台快照保留" className="drawer-section"><div className="alert-box"><Icon name="graph"/><span>产品入口已弱化版本概念；若需要重新生成，请从“生成知识图谱”重新选择图谱结构、数据源和字段映射。</span></div></Panel></Drawer>
-    <Modal open={!!target} title="发布知识图谱" description={target ? `${target.graphName} · ${target.ontologyVersion}` : ''} onClose={() => setTarget(null)} onConfirm={confirmPublish}><PublishChecklist/>{target && <div className="alert-box"><Icon name="graph"/><span>数据源：{target.sourceNames.join('、')}；字段映射：{target.mappingVersion}</span></div>}{target && target.blockers > 0 && <div className="alert-box danger"><Icon name="warning"/><span>当前生成结果存在阻断状态，不能发布；请调整配置后重新生成知识图谱。</span></div>}</Modal>
-    <GraphCreateDialog open={graphDialogOpen} graphId={dialogGraphId} onClose={() => setGraphDialogOpen(false)} onSaved={async (graph) => { setGraphDialogOpen(false); await loadGraphs(); setResultTarget(graph) }}/>
   </>
 }
 
