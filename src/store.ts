@@ -74,7 +74,7 @@ interface AppState {
   stopScene: (id: string, reason: string) => OperationResult
   copyOntology: (id: string) => OperationResult
   publishOntology: (id: string) => OperationResult
-  createDataSource: (payload: Pick<DataSourceItem, 'name' | 'mode' | 'range' | 'owner' | 'syncMode'>) => string
+  createDataSource: (payload: Pick<DataSourceItem, 'name' | 'mode' | 'range' | 'owner' | 'ontologyIds'> & Pick<Partial<DataSourceItem>, 'ontologyNames'>) => string
   testDataSource: (id: string) => OperationResult
   toggleDataSource: (id: string, enabled: boolean) => OperationResult
   publishGraph: (id: string) => OperationResult

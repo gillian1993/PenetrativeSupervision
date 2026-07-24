@@ -1,7 +1,7 @@
 import type { DataSourceItem, GraphVersion } from './types'
 
-export interface SourceMetadataItem { id: string; sourceId: string; tableName: string; displayName: string; fieldCount: number; summary: string }
-export interface MappingItem { id: string; sourceId: string; ontologyId: string; type: '节点实例' | '关系'; sourceField: string; transform: string; targetCode: string; confidence: number; status: string; revision?: number; setStatus?: string; lastValidatedAt?: string }
+export interface SourceMetadataItem { id: string; sourceId: string; tableName: string; displayName: string; fieldCount: number; summary: string; fields?: string[] }
+export interface MappingItem { id: string; sourceId: string; ontologyId: string; type: '节点实例' | '关系'; sourceField: string; transform: string; targetCode: string; status: string; revision?: number; setStatus?: string; lastValidatedAt?: string }
 export interface MappingDependencyItem { sourceId: string; sourceName: string; sourceStatus: string; status: 'ready' | 'missing' | 'pending' | 'invalid' | 'disabled'; revision: number; mappingCount: number; validCount: number; lastValidatedAt: string; message: string }
 export interface GraphDependencyCheck { ready: boolean; ontologyId: string; items: MappingDependencyItem[] }
 export interface SyncRecordItem { id: string; sourceId: string; sourceName: string; mode: string; startedAt: string; processed: number; errors: number; duration: string; result: string }
@@ -25,7 +25,8 @@ export const dataGraphApi = {
   parseMetadata: (id: string, ontologyId = 'ONT-PROC') => request<SourceMetadataItem[]>(`/api/data-sources/${encodeURIComponent(id)}/metadata/parse`, { method: 'POST', body: JSON.stringify({ ontologyId }) }),
   metadata: (id: string) => request<SourceMetadataItem[]>(`/api/data-sources/${encodeURIComponent(id)}/metadata`),
   mappings: (id: string, type?: string, ontologyId = 'ONT-PROC') => request<MappingItem[]>(`/api/data-sources/${encodeURIComponent(id)}/mappings?ontologyId=${encodeURIComponent(ontologyId)}${type ? `&type=${encodeURIComponent(type)}` : ''}`),
-  updateMapping: (sourceId: string, mappingId: string, payload: { ontologyId: string; targetCode: string; transform?: string; confidence?: number }) => request<MappingItem>(`/api/data-sources/${encodeURIComponent(sourceId)}/mappings/${encodeURIComponent(mappingId)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  createMapping: (sourceId: string, payload: { ontologyId: string; targetCode: string; sourceField: string; transform?: string }) => request<MappingItem>(`/api/data-sources/${encodeURIComponent(sourceId)}/mappings`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateMapping: (sourceId: string, mappingId: string, payload: { ontologyId: string; targetCode: string; sourceField?: string; transform?: string }) => request<MappingItem>(`/api/data-sources/${encodeURIComponent(sourceId)}/mappings/${encodeURIComponent(mappingId)}`, { method: 'PUT', body: JSON.stringify(payload) }),
   validateMappings: (id: string, ontologyId = 'ONT-PROC') => request<{ ok: boolean; message: string }>(`/api/data-sources/${encodeURIComponent(id)}/mappings/validate`, { method: 'POST', body: JSON.stringify({ ontologyId }) }),
   syncSource: (id: string) => request<{ recordId: string; message: string }>(`/api/data-sources/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
   syncRecords: (sourceId?: string) => request<SyncRecordItem[]>(`/api/sync-records${sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : ''}`),

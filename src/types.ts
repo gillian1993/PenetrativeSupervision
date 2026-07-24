@@ -104,7 +104,8 @@ export interface DataSourceItem {
   mode: string
   range: string
   owner: string
-  syncMode: string
+  ontologyIds: string[]
+  ontologyNames?: string[]
   lastSuccess: string
   status: '草稿' | '启用' | '停用' | '异常'
 }

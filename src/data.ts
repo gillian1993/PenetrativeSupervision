@@ -63,10 +63,10 @@ export const ontologies: OntologyItem[] = [
 ]
 
 export const dataSources: DataSourceItem[] = [
-  { id: 'SRC-ERP', name: '集团ERP采购视图', mode: '数据库视图', range: '采购项目、订单、供应商', owner: '张海', syncMode: '增量', lastSuccess: '今天 11:52', status: '启用' },
-  { id: 'SRC-OA', name: 'OA审批事件接口', mode: 'API', range: '审批实例、节点、意见', owner: '刘敏', syncMode: '事件', lastSuccess: '今天 12:06', status: '启用' },
-  { id: 'SRC-TREASURY', name: '司库付款消息', mode: '消息', range: '付款申请、账户、流水', owner: '王宁', syncMode: '事件', lastSuccess: '今天 12:08', status: '启用' },
-  { id: 'SRC-EXTERNAL', name: '工商司法外部数据', mode: 'API', range: '主体、股东、司法风险', owner: '陈洁', syncMode: '增量', lastSuccess: '昨天 23:00', status: '异常' },
+  { id: 'SRC-ERP', name: '集团ERP采购视图', mode: '数据库视图', range: '采购项目、订单、供应商', owner: '张海', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '今天 11:52', status: '启用' },
+  { id: 'SRC-OA', name: 'OA审批事件接口', mode: 'API', range: '审批实例、节点、意见', owner: '刘敏', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '今天 12:06', status: '启用' },
+  { id: 'SRC-TREASURY', name: '司库付款消息', mode: '消息', range: '付款申请、账户、流水', owner: '王宁', ontologyIds: ['ONT-FIN'], ontologyNames: ['财务资金扩展图谱结构'], lastSuccess: '今天 12:08', status: '启用' },
+  { id: 'SRC-EXTERNAL', name: '工商司法外部数据', mode: 'API', range: '主体、股东、司法风险', owner: '陈洁', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '昨天 23:00', status: '异常' },
 ]
 
 export const graphVersions: GraphVersion[] = [
