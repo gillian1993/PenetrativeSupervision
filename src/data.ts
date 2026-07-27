@@ -18,6 +18,7 @@ export const initialWarnings: Warning[] = [
   { id: 'WA-20260717-002', title: '合同签订前缺少法务会签记录', stage: '事前', status: '待研判', level: '高', scene: '合同签订风险', sceneVersion: 'v1.8', target: '云资源扩容采购合同', targetEvent: '合同签订', organization: '电子云采购中心', owner: '李华', expectedAt: '2026-07-18 10:00:00', leadTime: '22小时08分', evidenceStatus: '部分缺失', path: '采购项目 → 合同 → 审批记录', generatedAt: '2026-07-17 11:52:00', updatedAt: '今天 11:58' },
   { id: 'WA-20260716-008', title: '付款账户与合同约定账户不一致', stage: '事中', status: '待研判', level: '高', scene: '付款执行风险', sceneVersion: 'v3.1', target: '云平台服务费付款单', targetEvent: '付款执行', organization: '集团财务共享中心', owner: '王宁', expectedAt: '2026-07-17 14:00:00', leadTime: '已越过2小时', evidenceStatus: '完整', path: '合同相对方 → 约定账户 ≠ 付款账户', generatedAt: '2026-07-16 16:20:00', updatedAt: '今天 12:06' },
   { id: 'WA-20260715-019', title: '采购金额超过预算批复额度', stage: '事后', status: '待研判', level: '中', scene: '付款执行风险', sceneVersion: 'v3.1', target: '网络安全设备采购项目', targetEvent: '采购执行', organization: '信息安全事业部', owner: '陈洁', expectedAt: '2026-07-15 18:00:00', leadTime: '事后发现', evidenceStatus: '完整', path: '预算批复 → 采购项目 → 合同金额', generatedAt: '2026-07-15 18:22:00', updatedAt: '昨天 18:20' },
+  { id: 'WA-20260715-026', title: '采购评审打分说明缺少附件', stage: '事中', status: '待研判', level: '低', scene: '采购流程合规风险', sceneVersion: 'v1.0', target: '办公终端集中采购项目', targetEvent: '评审归档', organization: '集团采购中心', owner: '李华', expectedAt: '2026-07-19 18:00:00', leadTime: '2天6小时', evidenceStatus: '完整', path: '评审记录 → 打分说明 → 附件清单', generatedAt: '2026-07-15 12:18:00', updatedAt: '昨天 16:40' },
   { id: 'WA-20260714-012', title: '供应商资质证书已过有效期', stage: '事前', status: '已解除', level: '中', scene: '供应商资格风险', sceneVersion: 'v1.2', target: '中科联创服务有限公司', targetEvent: '供应商入围', organization: '采购管理部', owner: '尹晨阳', expectedAt: '2026-07-16 09:00:00', leadTime: '48小时', evidenceStatus: '完整', path: '供应商 → 资质证书 → 有效期', generatedAt: '2026-07-14 09:02:00', updatedAt: '2026-07-16' },
   { id: 'WA-20260713-006', title: '同一控制主体参与多家投标', stage: '事后', status: '已升级', level: '重大', scene: '供应商异常关联', sceneVersion: 'v2.2', target: '核心系统运维服务项目', targetEvent: '开标完成', organization: '集团采购中心', owner: '周航', expectedAt: '2026-07-13 10:00:00', leadTime: '事后发现', evidenceStatus: '权限受限', path: '投标主体 → 实际控制人 → 投标主体', generatedAt: '2026-07-13 11:35:00', updatedAt: '2026-07-14' },
   { id: 'WA-20260711-018', title: '合同付款比例偏离管理制度', stage: '事中', status: '已升级', level: '高', scene: '合同签订风险', sceneVersion: 'v1.8', target: '云安全服务框架合同', targetEvent: '付款审批', organization: '云安全事业部', owner: '刘敏', expectedAt: '2026-07-17 12:00:00', leadTime: '已越过1小时', evidenceStatus: '完整', path: '合同条款 → 付款比例 → 管理制度', generatedAt: '2026-07-11 09:20:00', updatedAt: '今天 10:12' },
@@ -37,6 +38,7 @@ export const todos: TodoItem[] = [
   { id: 'TODO-WA-002', title: '研判：合同签订前缺少法务会签记录', objectType: '预警', level: '高', status: '待研判', dueAt: '今天 18:00', owner: '李华', timeState: '正常', route: '/risk/warnings/WA-20260717-002' },
   { id: 'TODO-WA-003', title: '研判：付款账户与合同约定账户不一致', objectType: '预警', level: '高', status: '待研判', dueAt: '今天 12:00', owner: '王宁', timeState: '已逾期', route: '/risk/warnings/WA-20260716-008' },
   { id: 'TODO-WA-004', title: '研判：采购金额超过预算批复额度', objectType: '预警', level: '中', status: '待研判', dueAt: '明天 18:00', owner: '陈洁', timeState: '正常', route: '/risk/warnings/WA-20260715-019' },
+  { id: 'TODO-WA-005', title: '研判：采购评审打分说明缺少附件', objectType: '预警', level: '低', status: '待研判', dueAt: '明天 16:00', owner: '李华', timeState: '正常', route: '/risk/warnings/WA-20260715-026' },
   { id: 'TODO-RE-001', title: '整改：核心系统运维项目疑似围串标风险', objectType: '事件', level: '重大', status: '待整改', dueAt: '07-20 18:00', owner: '周航', timeState: '正常', route: '/risk/events/RE-20260713-001' },
   { id: 'TODO-RE-002', title: '复核：合同付款比例偏离管理制度', objectType: '事件', level: '高', status: '待复核', dueAt: '今天 12:00', owner: '尹晨阳', timeState: '已逾期', route: '/risk/events/RE-20260711-004' },
 ]
@@ -46,6 +48,7 @@ export const initialMessages: WorkMessage[] = [
   { id: 'MSG-002', type: '转派', title: '合同签订风险预警已转派给李华', source: 'WA-20260717-002', time: '32分钟前', unread: true, route: '/risk/warnings/WA-20260717-002' },
   { id: 'MSG-003', type: '逾期', title: '付款账户风险研判任务已逾期', source: 'WA-20260716-008', time: '1小时前', unread: true, route: '/risk/warnings/WA-20260716-008' },
   { id: 'MSG-004', type: '整改', title: '核心系统运维项目等待提交整改材料', source: 'RE-20260713-001', time: '昨天 18:20', unread: false, route: '/risk/events/RE-20260713-001' },
+  { id: 'MSG-005', type: '预警', title: '低风险预警进入观察队列', source: 'WA-20260715-026', time: '昨天 16:40', unread: true, route: '/risk/warnings/WA-20260715-026' },
 ]
 
 export const scenes: SceneItem[] = [
