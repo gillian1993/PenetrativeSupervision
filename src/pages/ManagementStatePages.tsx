@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store'
 import type { AuditItem, DataSourceItem, OntologyItem, RoleItem, SceneItem, UserItem } from '../types'
@@ -6,6 +6,7 @@ import { dataGraphApi, type MappingItem, type SourceMetadataItem, type SyncRecor
 import { ontologyApi } from '../ontologyApi'
 import type { OntologyElement, OntologyRecord } from '../ontologyLocalStore'
 import { Button, Drawer, EmptyState, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, RiskTag, StatusTag, Tabs } from '../ui'
+import { ACTION_PERMISSION_CATALOG, MENU_PERMISSION_CATALOG, PERMISSION_LABEL_BY_CODE, normalizePermissionCodes } from '../permissions'
 import { OntologyListPage as GraphStructureListPage } from './OntologyLocalPages'
 
 const sceneInitial = {
@@ -436,7 +437,6 @@ export function UsersPage() {
   </>
 }
 
-const permissionOptions = ['查看工作台','查看监管态势','查看统一预警','查看风险事件','转派任务','监管复核','解除重大预警','升级风险事件','复核关闭风险事件','编辑场景规则','发布场景规则','发布图谱结构','发布知识图谱','实例合并与拆分','管理用户','调整角色权限','查看审计日志']
 
 export function RolesPage() {
   const roles = useAppStore((state) => state.roles)
@@ -446,13 +446,13 @@ export function RolesPage() {
   const setToast = useAppStore((state) => state.setToast)
   const [selectedId, setSelectedId] = useState(roles[0]?.id || '')
   const selected = roles.find((item) => item.id === selectedId) || roles[0]
-  const [permissions, setPermissions] = useState<string[]>(selected?.permissions || [])
+  const [permissions, setPermissions] = useState<string[]>(normalizePermissionCodes(selected?.permissions || []))
   const [tab, setTab] = useState('menu')
   const [confirm, setConfirm] = useState(false)
   const [createRoleOpen, setCreateRoleOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [roleForm, setRoleForm] = useState({ name: '', id: '', scope: '当前组织' })
-  const selectRole = (item: RoleItem) => { setSelectedId(item.id); setPermissions(item.permissions) }
+  const selectRole = (item: RoleItem) => { setSelectedId(item.id); setPermissions(normalizePermissionCodes(item.permissions)) }
   const toggle = (permission: string) => setPermissions((value) => value.includes(permission) ? value.filter((item) => item !== permission) : [...value, permission])
   const save = () => { if (!selected) return; const result = updateRole(selected.id, permissions); setToast(result.message); if (result.ok) setConfirm(false) }
   const removeRole = () => {
@@ -462,7 +462,7 @@ export function RolesPage() {
     if (!result.ok) return
     const next = roles.find((item) => item.id !== selected.id)
     setSelectedId(next?.id || '')
-    setPermissions(next?.permissions || [])
+    setPermissions(normalizePermissionCodes(next?.permissions || []))
     setDeleteOpen(false)
   }
   const submitRole = () => {
@@ -478,7 +478,7 @@ export function RolesPage() {
   if (!selected) return <EmptyState title="暂无角色" description="请先同步或创建角色。"/>
   return <>
     <PageHeader eyebrow="系统管理 / 角色与权限" title="角色与权限" description="配置菜单、按钮、组织、字段、关系、证据和高危操作权限，权限变更即时生效。" actions={<Button variant="primary" icon="plus" onClick={() => setCreateRoleOpen(true)}>新建角色</Button>}/>
-    <section className="role-layout"><Panel title="角色列表" className="role-list"><input placeholder="搜索角色名称或编码"/>{roles.map((item) => <button key={item.id} className={selected.id === item.id ? 'active' : ''} onClick={() => selectRole(item)}><div><strong>{item.name}</strong><span>{item.id} · {item.type}</span></div><small>{item.users}人</small><StatusTag>{item.status}</StatusTag></button>)}</Panel><Panel className="permission-panel"><div className="selected-role-header"><div><p className="eyebrow">当前角色</p><h2>{selected.name}</h2><span>{selected.id} · {selected.type}角色 · {selected.users}名用户</span></div><div><Button onClick={() => setToast(`当前调整${permissions.length}项权限，原配置${selected.permissions.length}项`)}>查看变更</Button>{selected.type === '自定义' && selected.users === 0 && <Button variant="danger" onClick={() => setDeleteOpen(true)}>删除角色</Button>}<Button variant="primary" onClick={() => setConfirm(true)}>保存权限</Button></div></div><Tabs value={tab} onChange={setTab} items={[{ key: 'menu', label: '菜单与按钮' }, { key: 'org', label: '组织数据' }, { key: 'field', label: '字段属性' }, { key: 'relation', label: '关系权限' }, { key: 'evidence', label: '证据权限' }, { key: 'danger', label: '高危操作' }]}/><PermissionEditor tab={tab} role={selected} permissions={permissions} onToggle={toggle}/></Panel></section>
+    <section className="role-layout"><Panel title="角色列表" className="role-list"><input placeholder="搜索角色名称或编码"/>{roles.map((item) => <button key={item.id} className={selected.id === item.id ? 'active' : ''} onClick={() => selectRole(item)}><div><strong>{item.name}</strong><span>{item.id} · {item.type}</span></div><small>{item.users}人</small><StatusTag>{item.status}</StatusTag></button>)}</Panel><Panel className="permission-panel"><div className="selected-role-header"><div><p className="eyebrow">当前角色</p><h2>{selected.name}</h2><span>{selected.id} · {selected.type}角色 · {selected.users}名用户</span></div><div><Button onClick={() => setToast(`当前调整${permissions.length}项权限，原配置${normalizePermissionCodes(selected.permissions).length}项`)}>查看变更</Button>{selected.type === '自定义' && selected.users === 0 && <Button variant="danger" onClick={() => setDeleteOpen(true)}>删除角色</Button>}<Button variant="primary" onClick={() => setConfirm(true)}>保存权限</Button></div></div><Tabs value={tab} onChange={setTab} items={[{ key: 'menu', label: '菜单与按钮' }, { key: 'org', label: '组织数据' }, { key: 'field', label: '字段属性' }, { key: 'relation', label: '关系权限' }, { key: 'evidence', label: '证据权限' }, { key: 'danger', label: '高危操作' }]}/><PermissionEditor tab={tab} role={selected} permissions={permissions} onToggle={toggle}/></Panel></section>
     <Modal open={confirm} title="保存角色权限" description={`${selected.name} · 权限调整将立即影响 ${selected.users} 名用户`} confirmText="确认保存" danger onClose={() => setConfirm(false)} onConfirm={save}><div className="alert-box danger"><Icon name="warning"/><span>服务端将重新计算菜单、按钮、字段、关系和证据权限，当前在线用户可能需要刷新页面。</span></div></Modal>
     <Modal open={createRoleOpen} title="新建角色" description="先创建角色草稿，再为其配置菜单、数据和高危操作权限。" confirmText="创建并配置权限" onClose={() => setCreateRoleOpen(false)} onConfirm={submitRole}><div className="form-stack"><Field label="角色名称 *"><input value={roleForm.name} onChange={(event) => setRoleForm({ ...roleForm, name: event.target.value })} placeholder="例如 合同监管专员"/></Field><Field label="角色编码 *"><input value={roleForm.id} onChange={(event) => setRoleForm({ ...roleForm, id: event.target.value.toUpperCase() })} placeholder="例如 ROLE_CONTRACT_AUDITOR"/></Field><Field label="数据范围"><select value={roleForm.scope} onChange={(event) => setRoleForm({ ...roleForm, scope: event.target.value })}><option>当前组织</option><option>当前组织及授权下级</option><option>全部组织</option></select></Field></div></Modal>
     <Modal open={deleteOpen} title="删除自定义角色" description={`${selected.name} · ${selected.id}`} confirmText="确认删除" danger onClose={() => setDeleteOpen(false)} onConfirm={removeRole}><div className="alert-box danger"><Icon name="warning"/><span>仅无人使用的自定义角色可以删除；预置角色和已分配用户的角色必须保留。</span></div></Modal>
@@ -486,12 +486,17 @@ export function RolesPage() {
 }
 
 function PermissionEditor({ tab, role, permissions, onToggle }: { tab: string; role: RoleItem; permissions: string[]; onToggle: (value: string) => void }) {
+  const normalized = new Set(normalizePermissionCodes(permissions))
   if (tab === 'org') return <div className="detail-grid"><Panel title="数据范围"><div className="radio-list"><label><input type="radio" name="scope" defaultChecked/>当前组织</label><label><input type="radio" name="scope"/>当前组织及授权下级</label><label><input type="radio" name="scope"/>自定义组织节点</label></div></Panel><Panel title="授权摘要"><KeyValue items={[{ label: '当前范围', value: role.scope }, { label: '组织节点', value: '12个' }, { label: '监管领域', value: '采购、合同、财务' }]}/></Panel></div>
   if (tab === 'field') return <div className="table-container"><table><thead><tr><th>图谱结构类 / 字段</th><th>敏感等级</th><th>明文</th><th>脱敏</th><th>隐藏</th></tr></thead><tbody>{[['人员','证件号码','强敏感'],['账户','银行账号','强敏感'],['合同','合同金额','敏感'],['供应商','联系电话','敏感']].map((row, index) => <tr key={row[1]}><td><strong>{row[0]}</strong><small className="cell-sub">{row[1]}</small></td><td><StatusTag>{row[2]}</StatusTag></td><td><input type="radio" name={`field-${index}`}/></td><td><input type="radio" name={`field-${index}`} defaultChecked/></td><td><input type="radio" name={`field-${index}`}/></td></tr>)}</tbody></table></div>
-  const visible = tab === 'menu' ? permissionOptions.filter((item) => item.startsWith('查看') || ['转派任务','监管复核'].includes(item)) : tab === 'danger' ? permissionOptions.filter((item) => ['解除重大预警','升级风险事件','复核关闭风险事件','发布场景规则','发布图谱结构','发布知识图谱','实例合并与拆分','调整角色权限'].includes(item)) : tab === 'relation' ? ['查看统一预警','查看风险事件','实例合并与拆分'] : ['查看统一预警','查看风险事件','查看审计日志']
-  return <div className={tab === 'danger' ? 'danger-permissions' : 'check-grid permission-cards'}>{visible.map((item) => <label key={item}><div><Icon name={tab === 'danger' ? 'lock' : 'shield'}/><span>{item}</span></div><input type="checkbox" checked={permissions.includes(item)} onChange={() => onToggle(item)}/></label>)}</div>
+  if (tab === 'menu') return <div className="permission-tree">{MENU_PERMISSION_CATALOG.map((item) => <div key={item.code}><label><input type="checkbox" checked={normalized.has(item.code)} onChange={() => onToggle(item.code)}/><span>{item.label}</span></label><div className="permission-buttons"><label><input type="checkbox" checked={normalized.has(item.code)} onChange={() => onToggle(item.code)}/>查看</label><small>{item.group}</small></div></div>)}</div>
+  const visible = tab === 'danger'
+    ? ACTION_PERMISSION_CATALOG
+    : tab === 'relation'
+      ? [...MENU_PERMISSION_CATALOG.filter((item) => item.code.includes('risk') || item.code.includes('ontology')), ACTION_PERMISSION_CATALOG.find((item) => item.code === 'action.graph.entity_govern')!]
+      : [...MENU_PERMISSION_CATALOG.filter((item) => item.code.includes('risk') || item.code === 'menu.system.audit')]
+  return <div className={tab === 'danger' ? 'danger-permissions' : 'check-grid permission-cards'}>{visible.map((item) => <label key={item.code}><div><Icon name={tab === 'danger' ? 'lock' : 'shield'}/><span>{PERMISSION_LABEL_BY_CODE[item.code] || item.label}</span></div><input type="checkbox" checked={normalized.has(item.code)} onChange={() => onToggle(item.code)}/></label>)}</div>
 }
-
 export function AuditPage() {
   const audits = useAppStore((state) => state.audits)
   const setToast = useAppStore((state) => state.setToast)
@@ -514,4 +519,3 @@ function VersionTimeline({ labels }: { labels: string[] }) {
 function PublishChecklist() {
   return <div className="publish-checklist">{['基本信息与编码校验','图谱结构和图谱依赖有效','事件与证据要求配置完整','权限范围校验通过','试跑或质量校验通过'].map((item) => <div key={item}><Icon name="check"/><span>{item}</span><StatusTag>通过</StatusTag></div>)}</div>
 }
-

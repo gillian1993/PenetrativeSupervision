@@ -1,4 +1,4 @@
-﻿import type {
+import type {
   AuditItem,
   DataSourceItem,
   GraphVersion,
@@ -11,6 +11,7 @@
   WorkMessage,
   RiskEvent,
 } from './types'
+import { ROLE_PERMISSION_PRESETS } from './permissions'
 
 export const initialWarnings: Warning[] = [
   { id: 'WA-20260717-001', title: '供应商与评审人员存在异常关联', stage: '事前', status: '待研判', level: '重大', scene: '供应商异常关联', sceneVersion: 'v2.3', target: '华北数字科技有限公司', targetEvent: '中标确认', organization: '电子云采购中心', owner: '尹晨阳', expectedAt: '2026-07-18 15:00:00', leadTime: '31小时42分', evidenceStatus: '完整', path: '供应商 → 共同手机号 → 评审人员', generatedAt: '2026-07-17 07:18:00', updatedAt: '今天 10:26' },
@@ -84,13 +85,13 @@ export const users: UserItem[] = [
 ]
 
 export const roles: RoleItem[] = [
-  { id: 'ROLE-01', name: '监管负责人', type: '预置', users: 8, scope: '授权组织及下级', status: '启用', permissions: ['监管态势', '风险事件复核', '重大解除', '风险关闭'], updatedAt: '今天 08:20' },
-  { id: 'ROLE-02', name: '领域监管专员', type: '预置', users: 21, scope: '授权组织、领域和场景', status: '启用', permissions: ['查看预警', '转派任务', '风险升级'], updatedAt: '昨天 17:20' },
-  { id: 'ROLE-03', name: '业务责任人', type: '预置', users: 86, scope: '本人任务必要数据', status: '启用', permissions: ['查看本人任务', '整改提交', '证据摘要'], updatedAt: '昨天 15:40' },
-  { id: 'ROLE-04', name: '规则管理员', type: '自定义', users: 5, scope: '授权规则资产', status: '启用', permissions: ['场景编辑', '规则试跑', '规则发布'], updatedAt: '07-16 10:10' },
-  { id: 'ROLE-05', name: '试点观察员', type: '自定义', users: 3, scope: '试点组织只读', status: '草稿', permissions: ['监管态势只读'], updatedAt: '07-15 09:30' },
+  { id: 'ROLE-01', name: '监管负责人', type: '预置', users: 8, scope: '授权组织及下级', status: '启用', permissions: ROLE_PERMISSION_PRESETS.监管负责人, updatedAt: '今天 08:20' },
+  { id: 'ROLE-02', name: '领域监管专员', type: '预置', users: 21, scope: '授权组织、领域和场景', status: '启用', permissions: ROLE_PERMISSION_PRESETS.领域监管专员, updatedAt: '昨天 17:20' },
+  { id: 'ROLE-03', name: '业务责任人', type: '预置', users: 86, scope: '本人任务必要数据', status: '启用', permissions: ROLE_PERMISSION_PRESETS.业务责任人, updatedAt: '昨天 15:40' },
+  { id: 'ROLE-04', name: '规则管理员', type: '自定义', users: 5, scope: '授权规则资产', status: '启用', permissions: ROLE_PERMISSION_PRESETS.规则管理员, updatedAt: '07-16 10:10' },
+  { id: 'ROLE-05', name: '试点观察员', type: '自定义', users: 3, scope: '试点组织只读', status: '草稿', permissions: ROLE_PERMISSION_PRESETS.试点观察员, updatedAt: '07-15 09:30' },
+  { id: 'ROLE-06', name: '采购应用管理员', type: '自定义', users: 4, scope: '采购应用管理', status: '启用', permissions: ROLE_PERMISSION_PRESETS.采购应用管理员, updatedAt: '今天 09:10' },
 ]
-
 export const audits: AuditItem[] = [
   { id: 'AUD-001', time: '2026-07-17 12:06:32', operator: '尹晨阳', organization: '集团监管部', action: '升级风险事件', objectType: '预警', objectId: 'WA-20260713-006', summary: '确认存在同一控制主体参与多家投标风险', result: '成功', risk: '高危', traceId: 'trace-7f21a9c1' },
   { id: 'AUD-002', time: '2026-07-17 11:58:10', operator: '刘敏', organization: '云安全事业部', action: '提交整改', objectType: '风险事件', objectId: 'RE-20260711-004', summary: '补充法务会签说明与整改证明材料', result: '成功', risk: '普通', traceId: 'trace-a52c11d8' },
@@ -115,4 +116,3 @@ export const graphEdges = [
   { from: 'project', to: 'bid', label: '产生事件', hit: false },
   { from: 'supplier', to: 'file', label: '来源于', hit: false },
 ]
-
