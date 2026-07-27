@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand'
+import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { demoDataApi } from './demoDataApi'
 import {
@@ -530,9 +530,9 @@ export const useAppStore = create<AppState>()(
     },
     {
       name: 'penetrative-supervision-demo-v2',
-      version: 7,
+      version: 9,
       migrate: (persistedState) => {
-        const state = persistedState as { warnings?: Warning[]; riskEvents?: RiskEvent[]; todos?: LegacyTodoItem[]; messages?: WorkMessage[] } & Record<string, unknown>
+        const state = persistedState as { warnings?: Warning[]; riskEvents?: RiskEvent[]; todos?: LegacyTodoItem[]; messages?: WorkMessage[]; roles?: RoleItem[] } & Record<string, unknown>
         const warnings = (state.warnings || initialWarnings).map((item) => ({ ...item, status: ['已解除', '已升级'].includes(item.status) ? item.status : '待研判' as Warning['status'] }))
         const riskEvents = (state.riskEvents || initialRiskEvents).map((item) => {
           const status: RiskEvent['status'] = item.status === '待复核' || item.status === '已关闭' ? item.status : '待整改'
@@ -557,6 +557,17 @@ export const useAppStore = create<AppState>()(
           }
           return { ...item, title: item.title.replace('核查整改', '整改').replace('核查材料', '整改材料') }
         })
+        const roles = (state.roles || initialRoles).map((role) => {
+          const permissions = (role.permissions || []).map((permission) => permission === 'menu.system.vertical_models' ? 'menu.system.models' : permission)
+          const shouldAddModelMenu = (
+            role.name === '监管负责人' && permissions.includes('menu.system.users') && permissions.includes('menu.system.roles') && permissions.includes('menu.system.audit')
+          ) || (
+            role.name === '采购应用管理员' && permissions.includes('menu.procurement.overview') && permissions.includes('menu.system.audit')
+          )
+          return shouldAddModelMenu && !permissions.includes('menu.system.models')
+            ? { ...role, permissions: [...permissions, 'menu.system.models'] }
+            : { ...role, permissions }
+        })
         const previousTodos = new Map((state.todos || initialTodos).map(normalizeTodo).map((item) => [item.route, item]))
         const warningTodos: TodoItem[] = warnings.filter((item) => item.status === '待研判').map((item) => {
           const route = `/risk/warnings/${item.id}`
@@ -568,7 +579,7 @@ export const useAppStore = create<AppState>()(
           const previous = previousTodos.get(route)
           return { id: previous?.id || `TODO-${item.id}`, title: `${item.status === '待复核' ? '复核' : '整改'}：${item.title}`, objectType: '事件', level: item.level, status: item.status === '待复核' ? '待复核' : '待整改', dueAt: item.dueAt, owner: item.owner, timeState: item.overdue ? '已逾期' : '正常', route }
         })
-        return { ...state, warnings, riskEvents, messages, todos: [...warningTodos, ...eventTodos] } as unknown as AppState
+        return { ...state, warnings, riskEvents, messages, todos: [...warningTodos, ...eventTodos], roles } as unknown as AppState
       },
       partialize: ({ toast: _toast, ...state }) => state,
     },

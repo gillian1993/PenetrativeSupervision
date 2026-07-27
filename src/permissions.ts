@@ -1,4 +1,4 @@
-﻿export type PermissionCode = string
+export type PermissionCode = string
 
 export interface PermissionCatalogItem {
   code: PermissionCode
@@ -25,6 +25,7 @@ export const MENU_PERMISSION_CATALOG: PermissionCatalogItem[] = [
   { code: 'menu.supervision.ontology.sources', label: '穿透式监管 / 知识图谱 / 数据源', group: '穿透式监管' },
   { code: 'menu.system.users', label: '系统管理 / 用户与组织', group: '系统管理' },
   { code: 'menu.system.roles', label: '系统管理 / 角色与权限', group: '系统管理' },
+  { code: 'menu.system.models', label: '系统管理 / 模型管理', group: '系统管理' },
   { code: 'menu.system.audit', label: '系统管理 / 审计日志', group: '系统管理' },
 ]
 
@@ -62,6 +63,10 @@ const legacyPermissionMap: Record<string, PermissionCode[]> = {
   数据管理员: ['menu.supervision.ontology.sources'],
   管理用户: ['menu.system.users'],
   调整角色权限: ['menu.system.roles', 'action.role.adjust'],
+  垂类模型管理: ['menu.system.models'],
+  模型管理: ['menu.system.models'],
+  模型接入配置: ['menu.system.models'],
+  'menu.system.vertical_models': ['menu.system.models'],
   转派任务: ['action.task.transfer'],
   监管复核: ['action.supervision.review'],
   重大解除: ['action.warning.release_major'],
@@ -136,7 +141,7 @@ export const ROLE_PERMISSION_PRESETS: Record<string, PermissionCode[]> = {
     'action.graph.publish',
     'action.graph.entity_govern',
   ],
-  采购应用管理员: [...unifiedMenus, ...procurementMenus, 'menu.system.audit'],
+  采购应用管理员: [...unifiedMenus, ...procurementMenus, 'menu.system.models', 'menu.system.audit'],
 }
 
 export function resolveRolePermissionCodes(_roleName: string, storedPermissions: string[] = []) {

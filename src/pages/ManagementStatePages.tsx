@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store'
 import type { AuditItem, DataSourceItem, OntologyItem, RoleItem, SceneItem, UserItem } from '../types'
@@ -496,6 +496,183 @@ function PermissionEditor({ tab, role, permissions, onToggle }: { tab: string; r
       ? [...MENU_PERMISSION_CATALOG.filter((item) => item.code.includes('risk') || item.code.includes('ontology')), ACTION_PERMISSION_CATALOG.find((item) => item.code === 'action.graph.entity_govern')!]
       : [...MENU_PERMISSION_CATALOG.filter((item) => item.code.includes('risk') || item.code === 'menu.system.audit')]
   return <div className={tab === 'danger' ? 'danger-permissions' : 'check-grid permission-cards'}>{visible.map((item) => <label key={item.code}><div><Icon name={tab === 'danger' ? 'lock' : 'shield'}/><span>{PERMISSION_LABEL_BY_CODE[item.code] || item.label}</span></div><input type="checkbox" checked={normalized.has(item.code)} onChange={() => onToggle(item.code)}/></label>)}</div>
+}
+type ModelItem = {
+  id: string
+  name: string
+  domain: string
+  source: '平台预置' | '客户自有'
+  provider: string
+  capability: string
+  description: string
+  tags: string[]
+  sceneBindings: string[]
+  status: '启用' | '待接入' | '停用'
+  calls: number
+  owner: string
+  updatedAt: string
+  endpoint?: string
+}
+
+type TrialMessage = { role: 'assistant' | 'user'; text: string }
+
+const modelCatalogSeed: ModelItem[] = [
+  { id: 'VM-PRE-001', name: '招投标专家模型', domain: '招投标', source: '平台预置', provider: '中国电子云预置', capability: '标书撰写、资格审查、围串标线索识别', description: '面向招标文件生成、投标文件结构化审查和评标辅助问答，适合在招投标应用与风险研判中调用。', tags: ['标书生成', '资格审查', '围串标识别'], sceneBindings: ['供应商与评审人员关系异常', '投标文件雷同异常', '资格条件异常放宽'], status: '启用', calls: 42, owner: '采购应用中心', updatedAt: '今天 09:20' },
+  { id: 'VM-PRE-002', name: '合同审查模型', domain: '合同', source: '平台预置', provider: '中国电子云预置', capability: '合同条款抽取、差异对比、风险条款提示', description: '用于合同智能审查、条款比对、归档抽取，可在合同金额异常、条款缺失等场景中复用。', tags: ['条款抽取', '合同对比', '风险提示'], sceneBindings: ['合同关键条款缺失', '合同金额与中标结果不一致'], status: '启用', calls: 35, owner: '合同应用组', updatedAt: '今天 08:50' },
+  { id: 'VM-PRE-003', name: '采购制度问答模型', domain: '制度合规', source: '平台预置', provider: '中国电子云预置', capability: '制度问答、条款定位、依据引用', description: '帮助业务人员查询采购制度、流程要求和审批口径，默认作为全局知识助手。', tags: ['制度问答', '条款定位', '依据引用'], sceneBindings: ['采购方式选择不合规'], status: '启用', calls: 28, owner: '制度运营组', updatedAt: '昨天 18:10' },
+  { id: 'VM-PRE-004', name: '供应商风险模型', domain: '供应商', source: '平台预置', provider: '中国电子云预置', capability: '供应商画像、关联关系、异常行为解释', description: '面向供应商准入、评价、黑白名单和关系穿透，适合在供应商类风险场景中调用。', tags: ['供应商画像', '关系穿透', '异常解释'], sceneBindings: ['供应商与评审人员关系异常', '供应商频繁陪标', '供应商资质异常'], status: '启用', calls: 31, owner: '供应商管理组', updatedAt: '今天 10:05' },
+  { id: 'VM-PRE-005', name: '履约验收模型', domain: '履约验收', source: '平台预置', provider: '中国电子云预置', capability: '验收材料核验、进度偏差解释、交付风险提示', description: '用于采购履约、到货验收、服务验收和整改跟踪，可增强事件研判说明。', tags: ['验收核验', '进度偏差', '交付风险'], sceneBindings: ['验收时间异常提前', '履约进度长期滞后'], status: '启用', calls: 24, owner: '履约管理组', updatedAt: '昨天 16:30' },
+  { id: 'VM-PRE-006', name: '财务付款模型', domain: '财务付款', source: '平台预置', provider: '中国电子云预置', capability: '付款节点核对、票据一致性、支付风险说明', description: '支撑付款前审查、合同付款条件匹配和票据要素核验，适合与付款异常场景绑定。', tags: ['付款核对', '票据一致性', '支付风险'], sceneBindings: ['未验收先付款', '付款金额超合同约定'], status: '启用', calls: 26, owner: '财务共享中心', updatedAt: '今天 07:45' },
+  { id: 'VM-PRE-007', name: '审计纪检模型', domain: '审计纪检', source: '平台预置', provider: '中国电子云预置', capability: '线索摘要、审计问答、处置建议生成', description: '面向审计纪检线索归纳、证据摘要和处置建议，支持按审计专题调用。', tags: ['线索摘要', '审计问答', '处置建议'], sceneBindings: ['重大风险处置复核'], status: '启用', calls: 18, owner: '审计纪检部', updatedAt: '07-26 17:10' },
+  { id: 'VM-PRE-008', name: '数据治理模型', domain: '数据治理', source: '平台预置', provider: '中国电子云预置', capability: '字段含义解释、映射建议、质量问题归因', description: '服务数据接入、图谱映射和字段治理，更适合作为平台管理助手。', tags: ['字段解释', '映射建议', '质量归因'], sceneBindings: ['数据源质量异常'], status: '启用', calls: 17, owner: '数据管理部', updatedAt: '07-26 11:40' },
+  { id: 'VM-PRE-009', name: '法务合规模型', domain: '法务合规', source: '平台预置', provider: '中国电子云预置', capability: '法规适配、合规风险提示、争议条款解释', description: '用于采购、合同和招投标中的法律合规辅助判断，可服务高风险合同审查。', tags: ['法规适配', '合规提示', '争议解释'], sceneBindings: ['高风险合同条款审查'], status: '启用', calls: 14, owner: '法务合规组', updatedAt: '07-25 15:18' },
+  { id: 'VM-PRE-010', name: '项目管理模型', domain: '项目管理', source: '平台预置', provider: '中国电子云预置', capability: '计划拆解、里程碑跟踪、延期原因分析', description: '辅助采购项目计划、里程碑和交付进度管理，适合项目延期、履约异常类场景。', tags: ['计划拆解', '里程碑', '延期分析'], sceneBindings: ['采购项目进度异常'], status: '启用', calls: 13, owner: '项目管理组', updatedAt: '07-25 09:55' },
+  { id: 'VM-CUS-001', name: '集团预算测算模型', domain: '预算', source: '客户自有', provider: '集团财务模型服务', capability: '预算测算、价格区间解释、历史项目对标', description: '客户已有模型，可通过 API 接入后在采购预算、方案编制和价格审查中调用。', tags: ['预算测算', '价格对标', 'API接入'], sceneBindings: ['预算价格明显偏离历史区间'], status: '启用', calls: 20, owner: '财务共享中心', updatedAt: '今天 10:30', endpoint: 'https://model.example.com/budget' },
+  { id: 'VM-CUS-002', name: '供应商画像私有模型', domain: '供应商', source: '客户自有', provider: '供应商主数据平台', capability: '画像标签、历史合作摘要、履约评分说明', description: '对接客户供应商主数据标签，当前处于安全评估和字段脱敏配置阶段。', tags: ['私有画像', '脱敏字段', '接入评估'], sceneBindings: [], status: '待接入', calls: 12, owner: '供应商管理组', updatedAt: '今天 09:05', endpoint: 'https://model.example.com/supplier-profile' },
+  { id: 'VM-CUS-003', name: '地方政策问答模型', domain: '政策', source: '客户自有', provider: '区域政策知识库', capability: '地方采购政策问答、区域差异解释', description: '用于补充地方政策口径，适合先作为通用问答模型接入。', tags: ['地方政策', '区域差异', '知识库接入'], sceneBindings: [], status: '待接入', calls: 6, owner: '制度运营组', updatedAt: '07-24 14:22', endpoint: 'https://model.example.com/policy' },
+]
+
+const defaultModelForm = { name: '', domain: '采购', provider: '', capability: '', endpoint: '', owner: '采购应用中心', tags: '客户自有,API接入' }
+const fallbackSceneOptions = ['供应商与评审人员关系异常', '投标文件雷同异常', '合同关键条款缺失', '未验收先付款', '采购方式选择不合规', '预算价格明显偏离历史区间']
+
+function buildModelAnswer(model: ModelItem, question: string) {
+  const bindingText = model.sceneBindings.length ? `当前已绑定${model.sceneBindings.length}个场景：${model.sceneBindings.slice(0, 3).join('、')}。` : '当前未绑定风险场景，可作为通用能力调用。'
+  if (/绑定|场景|风险/.test(question)) return `${model.name}适用于${model.domain}领域，${bindingText}如果用于风险研判，建议在场景中明确输入字段、输出结论和证据引用口径。`
+  if (/能力|能做|支持/.test(question)) return `${model.name}的核心能力是：${model.capability}。当前状态为${model.status}，调用方可以按权限在采购应用或监管页面中发起测试。`
+  if (/接入|接口|API|api/.test(question)) return `${model.name}由${model.provider}提供，接入状态为${model.status}。正式接入时需要校验鉴权、输入输出Schema、超时回退和调用审计。`
+  return `${model.name}已收到测试：“${question}”。基于当前模型目录，它属于${model.domain}领域，建议优先用于“${model.tags.slice(0, 2).join('、')}”相关任务。${bindingText}`
+}
+
+export function ModelManagementPage() {
+  const scenes = useAppStore((state) => state.scenes)
+  const setToast = useAppStore((state) => state.setToast)
+  const [models, setModels] = useState<ModelItem[]>(modelCatalogSeed)
+  const [filters, setFilters] = useState({ keyword: '', source: '全部', status: '全部', binding: '全部' })
+  const [selectedId, setSelectedId] = useState('')
+  const [bindingTargetId, setBindingTargetId] = useState('')
+  const [bindingDraft, setBindingDraft] = useState<string[]>([])
+  const [sceneSearch, setSceneSearch] = useState('')
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createForm, setCreateForm] = useState(defaultModelForm)
+  const [trialModelId, setTrialModelId] = useState('')
+  const [trialInput, setTrialInput] = useState('')
+  const [trialMessages, setTrialMessages] = useState<TrialMessage[]>([])
+  const [syncedAt, setSyncedAt] = useState('今天 10:40')
+  const sceneOptions = useMemo(() => Array.from(new Set([...scenes.map((item) => item.name), ...models.flatMap((item) => item.sceneBindings), ...fallbackSceneOptions])), [scenes, models])
+  const filteredSceneOptions = useMemo(() => {
+    const keyword = sceneSearch.trim().toLowerCase()
+    return keyword ? sceneOptions.filter((scene) => scene.toLowerCase().includes(keyword)) : sceneOptions
+  }, [sceneOptions, sceneSearch])
+  const selectedFilteredSceneCount = filteredSceneOptions.filter((scene) => bindingDraft.includes(scene)).length
+  const rows = useMemo(() => models.filter((item) => {
+    if (filters.keyword && !`${item.name}${item.domain}${item.capability}${item.tags.join('')}`.toLowerCase().includes(filters.keyword.toLowerCase())) return false
+    if (filters.source !== '全部' && item.source !== filters.source) return false
+    if (filters.status !== '全部' && item.status !== filters.status) return false
+    if (filters.binding === '已绑定' && item.sceneBindings.length === 0) return false
+    if (filters.binding === '未绑定' && item.sceneBindings.length > 0) return false
+    return true
+  }), [models, filters])
+  const selected = models.find((item) => item.id === selectedId) || null
+  const bindingTarget = models.find((item) => item.id === bindingTargetId) || null
+  const trialModel = models.find((item) => item.id === trialModelId) || null
+  const presetCount = models.filter((item) => item.source === '平台预置').length
+  const customerCount = models.filter((item) => item.source === '客户自有').length
+  const runningCount = models.filter((item) => item.status === '启用').length
+  const bindingCount = models.reduce((sum, item) => sum + item.sceneBindings.length, 0)
+  const callCount = models.reduce((sum, item) => sum + item.calls, 0)
+  const reset = () => setFilters({ keyword: '', source: '全部', status: '全部', binding: '全部' })
+  const syncModels = () => {
+    setModels((items) => items.map((item) => item.status === '待接入' ? { ...item, status: '启用', updatedAt: '刚刚' } : { ...item, updatedAt: item.source === '平台预置' ? '刚刚' : item.updatedAt }))
+    setSyncedAt('刚刚')
+    setToast('模型目录已同步，待接入模型已启用')
+  }
+  const openBinding = (model: ModelItem) => {
+    setSelectedId('')
+    setBindingTargetId(model.id)
+    setBindingDraft(model.sceneBindings)
+    setSceneSearch('')
+  }
+  const toggleBindingScene = (scene: string) => setBindingDraft((items) => items.includes(scene) ? items.filter((item) => item !== scene) : [...items, scene])
+  const selectFilteredScenes = () => {
+    if (filteredSceneOptions.length === 0) return
+    setBindingDraft((items) => Array.from(new Set([...items, ...filteredSceneOptions])))
+  }
+  const clearFilteredScenes = () => {
+    if (filteredSceneOptions.length === 0) return
+    setBindingDraft((items) => items.filter((item) => !filteredSceneOptions.includes(item)))
+  }
+  const saveBinding = () => {
+    if (!bindingTarget) return
+    setModels((items) => items.map((item) => item.id === bindingTarget.id ? { ...item, sceneBindings: bindingDraft, updatedAt: '刚刚' } : item))
+    setBindingTargetId('')
+    setSceneSearch('')
+    setToast(bindingDraft.length ? `${bindingTarget.name} 已绑定 ${bindingDraft.length} 个场景` : `${bindingTarget.name} 已取消场景绑定`)
+  }
+  const openTrial = (model: ModelItem) => {
+    setSelectedId('')
+    setTrialModelId(model.id)
+    setTrialInput('')
+    setTrialMessages([{ role: 'assistant', text: `已连接${model.name}，可以测试能力、接入状态或场景绑定。` }])
+  }
+  const sendTrialQuestion = () => {
+    if (!trialModel) return
+    const question = trialInput.trim()
+    if (!question) { setToast('请输入测试内容'); return }
+    const answer = buildModelAnswer(trialModel, question)
+    setTrialMessages((items) => [...items, { role: 'user', text: question }, { role: 'assistant', text: answer }])
+    setModels((items) => items.map((item) => item.id === trialModel.id ? { ...item, calls: item.calls + 1, updatedAt: '刚刚' } : item))
+    setTrialInput('')
+  }
+  const toggleModelStatus = (model: ModelItem) => {
+    const nextStatus: ModelItem['status'] = model.status === '停用' || model.status === '待接入' ? '启用' : '停用'
+    setModels((items) => items.map((item) => item.id === model.id ? { ...item, status: nextStatus, updatedAt: '刚刚' } : item))
+    setToast(`${model.name} 已${nextStatus === '停用' ? '停用' : '启用'}`)
+  }
+  const submitModel = () => {
+    if (!createForm.name.trim() || !createForm.provider.trim() || !createForm.capability.trim()) { setToast('请填写模型名称、提供方和核心能力'); return }
+    const tags = createForm.tags.split(/[、,，\s]+/).map((item) => item.trim()).filter(Boolean).slice(0, 5)
+    let index = models.filter((item) => item.source === '客户自有').length + 1
+    let id = `VM-CUS-${String(index).padStart(3, '0')}`
+    while (models.some((item) => item.id === id)) { index += 1; id = `VM-CUS-${String(index).padStart(3, '0')}` }
+    const nextModel: ModelItem = { id, name: createForm.name.trim(), domain: createForm.domain, source: '客户自有', provider: createForm.provider.trim(), capability: createForm.capability.trim(), description: `${createForm.provider.trim()}接入的客户自有模型，已纳入模型目录，待完成接入校验、授权和场景绑定。`, tags: tags.length ? tags : ['客户自有'], sceneBindings: [], status: '待接入', calls: 0, owner: createForm.owner.trim() || '采购应用中心', updatedAt: '刚刚', endpoint: createForm.endpoint.trim() || undefined }
+    setModels((items) => [nextModel, ...items])
+    setCreateOpen(false)
+    setCreateForm(defaultModelForm)
+    setFilters({ keyword: nextModel.name, source: '全部', status: '全部', binding: '全部' })
+    setSelectedId(nextModel.id)
+    setToast(`${nextModel.name} 已加入模型目录`)
+  }
+
+  return <>
+    <PageHeader eyebrow="系统管理 / 模型管理" title="模型管理" description="统一管理10大领域预置模型与客户自有模型接入，维护启停、能力标签、适用范围、权限边界和场景绑定。" actions={<><span className="updated-time">最近同步：{syncedAt}</span><Button icon="refresh" onClick={syncModels}>同步模型目录</Button><Button variant="primary" icon="plus" onClick={() => setCreateOpen(true)}>接入自有模型</Button></>}/>
+    <section className="html-grid four model-summary">
+      {[{ label: '预置模型', value: presetCount, helper: '覆盖采购、合同、供应商等10大领域', width: 100 }, { label: '客户自有模型', value: customerCount, helper: '可通过API或私有知识库接入', width: 62 }, { label: '启用模型', value: runningCount, helper: '已开放给授权应用和场景调用', width: 82 }, { label: '今日调用', value: callCount, helper: `已绑定 ${bindingCount} 个风险场景`, width: 86 }].map((item) => <article className="html-stat-card" key={item.label}><span>{item.label}</span><strong>{item.value}</strong><p>{item.helper}</p><div className="html-stat-bar"><i style={{ width: `${item.width}%` }}/></div></article>)}
+    </section>
+    <Panel title="模型目录" subtitle={`当前条件共 ${rows.length} 个模型`} className="model-catalog">
+      <FilterGrid onReset={reset} onSearch={() => setToast(`已筛选到 ${rows.length} 个模型`)}>
+        <Field label="关键词"><input value={filters.keyword} onChange={(event) => setFilters({ ...filters, keyword: event.target.value })} placeholder="模型名称、领域、能力或标签"/></Field>
+        <Field label="模型来源"><select value={filters.source} onChange={(event) => setFilters({ ...filters, source: event.target.value })}><option>全部</option><option>平台预置</option><option>客户自有</option></select></Field>
+        <Field label="运行状态"><select value={filters.status} onChange={(event) => setFilters({ ...filters, status: event.target.value })}><option>全部</option><option>启用</option><option>待接入</option><option>停用</option></select></Field>
+        <Field label="场景绑定"><select value={filters.binding} onChange={(event) => setFilters({ ...filters, binding: event.target.value })}><option>全部</option><option>已绑定</option><option>未绑定</option></select></Field>
+      </FilterGrid>
+      {rows.length === 0 ? <EmptyState title="没有符合条件的模型" description="请调整筛选条件，或通过接入向导添加客户自有模型。"/> : <div className="model-card-grid">{rows.map((model) => <article className="model-card" key={model.id}>
+        <div className="model-card-head"><div><span className={`model-source ${model.source === '客户自有' ? 'customer' : ''}`}>{model.source}</span><h3>{model.name}</h3><small>{model.id} · {model.domain} · 更新 {model.updatedAt}</small></div><StatusTag>{model.status}</StatusTag></div>
+        <p>{model.description}</p>
+        <div className="model-tags">{model.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
+        <div className="model-metrics"><span><b>{model.calls}</b> 今日调用</span><span><b>{model.sceneBindings.length}</b> 绑定场景</span><span>{model.sceneBindings.length ? '已绑定' : '未绑定'}</span></div>
+        <div className="model-bindings">{model.sceneBindings.length ? model.sceneBindings.slice(0, 3).map((scene) => <em key={scene}>{scene}</em>) : <em className="empty">尚未绑定风险场景</em>}</div>
+        <footer className="model-actions"><button onClick={() => setSelectedId(model.id)}>详情</button><button onClick={() => openTrial(model)}>测试</button><button onClick={() => openBinding(model)}>绑定场景</button><button className={model.status === '启用' ? 'danger' : ''} onClick={() => toggleModelStatus(model)}>{model.status === '启用' ? '停用' : '启用'}</button></footer>
+      </article>)}</div>}
+    </Panel>
+    <Drawer open={!!selected} title={selected?.name || ''} eyebrow="模型详情" onClose={() => setSelectedId('')} footer={selected && <><Button onClick={() => openTrial(selected)}>测试</Button><Button icon="link" onClick={() => openBinding(selected)}>绑定场景</Button><Button variant={selected.status === '停用' ? 'primary' : 'default'} onClick={() => toggleModelStatus(selected)}>{selected.status === '启用' ? '停用模型' : '启用模型'}</Button></>}>
+      {selected && <><KeyValue items={[{ label: '模型编码', value: selected.id }, { label: '模型来源', value: selected.source }, { label: '提供方', value: selected.provider }, { label: '适用领域', value: selected.domain }, { label: '调用地址', value: selected.endpoint || '平台托管' }, { label: '今日调用', value: `${selected.calls} 次` }, { label: '负责人', value: selected.owner }, { label: '更新时间', value: selected.updatedAt }]}/><Panel title="核心能力" className="drawer-section"><p className="drawer-note">{selected.capability}</p><div className="model-tags drawer-tags">{selected.tags.map((tag) => <span key={tag}>{tag}</span>)}</div></Panel><Panel title="场景绑定" className="drawer-section"><div className="model-binding-list">{selected.sceneBindings.length ? selected.sceneBindings.map((scene) => <div key={scene}><Icon name="link"/><span>{scene}</span><StatusTag>已绑定</StatusTag></div>) : <div><Icon name="warning"/><span>当前未绑定风险场景，可作为采购应用通用能力使用。</span><StatusTag>未绑定</StatusTag></div>}</div></Panel></>}
+    </Drawer>
+    <Drawer open={!!bindingTarget} title={bindingTarget?.name || ''} eyebrow="绑定场景" onClose={() => { setBindingTargetId(''); setSceneSearch('') }} footer={<><Button onClick={() => { setBindingTargetId(''); setSceneSearch('') }}>取消</Button><Button variant="primary" icon="link" onClick={saveBinding}>保存绑定</Button></>}>
+      {bindingTarget && <div className="form-stack"><Panel title="选择风险场景" subtitle="支持按名称搜索；不选择则表示暂不绑定风险场景。" className="drawer-section"><div className="model-scene-toolbar"><input value={sceneSearch} onChange={(event) => setSceneSearch(event.target.value)} placeholder="搜索风险场景名称"/><div className="model-scene-bulk"><span>已选 {bindingDraft.length} 个；当前结果 {filteredSceneOptions.length} 个，已选 {selectedFilteredSceneCount} 个</span><div><button type="button" onClick={selectFilteredScenes} disabled={filteredSceneOptions.length === 0 || selectedFilteredSceneCount === filteredSceneOptions.length}>全选当前结果</button><button type="button" onClick={clearFilteredScenes} disabled={selectedFilteredSceneCount === 0}>清空当前结果</button></div></div></div>{filteredSceneOptions.length ? <div className="model-scene-grid">{filteredSceneOptions.map((scene) => <label key={scene} className={bindingDraft.includes(scene) ? 'checked' : ''}><input type="checkbox" checked={bindingDraft.includes(scene)} onChange={() => toggleBindingScene(scene)}/><span>{scene}</span></label>)}</div> : <EmptyState title="没有匹配的风险场景" description="请调整搜索关键词后再试。"/>}</Panel></div>}
+    </Drawer>
+    <Modal open={createOpen} title="接入自有模型" description="保存后模型会进入目录，状态为待接入；点击同步模型目录或卡片启用按钮后即可启用。" confirmText="保存模型" onClose={() => setCreateOpen(false)} onConfirm={submitModel}><div className="form-stack"><div className="form-section two-column"><Field label="模型名称 *"><input value={createForm.name} onChange={(event) => setCreateForm({ ...createForm, name: event.target.value })} placeholder="例如 价格预测私有模型"/></Field><Field label="适用领域"><select value={createForm.domain} onChange={(event) => setCreateForm({ ...createForm, domain: event.target.value })}>{['采购','招投标','合同','审查','供应商','预算','政策','项目管理'].map((item) => <option key={item}>{item}</option>)}</select></Field><Field label="提供方 *"><input value={createForm.provider} onChange={(event) => setCreateForm({ ...createForm, provider: event.target.value })} placeholder="例如 集团算法平台"/></Field><Field label="负责人"><input value={createForm.owner} onChange={(event) => setCreateForm({ ...createForm, owner: event.target.value })}/></Field><Field label="调用地址"><input value={createForm.endpoint} onChange={(event) => setCreateForm({ ...createForm, endpoint: event.target.value })} placeholder="https:// 或内网服务地址"/></Field><Field label="能力标签"><input value={createForm.tags} onChange={(event) => setCreateForm({ ...createForm, tags: event.target.value })} placeholder="逗号分隔，如 预算测算,价格预测"/></Field><Field label="核心能力 *" wide><textarea value={createForm.capability} onChange={(event) => setCreateForm({ ...createForm, capability: event.target.value })} placeholder="说明该模型可解决的问题、输入输出和适用边界"/></Field></div><div className="model-form-note"><Icon name="check"/><span>闭环路径：保存模型 → 目录出现新卡片 → 完成接入校验并启用 → 绑定场景或测试验证效果。</span></div></div></Modal>
+    <Modal open={!!trialModel} title={trialModel ? `测试：${trialModel.name}` : '模型测试'} description={trialModel ? `${trialModel.domain} · ${trialModel.status}` : ''} confirmText="发送问题" onClose={() => setTrialModelId('')} onConfirm={sendTrialQuestion}><div className="model-trial-dialog"><div className="model-trial-messages">{trialMessages.map((message, index) => <div key={`${message.role}-${index}`} className={`model-trial-message ${message.role}`}><strong>{message.role === 'assistant' ? '模型' : '我'}</strong><p>{message.text}</p></div>)}</div><Field label="测试内容"><textarea rows={3} value={trialInput} onChange={(event) => setTrialInput(event.target.value)} placeholder="例如：这个模型适合绑定哪些风险场景？"/></Field></div></Modal>
+  </>
 }
 export function AuditPage() {
   const audits = useAppStore((state) => state.audits)

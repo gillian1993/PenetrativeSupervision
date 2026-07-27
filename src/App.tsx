@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { AuditPage, DataSourceDetailPage, GraphManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
+import { AuditPage, DataSourceDetailPage, GraphManagementPage, ModelManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
 import { ProcurementHomePage, ProcurementModulePage, ProcurementOverviewPage, SuperAgentPage } from './pages/ProcurementApplicationPages'
 import { GraphCreatePage } from './pages/GraphCreateWizard'
 import { SceneEditorPage, SceneListPage } from './pages/SceneRulePages'
@@ -86,11 +86,10 @@ const navSections: NavSection[] = [
     id: 'system',
     title: '系统管理',
     items: [
-      { id: 'system', label: '系统管理', icon: 'system', children: [
-        { label: '用户与组织', path: '/system/users', permission: 'menu.system.users' },
-        { label: '角色与权限', path: '/system/roles', permission: 'menu.system.roles' },
-        { label: '审计日志', path: '/system/audit', permission: 'menu.system.audit' },
-      ] },
+      { id: 'systemUsers', label: '用户与组织', icon: 'user', path: '/system/users', permission: 'menu.system.users' },
+      { id: 'systemRoles', label: '角色与权限', icon: 'lock', path: '/system/roles', permission: 'menu.system.roles' },
+      { id: 'systemModels', label: '模型管理', icon: 'agent', path: '/system/models', permission: 'menu.system.models' },
+      { id: 'systemAudit', label: '审计日志', icon: 'audit', path: '/system/audit', permission: 'menu.system.audit' },
     ],
   },
 ]
@@ -134,6 +133,7 @@ const permissionsForPath = (path: string): PermissionCode[] => {
   if (path.startsWith('/graphs') || path.startsWith('/ontology')) return ['menu.supervision.ontology.structures']
   if (path.startsWith('/system/users')) return ['menu.system.users']
   if (path.startsWith('/system/roles')) return ['menu.system.roles']
+  if (path.startsWith('/system/models') || path.startsWith('/system/vertical-models')) return ['menu.system.models']
   if (path.startsWith('/system/audit')) return ['menu.system.audit']
   return []
 }
@@ -252,6 +252,7 @@ function AppEnhanced() {
     if (path.startsWith('/graphs')) return { page: '知识图谱', guide: '这里维护图谱结构、数据源、字段映射和知识图谱发布状态。', next: '建议先确认数据源和图谱结构，再检查映射模板和发布条件。', data: '知识图谱用于证据关联和风险穿透分析，发布后会被后续规则运行引用。' }
     if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
     if (path.startsWith('/system/roles')) return { page: '角色与权限', guide: '这里维护角色、数据范围、菜单权限和高危操作权限。', next: '建议先确认角色使用人数，再调整权限并检查敏感操作影响。', data: `当前共有${roles.length}个角色，权限调整会影响菜单、数据范围和可执行操作。` }
+    if (path.startsWith('/system/models') || path.startsWith('/system/vertical-models')) return { page: '模型管理', guide: '这里统一管理平台预置模型和客户自有模型接入，维护启停、能力标签、适用范围、权限边界和场景绑定。', next: '可以接入自有模型、绑定风险场景、测试模型效果，或停用暂不适用的模型。', data: '模型既可以作为采购应用通用能力，也可以绑定风险场景形成专用研判助手。' }
     if (path.startsWith('/system/audit')) return { page: '审计日志', guide: '这里查询用户操作、对象变化、执行结果和审计追踪编号。', next: '可按操作人、对象类型、风险级别或追踪编号定位具体操作记录。', data: '审计记录用于追踪关键配置和业务处置操作，历史记录不会被普通业务操作覆盖。' }
     return { page: '穿透式监管', guide: '当前页面属于穿透式监管业务平台。', next: '可以先查看页面标题和筛选条件，再选择需要处理的业务对象。', data: '当前页面数据会按照监管范围和角色权限展示。' }
   }, [location.pathname, todos, warnings, riskEvents, scenes, users, roles, currentRole])
@@ -344,6 +345,8 @@ function AppEnhanced() {
       <Route path="/graphs/sources/:id" element={<DataSourceDetailPage/>}/>
       <Route path="/system/users" element={<UsersPage/>}/>
       <Route path="/system/roles" element={<RolesPage/>}/>
+      <Route path="/system/models" element={<ModelManagementPage/>}/>
+      <Route path="/system/vertical-models" element={<Navigate to="/system/models" replace/>}/>
       <Route path="/system/audit" element={<AuditPage/>}/>
       <Route path="/no-access" element={<EmptyState title="暂无可访问菜单" description="当前角色没有任何菜单权限，请联系系统管理员分配统一入口、采购应用、穿透式监管或系统管理权限。"/>}/>
       <Route path="*" element={<Navigate to={firstAccessiblePath} replace/>}/>
