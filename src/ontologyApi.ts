@@ -22,6 +22,7 @@ export const ontologyApi = {
   delete: (id: string) => request<{ ok: boolean; message: string }>(`/api/ontologies/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   copy: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/copy`, { method: 'POST' }),
   publish: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/publish`, { method: 'POST' }),
+  retire: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/retire`, { method: 'POST' }),
   validate: (id: string) => request<OntologyValidateResponse>(`/api/ontologies/${encodeURIComponent(id)}/validate`, { method: 'POST' }),
   addElement: (id: string, payload: OntologyElementPayload) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/elements`, { method: 'POST', body: JSON.stringify(payload) }),
   deleteElement: (id: string, elementId: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/elements/${encodeURIComponent(elementId)}`, { method: 'DELETE' }),

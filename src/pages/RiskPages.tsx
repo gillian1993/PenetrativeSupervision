@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store'
 import { demoDataApi, type DemoEvidence, type DemoWarningDetail } from '../demoDataApi'
+import { inferSituationDomain, SITUATION_DOMAINS } from '../situationDomains'
 import type { RiskEvent, Warning } from '../types'
 import { Button, Drawer, EmptyState, EvidenceGraph, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, RiskTag, StatusTag, Tabs } from '../ui'
 
@@ -19,6 +20,7 @@ export function WarningListPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const warnings = useAppStore((state) => state.warnings)
+  const scenes = useAppStore((state) => state.scenes)
   const warningSource = useAppStore((state) => state.warningSource)
   const loadWarningsFromDatabase = useAppStore((state) => state.loadWarningsFromDatabase)
   const riskEvents = useAppStore((state) => state.riskEvents)
@@ -28,7 +30,7 @@ export function WarningListPage() {
   const escalateWarning = useAppStore((state) => state.escalateWarning)
   const setToast = useAppStore((state) => state.setToast)
   const initialStatus = searchParams.get('status') === 'open' ? '待研判' : searchParams.get('status') || '待研判'
-  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, stage: '全部', level: searchParams.get('level') === 'high' ? '重大、高' : searchParams.get('level') || '全部', scene: '全部', org: searchParams.get('org') || '全部', evidence: '全部' })
+  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, stage: searchParams.get('stage') || '全部', level: searchParams.get('level') === 'high' ? '重大、高' : searchParams.get('level') || '全部', scene: '全部', org: searchParams.get('org') || '全部', domain: searchParams.get('domain') || '全部', evidence: '全部' })
   const [filters, setFilters] = useState(draft)
   const [sort, setSort] = useState<'level' | 'time'>('level')
   const [page, setPage] = useState(1)
@@ -39,6 +41,7 @@ export function WarningListPage() {
   const [columnOpen, setColumnOpen] = useState(false)
   const [columns, setColumns] = useState(['阶段', '场景', '对象', '等级', '路径', '状态', '证据', '时间'])
   const eventByWarning = useMemo(() => new Map(riskEvents.map((item) => [item.warningId, item.id])), [riskEvents])
+  const sceneDomains = useMemo(() => Object.fromEntries(scenes.map((item) => [item.name, item.domain])), [scenes])
 
   const rows = useMemo(() => {
     const order = { 重大: 4, 高: 3, 中: 2, 低: 1 }
@@ -49,10 +52,11 @@ export function WarningListPage() {
       if (filters.level !== '全部' && !filters.level.includes(item.level)) return false
       if (filters.scene !== '全部' && item.scene !== filters.scene) return false
       if (filters.org !== '全部' && item.organization !== filters.org) return false
+      if (filters.domain !== '全部' && inferSituationDomain(sceneDomains[item.scene], `${item.scene}${item.title}${item.target}${item.path}`) !== filters.domain) return false
       if (filters.evidence !== '全部' && item.evidenceStatus !== filters.evidence) return false
       return true
     }).sort((a, b) => sort === 'level' ? order[b.level] - order[a.level] : b.generatedAt.localeCompare(a.generatedAt))
-  }, [warnings, filters, sort])
+  }, [warnings, filters, sort, sceneDomains])
   const totalPages = Math.max(1, Math.ceil(rows.length / listPageSize))
   const pageRows = rows.slice((page - 1) * listPageSize, page * listPageSize)
 
@@ -92,13 +96,14 @@ export function WarningListPage() {
   return <>
     <PageHeader eyebrow="风险监管 / 统一预警" title="统一预警" description="统一查询事前、事中和事后预警，完成查看、转派、解除和风险升级。" actions={<><span className="updated-time">数据：{warningSource === 'database' ? 'MySQL证据 · 工作流可操作' : '本地演示数据'} · 当前角色：{currentRole}</span><Button icon="refresh" onClick={() => void query()}>刷新</Button></>}/>
     <div className="page-query page-query-warning">
-      <FilterGrid onReset={() => { const value = { keyword: '', status: '待研判', stage: '全部', level: '全部', scene: '全部', org: '全部', evidence: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
+      <FilterGrid onReset={() => { const value = { keyword: '', status: '待研判', stage: '全部', level: '全部', scene: '全部', org: '全部', domain: '全部', evidence: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
         <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && void query()} placeholder="预警编号、标题或目标对象"/></Field>
         <Field label="预警阶段"><select value={draft.stage} onChange={(event) => setDraft({ ...draft, stage: event.target.value })}><option>全部</option><option>事前</option><option>事中</option><option>事后</option></select></Field>
         <Field label="处理状态"><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option>待研判</option><option value="全部">全部预警</option><option>已解除</option><option>已升级</option></select></Field>
         <Field label="风险等级"><select value={draft.level} onChange={(event) => setDraft({ ...draft, level: event.target.value })}><option>全部</option><option>重大、高</option><option>重大</option><option>高</option><option>中</option><option>低</option></select></Field>
         <Field label="风险场景"><select value={draft.scene} onChange={(event) => setDraft({ ...draft, scene: event.target.value })}><option>全部</option><option>供应商异常关联</option><option>合同签订风险</option><option>付款执行风险</option><option>供应商资格风险</option></select></Field>
         <Field label="组织范围"><select value={draft.org} onChange={(event) => setDraft({ ...draft, org: event.target.value })}><option>全部</option><option>电子云采购中心</option><option>集团财务共享中心</option><option>集团采购中心</option></select></Field>
+        <Field label="监管领域"><select value={draft.domain} onChange={(event) => setDraft({ ...draft, domain: event.target.value })}><option>全部</option>{SITUATION_DOMAINS.map((item) => <option key={item.key}>{item.key}</option>)}</select></Field>
         <Field label="证据状态"><select value={draft.evidence} onChange={(event) => setDraft({ ...draft, evidence: event.target.value })}><option>全部</option><option>完整</option><option>部分缺失</option><option>权限受限</option><option>快照异常</option></select></Field>
       </FilterGrid>
     </div>
@@ -701,19 +706,30 @@ export function RiskEventListPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const events = useAppStore((state) => state.riskEvents)
+  const scenes = useAppStore((state) => state.scenes)
   const transferRiskEvent = useAppStore((state) => state.transferRiskEvent)
   const submitRectification = useAppStore((state) => state.submitRectification)
   const reviewRiskEvent = useAppStore((state) => state.reviewRiskEvent)
   const setToast = useAppStore((state) => state.setToast)
   const requestedStatus = searchParams.get('status')
-  const initialStatus = requestedStatus && ['待整改', '待复核', '已关闭'].includes(requestedStatus) ? requestedStatus : '未关闭'
-  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, level: '全部', org: '全部', overdue: '全部' })
+  const initialStatus = requestedStatus === 'open' ? '未关闭' : requestedStatus && ['未关闭', '全部', '待整改', '待复核', '已关闭'].includes(requestedStatus) ? requestedStatus : '未关闭'
+  const initialDomain = searchParams.get('domain') === '全部授权领域' ? '全部' : searchParams.get('domain') || '全部'
+  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, level: searchParams.get('level') || '全部', org: searchParams.get('org') || '全部', domain: initialDomain, overdue: searchParams.get('overdue') || '全部' })
   const [filters, setFilters] = useState(draft)
   const [page, setPage] = useState(1)
   const [action, setAction] = useState<EventAction>(null)
   const [target, setTarget] = useState<RiskEvent | null>(null)
   const [form, setForm] = useState({ owner: '孙凯', reason: '', rectificationResult: '已完成', measures: '', materials: [] as string[], reviewResult: '通过' as '通过' | '退回整改' | '不成立关闭', evidence: '' })
-  const rows = events.filter((item) => (!filters.keyword || `${item.id}${item.title}${item.target}`.includes(filters.keyword)) && (filters.status === '全部' || filters.status === '未关闭' && item.status !== '已关闭' || item.status === filters.status) && (filters.level === '全部' || item.level === filters.level) && (filters.org === '全部' || item.organization === filters.org) && (filters.overdue === '全部' || (filters.overdue === '是') === item.overdue))
+  const sceneDomains = useMemo(() => Object.fromEntries(scenes.map((item) => [item.name, item.domain])), [scenes])
+  const rows = events.filter((item) => {
+    const domain = inferSituationDomain(sceneDomains[item.scene], `${item.scene}${item.title}${item.target}`)
+    return (!filters.keyword || `${item.id}${item.title}${item.target}`.toLowerCase().includes(filters.keyword.toLowerCase())) &&
+      (filters.status === '全部' || (filters.status === '未关闭' && item.status !== '已关闭') || item.status === filters.status) &&
+      (filters.level === '全部' || filters.level.includes(item.level)) &&
+      (filters.org === '全部' || item.organization === filters.org) &&
+      (filters.domain === '全部' || domain === filters.domain) &&
+      (filters.overdue === '全部' || (filters.overdue === '是') === item.overdue)
+  })
   const totalPages = Math.max(1, Math.ceil(rows.length / listPageSize))
   const pageRows = rows.slice((page - 1) * listPageSize, page * listPageSize)
   const query = () => { setFilters(draft); setPage(1) }
@@ -742,7 +758,16 @@ export function RiskEventListPage() {
   }
   return <>
     <PageHeader eyebrow="风险监管 / 风险事件" title="风险事件" description="承接已升级预警，完成查看、转派、整改、复核和闭环留痕。" actions={<Button icon="refresh" onClick={() => setToast('风险事件列表已刷新')}>刷新</Button>}/>
-    <div className="page-query page-query-events"><FilterGrid onReset={() => { const value = { keyword: '', status: '未关闭', level: '全部', org: '全部', overdue: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}><Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && query()} placeholder="事件编号、标题或主对象"/></Field><Field label="风险等级"><select value={draft.level} onChange={(event) => setDraft({ ...draft, level: event.target.value })}><option>全部</option><option>重大</option><option>高</option><option>中</option></select></Field><Field label="责任组织"><select value={draft.org} onChange={(event) => setDraft({ ...draft, org: event.target.value })}><option>全部</option><option>集团采购中心</option><option>集团财务共享中心</option><option>数据智能事业部</option></select></Field><Field label="状态"><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option>未关闭</option><option>全部</option><option>待整改</option><option>待复核</option><option>已关闭</option></select></Field><Field label="是否逾期"><select value={draft.overdue} onChange={(event) => setDraft({ ...draft, overdue: event.target.value })}><option>全部</option><option>是</option><option>否</option></select></Field></FilterGrid></div>
+    <div className="page-query page-query-events">
+      <FilterGrid onReset={() => { const value = { keyword: '', status: '未关闭', level: '全部', org: '全部', domain: '全部', overdue: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
+        <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && query()} placeholder="事件编号、标题或主对象"/></Field>
+        <Field label="风险等级"><select value={draft.level} onChange={(event) => setDraft({ ...draft, level: event.target.value })}><option>全部</option><option>重大、高</option><option>重大</option><option>高</option><option>中、低</option><option>中</option><option>低</option></select></Field>
+        <Field label="责任组织"><select value={draft.org} onChange={(event) => setDraft({ ...draft, org: event.target.value })}><option>全部</option><option>集团采购中心</option><option>集团财务共享中心</option><option>数据智能事业部</option></select></Field>
+        <Field label="监管领域"><select value={draft.domain} onChange={(event) => setDraft({ ...draft, domain: event.target.value })}><option>全部</option>{SITUATION_DOMAINS.map((item) => <option key={item.key}>{item.key}</option>)}</select></Field>
+        <Field label="状态"><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option>未关闭</option><option>全部</option><option>待整改</option><option>待复核</option><option>已关闭</option></select></Field>
+        <Field label="是否逾期"><select value={draft.overdue} onChange={(event) => setDraft({ ...draft, overdue: event.target.value })}><option>全部</option><option>是</option><option>否</option></select></Field>
+      </FilterGrid>
+    </div>
     <Panel title="风险事件列表" subtitle={`共 ${rows.length} 项，当前第 ${page}/${totalPages} 页`}><div className="table-container"><table><thead><tr><th>风险事件编号 / 标题</th><th>来源预警</th><th>等级 / 场景</th><th>主对象</th><th>责任组织 / 当前处理人</th><th>状态</th><th>截止时间</th><th>最近更新</th><th>操作</th></tr></thead><tbody>{pageRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/risk/events/${item.id}`)}><strong>{item.title}</strong><span>{item.id}</span></button></td><td><button className="table-link" onClick={() => navigate(`/risk/warnings/${item.warningId}`)}>{item.warningId}</button></td><td><RiskTag level={item.level}/><small className="cell-sub">{item.scene}</small></td><td>{item.target}</td><td>{item.organization}<small className="cell-sub">{item.owner || '待分配'}</small></td><td><StatusTag>{item.status}</StatusTag></td><td><span className={`deadline ${item.overdue ? 'overdue' : ''}`}>{item.dueAt}<small>{item.overdue ? '已逾期' : '正常'}</small></span></td><td>{item.updatedAt}</td><td><div className="row-actions vertical"><button onClick={() => navigate(`/risk/events/${item.id}`)}>查看</button>{item.status !== '已关闭' && <button onClick={() => openAction(item, 'transfer')}>转派</button>}{item.status === '待整改' && <button onClick={() => openAction(item, 'submit')}>整改</button>}{item.status === '待复核' && <button onClick={() => openAction(item, 'review')}>复核</button>}</div></td></tr>)}</tbody></table></div><div className="pagination"><span>共 {rows.length} 条</span><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => setPage(page + 1)}>›</button></div></Panel>
     <Modal open={!!action} title={action === 'transfer' ? '转派风险事件' : action === 'submit' ? '提交整改结果' : '监管复核风险事件'} description={target ? `${target.id} · ${target.title}` : ''} confirmText={action === 'transfer' ? '确认转派' : action === 'review' ? '确认复核' : '提交整改'} danger={action === 'review'} onClose={() => setAction(null)} onConfirm={execute}>{action && <EventActionForm action={action} form={form} onChange={setForm}/>}</Modal>
   </>

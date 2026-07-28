@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand'
+import { create } from 'zustand'
 import { ontologyApi, type OntologyCreatePayload, type OntologyElementPayload, type OntologyUpdatePayload } from './ontologyApi'
 import type { OntologyElement, OntologyRecord } from './ontologyLocalStore'
 
@@ -20,6 +20,7 @@ interface OntologyState {
   deleteOntology: (id: string) => Promise<Result>
   copyOntology: (id: string) => Promise<Result>
   publishOntology: (id: string) => Promise<Result>
+  retireOntology: (id: string) => Promise<Result>
   validateOntology: (id: string) => Promise<Result>
   addElement: (id: string, payload: OntologyElementPayload) => Promise<Result>
   updateElement: (id: string, elementId: string, payload: Partial<OntologyElementPayload>) => Promise<Result>
@@ -90,6 +91,15 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
       const ontology = await ontologyApi.publish(id)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
       return { ok: true, message: '图谱结构版本已发布并写入MySQL' }
+    } catch (error) {
+      return { ok: false, message: errorMessage(error) }
+    }
+  },
+  retireOntology: async (id) => {
+    try {
+      const ontology = await ontologyApi.retire(id)
+      set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
+      return { ok: true, message: '图谱结构已下架，不再允许新业务引用' }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }

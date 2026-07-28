@@ -133,7 +133,6 @@ export function SituationPage() {
   const [draft, setDraft] = useState({ time: '最近30天', org: currentScope, domain: '全部授权领域', level: '全部等级', stage: '全部阶段' })
   const [filters, setFilters] = useState(draft)
   const [loading, setLoading] = useState(false)
-  const [metric, setMetric] = useState<string | null>(null)
   const [componentError, setComponentError] = useState(false)
   const sceneDomains = useMemo(() => Object.fromEntries(scenes.map((item) => [item.name, item.domain])), [scenes])
   const visibleWarnings = warnings.filter((item) => {
@@ -156,6 +155,33 @@ export function SituationPage() {
   const highWarnings = visibleWarnings.filter((item) => ['重大', '高'].includes(item.level))
   const query = () => { setLoading(true); window.setTimeout(() => { setFilters(draft); setLoading(false); setToast('全部态势组件已使用同一筛选快照更新') }, 320) }
   const drill = (path: string, source: string) => navigate(`${path}${path.includes('?') ? '&' : '?'}source=${source}&snapshot=202607171200`)
+  const drillMetric = (code: string) => {
+    const params = new URLSearchParams({
+      source: code,
+      snapshot: '202607171200',
+      period: filters.time,
+      scope: filters.org,
+      domain: filters.domain === '全部授权领域' ? '全部' : filters.domain,
+    })
+    const targetOrg = filters.org === '中国电子云集团'
+      ? '全部'
+      : filters.org === '财务共享中心'
+        ? '集团财务共享中心'
+        : filters.org
+    params.set('org', targetOrg)
+    if (code === 'warning-period') {
+      params.set('status', '全部')
+      params.set('level', filters.level === '全部等级' ? '全部' : filters.level)
+      params.set('stage', filters.stage === '全部阶段' ? '全部' : filters.stage)
+      navigate(`/risk/warnings?${params.toString()}`)
+      return
+    }
+    params.set('status', code === 'risk-on-time' ? '已关闭' : '未关闭')
+    params.set('level', code === 'risk-major' ? '重大' : filters.level === '全部等级' ? '全部' : filters.level)
+    params.set('overdue', code === 'risk-overdue' ? '是' : code === 'risk-on-time' ? '否' : '全部')
+    if (code === 'risk-on-time') params.set('timeliness', '按期')
+    navigate(`/risk/events?${params.toString()}`)
+  }
   const bigScreenOpen = searchParams.get('view') === 'bi'
   const setBigScreenOpen = (open: boolean) => {
     const next = new URLSearchParams(searchParams)
@@ -183,14 +209,13 @@ export function SituationPage() {
     </div>
     <div className="situation-tabs"><Tabs value={tab} onChange={setTab} items={[{ key: 'overview', label: '综合态势' }, { key: 'warning', label: '预警态势' }, { key: 'risk', label: '风险处置态势' }]}/></div>
     {loading ? <div className="dashboard-loading"><i/><strong>正在计算统一统计快照</strong><span>指标、图表和重点事项将同时更新</span></div> : <>
-      <section className="situation-metric-grid">{metrics.map((item) => <SituationMetricCard key={item.code} {...item} onClick={() => setMetric(item.code)}/>)}</section>
+      <section className="situation-metric-grid">{metrics.map((item) => <SituationMetricCard key={item.code} {...item} onClick={() => drillMetric(item.code)}/>)}</section>
       {componentError ? <Panel title="态势分析区加载失败" className="component-error"><div className="alert-box danger"><Icon name="warning"/><span>组织风险分布服务响应超时，其他指标仍可正常使用。</span></div><Button onClick={() => setComponentError(false)}>单独重试该组件</Button></Panel> : <section className="situation-dashboard-grid">
         {(tab === 'overview' || tab === 'warning') && <><Panel className="situation-chart-card situation-trend-card" title={tab === 'warning' ? '预警阶段趋势' : '预警趋势'} subtitle={`${filters.time} · 预警数量及变化方向`} actions={<button className="text-button" onClick={() => drill('/risk/warnings', 'trend')}>查看明细</button>}><SituationTrendChart range={filters.time} onClick={() => drill('/risk/warnings', 'trend-chart')}/></Panel><Panel className="situation-chart-card" title="风险等级结构" subtitle="按当前筛选范围实时计算"><RiskLevelChart warnings={visibleWarnings} onClick={(level) => drill(`/risk/warnings?level=${encodeURIComponent(level)}`, 'level-donut')}/></Panel></>}
         {(tab === 'overview' || tab === 'risk') && <><Panel className="situation-chart-card" title="组织风险排行" subtitle="按预警数量排序，点击组织下钻"><OrganizationRiskChart warnings={visibleWarnings} onClick={(label) => drill(`/risk/warnings?org=${encodeURIComponent(label)}`, 'org-bar')}/></Panel><Panel className="situation-chart-card" title="风险处置进展" subtitle="展示事件当前处置阶段"><RiskDispositionChart events={visibleEvents} onClick={(status) => drill(`/risk/events?status=${encodeURIComponent(status)}`, 'status-bar')}/></Panel></>}
       </section>}
       <Panel title="重点事项" subtitle="重大高风险、逾期事项和重点组织" className="section-panel situation-priority-panel" actions={<button className="text-button situation-diagnostic" onClick={() => setComponentError(true)}>组件诊断</button>}><div className="table-container"><table><thead><tr><th>对象编号 / 标题</th><th>类型</th><th>风险等级</th><th>组织 / 领域</th><th>当前状态</th><th>责任人</th><th>截止时间</th></tr></thead><tbody>{highWarnings.slice(0, 3).map((item) => <tr key={item.id} onClick={() => navigate(`/risk/warnings/${item.id}`)}><td><button className="table-link title-cell"><strong>{item.title}</strong><span>{item.id}</span></button></td><td>预警</td><td><RiskTag level={item.level}/></td><td>{item.organization}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.owner}</td><td>{item.expectedAt}</td></tr>)}{overdue.slice(0, 2).map((item) => <tr key={item.id} onClick={() => navigate(`/risk/events/${item.id}`)}><td><button className="table-link title-cell"><strong>{item.title}</strong><span>{item.id}</span></button></td><td>风险事件</td><td><RiskTag level={item.level}/></td><td>{item.organization}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.owner}</td><td><span className="deadline overdue">{item.dueAt}<small>已逾期</small></span></td></tr>)}</tbody></table></div></Panel>
     </>}
-    <Drawer open={!!metric} title="指标口径与下钻" eyebrow="监管态势指标" onClose={() => setMetric(null)} footer={<><Button onClick={() => setMetric(null)}>关闭</Button><Button variant="primary" onClick={() => { if (!metric) return; const target = metric.startsWith('risk') || metric === 'closure' ? '/risk/events' : '/risk/warnings'; drill(target, metric); setMetric(null) }}>进入明细</Button></>}><KeyValue items={[{ label: '来源组件', value: metric }, { label: '统计范围', value: `${filters.org} / ${filters.domain}` }, { label: '统计时间', value: '2026-07-17 12:00' }, { label: '计算原则', value: '按授权对象去重，全部组件使用同一快照' }]}/></Drawer>
     {bigScreenOpen && <SituationBigScreen
       warnings={visibleWarnings}
       events={visibleEvents}

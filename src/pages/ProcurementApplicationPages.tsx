@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Button, Drawer, Icon, PageHeader, Panel, StatusTag, type IconName } from '../ui'
 
@@ -176,7 +176,7 @@ function agentStepClass(phase: AgentPhase, progress: number, index: number) {
 
 export function SuperAgentPage() {
   const navigate = useNavigate()
-  const [selectedIndex, setSelectedIndex] = useState(0)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
   const [agentPhase, setAgentPhase] = useState<AgentPhase>('confirm')
   const [agentProgress, setAgentProgress] = useState(0)
   const [agentFailedOnce, setAgentFailedOnce] = useState(false)
@@ -242,9 +242,9 @@ function AgentTaskMain({ task, phase, progress, onStart, onRetry, onPreview, onE
 }
 
 function NewAgentTask({ onSend }: { onSend: () => void }) {
-  return <><div className="html-agent-main-head"><div><h2>新建智能任务</h2><p>输入任务后，系统会识别业务域、能力项和所需信息。</p></div><StatusTag>Primary Agent</StatusTag></div><div className="html-agent-empty-state"><div><h2>今天要处理什么？</h2><p>当前演示重点展示招投标书撰写任务。</p><div className="html-agent-composer"><input readOnly value="帮我写一份云资源扩容采购项目的投标书"/><Button variant="primary" onClick={onSend}>发送</Button></div></div></div></>
+  const [draft, setDraft] = useState('帮我写一份云资源扩容采购项目的投标书')
+  return <><div className="html-agent-main-head"><div><h2>新建智能任务</h2><p>输入任务后，系统会识别业务域、能力项和所需信息。</p></div><StatusTag>Primary Agent</StatusTag></div><div className="html-agent-empty-state"><div><h2>今天要处理什么？</h2><p>当前演示重点展示招投标书撰写任务，请在下方输入框发起。</p></div></div><div className="html-agent-composer html-agent-new-bottom-composer"><input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="请输入任务要求"/><Button variant="primary" onClick={onSend}>发送</Button></div></>
 }
-
 function AgentConfirmCard({ onStart }: { onStart: () => void }) {
   return <div className="html-agent-confirm-card">
     <div className="html-agent-card-head"><div><h3>任务识别与执行确认</h3><p>确认后由招投标 Agent 异步生成投标书草稿。</p></div><HtmlBadge tone="warn">待确认</HtmlBadge></div>
