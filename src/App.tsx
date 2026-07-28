@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AuditPage, DataSourceDetailPage, GraphManagementPage, ModelManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
 import { ProcurementHomePage, ProcurementModulePage, ProcurementOverviewPage, SuperAgentPage } from './pages/ProcurementApplicationPages'
@@ -147,6 +147,9 @@ const agentSuggestions = ['当前页面是做什么的？', '我下一步应该�
 
 type AgentMessage = { role: 'assistant' | 'user'; text: string }
 type AgentPageContext = { page: string; guide: string; next: string; data: string }
+type AgentFloatingPosition = { left: number; top: number }
+type AgentDragTarget = 'fab' | 'dialog'
+type AgentDragState = { target: AgentDragTarget; pointerId: number; offsetX: number; offsetY: number; width: number; height: number; startX: number; startY: number }
 
 function AppEnhanced() {
   const navigate = useNavigate()
@@ -177,8 +180,12 @@ function AppEnhanced() {
   const [agentOpen, setAgentOpen] = useState(false)
   const [agentInput, setAgentInput] = useState('')
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([])
+  const [agentFabPosition, setAgentFabPosition] = useState<AgentFloatingPosition | null>(null)
+  const [agentDialogPosition, setAgentDialogPosition] = useState<AgentFloatingPosition | null>(null)
   const [resetWorkflowOpen, setResetWorkflowOpen] = useState(false)
   const [resettingWorkflow, setResettingWorkflow] = useState(false)
+  const agentDragRef = useRef<AgentDragState | null>(null)
+  const agentClickSuppressedRef = useRef(false)
 
   useEffect(() => {
     void loadOntologies().then((result) => { if (!result.ok) setToast(`MySQL图谱结构数据加载失败：${result.message}`) })
@@ -270,8 +277,45 @@ function AppEnhanced() {
     setAgentInput('')
   }
   const openAgent = () => {
-    if (agentMessages.length === 0) setAgentMessages([{ role: 'assistant', text: `你好，我是采购小助手。当前位于“${agentContext.page}”，你可以询问页面功能、下一步操作或当前数据。` }])
+    if (agentMessages.length === 0) setAgentMessages([{ role: 'assistant', text: `你好，我是采购智能助理。当前位于“${agentContext.page}”，你可以询问页面功能、下一步操作或当前数据。` }])
     setAgentOpen(true)
+  }
+  const clampAgentPosition = (left: number, top: number, width: number, height: number) => {
+    const margin = 12
+    const maxLeft = Math.max(margin, window.innerWidth - width - margin)
+    const maxTop = Math.max(margin, window.innerHeight - height - margin)
+    return { left: Math.min(Math.max(margin, left), maxLeft), top: Math.min(Math.max(margin, top), maxTop) }
+  }
+  const beginAgentDrag = (event: PointerEvent<HTMLElement>, target: AgentDragTarget) => {
+    if (event.button !== 0) return
+    const element = target === 'dialog' ? event.currentTarget.closest('.agent-popover') as HTMLElement | null : event.currentTarget
+    if (!element) return
+    const rect = element.getBoundingClientRect()
+    agentDragRef.current = { target, pointerId: event.pointerId, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top, width: rect.width, height: rect.height, startX: event.clientX, startY: event.clientY }
+    agentClickSuppressedRef.current = false
+    event.currentTarget.setPointerCapture?.(event.pointerId)
+  }
+  const moveAgentDrag = (event: PointerEvent<HTMLElement>) => {
+    const drag = agentDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    if (Math.abs(event.clientX - drag.startX) > 4 || Math.abs(event.clientY - drag.startY) > 4) agentClickSuppressedRef.current = true
+    const next = clampAgentPosition(event.clientX - drag.offsetX, event.clientY - drag.offsetY, drag.width, drag.height)
+    if (drag.target === 'fab') setAgentFabPosition(next)
+    else setAgentDialogPosition(next)
+    event.preventDefault()
+  }
+  const endAgentDrag = (event: PointerEvent<HTMLElement>) => {
+    const drag = agentDragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    agentDragRef.current = null
+    event.currentTarget.releasePointerCapture?.(event.pointerId)
+  }
+  const toggleAgentFromFab = () => {
+    if (agentClickSuppressedRef.current) {
+      agentClickSuppressedRef.current = false
+      return
+    }
+    agentOpen ? setAgentOpen(false) : openAgent()
   }
 
   const chooseScope = (scope: string) => { setScope(scope); setScopeOpen(false); setToast(`监管范围已切换为：${scope}`) }
@@ -351,8 +395,8 @@ function AppEnhanced() {
       <Route path="/no-access" element={<EmptyState title="暂无可访问菜单" description="当前角色没有任何菜单权限，请联系系统管理员分配统一入口、采购应用、穿透式监管或系统管理权限。"/>}/>
       <Route path="*" element={<Navigate to={firstAccessiblePath} replace/>}/>
     </Routes></div></main>
-    <button className={`help-fab agent-fab ${agentOpen ? 'open' : ''}`} onClick={() => agentOpen ? setAgentOpen(false) : openAgent()} aria-label={agentOpen ? '收起采购小助手' : '打开采购小助手'}><Icon name={agentOpen ? 'close' : 'agent'}/><span>{agentOpen ? '收起采购小助手' : '采购小助手'}</span></button>
-    {agentOpen && <section className="modal agent-dialog agent-popover" role="dialog" aria-modal="true" aria-labelledby="agent-dialog-title"><header><div><p className="eyebrow">智能问答 · {agentContext.page}</p><h2 id="agent-dialog-title"><Icon name="agent"/>采购小助手</h2><p>提供当前页面说明和操作建议，暂不直接执行业务操作。</p></div><button className="icon-button" onClick={() => setAgentOpen(false)} aria-label="关闭采购小助手"><Icon name="close"/></button></header><div className="modal-body agent-dialog-body"><div className="agent-messages" aria-live="polite">{agentMessages.map((message, index) => <div className={`agent-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Icon name="agent" size={15}/> : '我'}</span><p>{message.text}</p></div>)}</div><div className="agent-suggestions"><span>你可以这样问</span><div>{agentSuggestions.map((question) => <button key={question} onClick={() => sendAgentQuestion(question)}>{question}</button>)}</div></div></div><footer className="agent-composer"><div><textarea rows={2} value={agentInput} onChange={(event) => setAgentInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); sendAgentQuestion() } }} placeholder="请输入你的问题" aria-label="向采购小助手提问"/><small>Enter 发送，Shift + Enter 换行</small></div><Button variant="primary" icon="agent" disabled={!agentInput.trim()} onClick={() => sendAgentQuestion()}>发送</Button></footer></section>}
+    <button className={`help-fab agent-fab ${agentOpen ? 'open' : ''}`} style={agentFabPosition ? { left: agentFabPosition.left, top: agentFabPosition.top, right: 'auto', bottom: 'auto' } : undefined} onPointerDown={(event) => beginAgentDrag(event, 'fab')} onPointerMove={moveAgentDrag} onPointerUp={endAgentDrag} onPointerCancel={endAgentDrag} onClick={toggleAgentFromFab} aria-label={agentOpen ? '收起采购智能助理' : '打开采购智能助理'} title="可拖动调整位置"><Icon name={agentOpen ? 'close' : 'agent'}/><span>{agentOpen ? '收起采购智能助理' : '采购智能助理'}</span></button>
+    {agentOpen && <section className="modal agent-dialog agent-popover" style={agentDialogPosition ? { left: agentDialogPosition.left, top: agentDialogPosition.top, right: 'auto', bottom: 'auto' } : undefined} role="dialog" aria-modal="true" aria-labelledby="agent-dialog-title"><header className="agent-drag-handle" onPointerDown={(event) => { if ((event.target as Element).closest('button')) return; beginAgentDrag(event, 'dialog') }} onPointerMove={moveAgentDrag} onPointerUp={endAgentDrag} onPointerCancel={endAgentDrag} title="拖动移动采购智能助理"><div><p className="eyebrow">智能问答 · {agentContext.page}</p><h2 id="agent-dialog-title"><Icon name="agent"/>采购智能助理</h2><p>提供当前页面说明和操作建议，暂不直接执行业务操作。</p></div><button className="icon-button" onClick={() => setAgentOpen(false)} aria-label="关闭采购智能助理"><Icon name="close"/></button></header><div className="modal-body agent-dialog-body"><div className="agent-messages" aria-live="polite">{agentMessages.map((message, index) => <div className={`agent-message ${message.role}`} key={`${message.role}-${index}`}><span>{message.role === 'assistant' ? <Icon name="agent" size={15}/> : '我'}</span><p>{message.text}</p></div>)}</div><div className="agent-suggestions"><span>你可以这样问</span><div>{agentSuggestions.map((question) => <button key={question} onClick={() => sendAgentQuestion(question)}>{question}</button>)}</div></div></div><footer className="agent-composer"><div><textarea rows={2} value={agentInput} onChange={(event) => setAgentInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) { event.preventDefault(); sendAgentQuestion() } }} placeholder="请输入你的问题" aria-label="向采购智能助理提问"/><small>Enter 发送，Shift + Enter 换行</small></div><Button variant="primary" icon="agent" disabled={!agentInput.trim()} onClick={() => sendAgentQuestion()}>发送</Button></footer></section>}
     <Modal open={resetWorkflowOpen} title="重置演示工作流" description="恢复预警和风险事件的演示处置状态，不影响规则、证据、图谱、组织及业务配置。" confirmText={resettingWorkflow ? '正在重置…' : '确认重置'} danger onClose={() => { if (!resettingWorkflow) setResetWorkflowOpen(false) }} onConfirm={() => void confirmWorkflowReset()}><div className="alert-box danger"><Icon name="warning"/><span>将覆盖当前演示中的转派、解除、升级、整改和复核结果，并重新生成待办及业务消息。</span></div><ul className="plain-list"><li>保留规则测试数据、证据快照和证据子图</li><li>恢复为6个待整改事件、4个待复核事件</li><li>仅保留2个事件逾期，用于验证催办功能</li></ul></Modal>
     <div className={`toast ${toast ? 'show' : ''}`}><Icon name="check"/><span>{toast || '操作成功'}</span></div>
   </div>
