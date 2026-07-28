@@ -1,0 +1,417 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/hwbqtkby",
+    "id": "hwbqtkby",
+    "slide": 2,
+    "layoutId": "/ppt/slideLayouts/slideLayout2.xml",
+    "layoutName": "目录页",
+    "masterLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "CDA2026",
+    "colors": {
+      "accent1": "#0058FF",
+      "accent2": "#3D7AFF",
+      "accent3": "#4F18F2",
+      "accent4": "#733FF5",
+      "accent5": "#00AFEA",
+      "accent6": "#54BEEE",
+      "dk1": "#FFFFFF",
+      "lt1": "#FFFFFF",
+      "dk2": "#090909",
+      "lt2": "#F1F2F3",
+      "hlink": "#0058FF",
+      "folHlink": "#4F18F2"
+    },
+    "fontScheme": {
+      "name": "Arial Black-Arial",
+      "majorFont": {
+        "latinTypeface": "Arial Black"
+      },
+      "minorFont": {
+        "latinTypeface": "Arial"
+      }
+    },
+    "typefaces": [
+      "+mj-ea",
+      "Arial",
+      "Arial Black"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "/ppt/slideLayouts/slideLayout2.xml",
+      "name": "目录页",
+      "parentLayoutId": "/ppt/slideMasters/slideMaster1.xml",
+      "elements": [
+        {
+          "order": 1,
+          "kind": "image",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout2.xml/12",
+          "id": "12",
+          "name": "图片 11",
+          "bbox": [
+            0,
+            0,
+            407.13,
+            720.13
+          ],
+          "contentType": "image/png",
+          "asset": {
+            "assetId": "/ppt/media/image3.png",
+            "contentType": "image/png",
+            "byteLength": 263726
+          },
+          "fillImage": {
+            "assetId": "/ppt/media/image3.png",
+            "contentType": "image/png",
+            "byteLength": 263726
+          }
+        },
+        {
+          "order": 2,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout2.xml/7",
+          "id": "7",
+          "name": "内容占位符 2",
+          "bbox": [
+            474.53,
+            148.33,
+            442.8,
+            423.3
+          ],
+          "geometry": "rect",
+          "text": "第一级\n第二级\n第三级\n第四级\n第五级",
+          "textPreview": "第一级 | 第二级 | 第三级 | 第四级 | 第五级",
+          "resolvedTextStyle": {
+            "anchor": 2,
+            "verticalAlignment": "middle",
+            "autoFit": "none"
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "第一级\n第二级\n第三级\n第四级\n第五级",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "第一级\n第二级\n第三级\n第四级\n第五级"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "order": 3,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout2.xml/10",
+          "id": "10",
+          "name": "文本框 9",
+          "bbox": [
+            66.35,
+            277.67,
+            288.29,
+            74.32
+          ],
+          "geometry": "rect",
+          "text": "CONTENT",
+          "textPreview": "CONTENT",
+          "resolvedTextStyle": {
+            "wrap": "none",
+            "autoFit": "resizeShapeToFitText"
+          },
+          "paragraphs": [
+            {
+              "index": 1,
+              "text": "CONTENT",
+              "runs": [
+                {
+                  "index": 1,
+                  "text": "CONTENT",
+                  "fontSize": 53.33,
+                  "typeface": "Arial",
+                  "color": "tx1",
+                  "bold": true
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "order": 4,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout2.xml/11",
+          "id": "11",
+          "name": "矩形 10",
+          "bbox": [
+            77.73,
+            352,
+            253.23,
+            8
+          ],
+          "geometry": "rect",
+          "resolvedTextStyle": {
+            "anchor": 2,
+            "verticalAlignment": "middle"
+          },
+          "fillColor": "bg1",
+          "lineWidth": 0
+        },
+        {
+          "order": 5,
+          "kind": "shape",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout2.xml/2",
+          "id": "2",
+          "name": "矩形 1",
+          "bbox": [
+            1214.48,
+            682.33,
+            47,
+            27.47
+          ],
+          "geometry": "rect",
+          "resolvedTextStyle": {
+            "wrap": "square",
+            "autoFit": "resizeShapeToFitText"
+          }
+        },
+        {
+          "order": 6,
+          "kind": "image",
+          "scope": "layout",
+          "aid": "template/layout//ppt/slideLayouts/slideLayout2.xml/13",
+          "id": "13",
+          "name": "图片 2",
+          "bbox": [
+            1049.27,
+            30.45,
+            201.4,
+            44.43
+          ],
+          "contentType": "image/png",
+          "asset": {
+            "assetId": "/ppt/media/image4.png",
+            "contentType": "image/png",
+            "byteLength": 10452
+          },
+          "fillImage": {
+            "assetId": "/ppt/media/image4.png",
+            "contentType": "image/png",
+            "byteLength": 10452
+          }
+        }
+      ]
+    },
+    {
+      "scope": "master",
+      "id": "/ppt/slideMasters/slideMaster1.xml",
+      "type": "master",
+      "backgroundColor": "bg1",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/9072xkry",
+      "id": "2",
+      "name": "内容占位符 1",
+      "bbox": [
+        474.53,
+        113.38,
+        442.8,
+        493.2
+      ],
+      "text": "封面设计\n目录页&章节页\n内容页版心设计\n主题色设计说明\n字体字号规范\n圆角设计",
+      "textPreview": "封面设计 | 目录页&章节页 | 内容页版心设计 | 主题色设计说明 | 字体字号规范 | 圆角设计",
+      "resolvedFontSize": 32,
+      "resolvedTextStyle": {
+        "anchor": 2,
+        "fontSize": 32,
+        "typeface": "+mj-ea",
+        "color": {
+          "type": "theme",
+          "value": "tx2",
+          "transform": {
+            "lighten": 0.5
+          }
+        },
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "middle",
+        "autoFit": "none",
+        "insets": {
+          "top": 4.8,
+          "right": 9.6,
+          "bottom": 4.8,
+          "left": 9.6
+        }
+      },
+      "textLayout": {
+        "lineCount": 11,
+        "lines": [
+          {
+            "index": 1,
+            "text": "1. 封面设计"
+          },
+          {
+            "index": 2,
+            "text": ""
+          },
+          {
+            "index": 3,
+            "text": "2. 目录页&章节页"
+          },
+          {
+            "index": 4,
+            "text": ""
+          },
+          {
+            "index": 5,
+            "text": "3. 内容页版心设计"
+          },
+          {
+            "index": 6,
+            "text": ""
+          },
+          {
+            "index": 7,
+            "text": "4. 主题色设计说明"
+          },
+          {
+            "index": 8,
+            "text": ""
+          },
+          {
+            "index": 9,
+            "text": "5. 字体字号规范"
+          },
+          {
+            "index": 10,
+            "text": ""
+          },
+          {
+            "index": 11,
+            "text": "6. 圆角设计"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "封面设计",
+          "lineSpacingPercent": 150000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "封面",
+              "typeface": "+mj-ea",
+              "color": "accent1"
+            },
+            {
+              "index": 2,
+              "text": "设计",
+              "typeface": "+mj-ea",
+              "color": "accent1"
+            }
+          ],
+          "marginLeft": 457200,
+          "indent": -457200
+        },
+        {
+          "index": 2,
+          "text": "目录页&章节页",
+          "lineSpacingPercent": 150000,
+          "resolvedTextStyle": {
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "目录页&章节页",
+              "typeface": "+mj-ea"
+            }
+          ],
+          "marginLeft": 457200,
+          "indent": -457200
+        },
+        {
+          "index": 3,
+          "text": "内容页版心设计",
+          "lineSpacingPercent": 150000,
+          "runs": [
+            {
+              "index": 1,
+              "text": "内容页版心设计",
+              "typeface": "+mj-ea"
+            }
+          ],
+          "marginLeft": 457200,
+          "indent": -457200
+        },
+        {
+          "index": 4,
+          "text": "主题色设计说明",
+          "lineSpacingPercent": 150000,
+          "runs": [
+            {
+              "index": 1,
+              "text": "主题色设计说明",
+              "typeface": "+mj-ea"
+            }
+          ],
+          "marginLeft": 457200,
+          "indent": -457200
+        },
+        {
+          "index": 5,
+          "text": "字体字号规范",
+          "lineSpacingPercent": 150000,
+          "runs": [
+            {
+              "index": 1,
+              "text": "字体字号规范",
+              "typeface": "+mj-ea"
+            }
+          ],
+          "marginLeft": 457200,
+          "indent": -457200
+        },
+        {
+          "index": 6,
+          "text": "圆角设计",
+          "lineSpacingPercent": 150000,
+          "runs": [
+            {
+              "index": 1,
+              "text": "圆角设计",
+              "typeface": "+mj-ea"
+            }
+          ],
+          "marginLeft": 457200,
+          "indent": -457200
+        }
+      ]
+    }
+  ],
+  "composeRuns": []
+}

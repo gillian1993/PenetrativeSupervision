@@ -16,7 +16,7 @@ export function normalizeSkillInputs(value){const parsed=parseJson(value,[]);ret
 export function normalizeSkillOutputs(value){const parsed=parseJson(value,[]);return(Array.isArray(parsed)?parsed:[]).map((item,index)=>({id:String(item?.id||`output-${index+1}`),name:String(item?.name||''),dataType:String(item?.dataType||'文本'),description:String(item?.description||'')}))}export function normalizePathConfig(value){const parsed=parseJson(value,{});return{hops:Array.isArray(parsed?.hops)?parsed.hops:[],logic:parsed?.logic==='OR'?'OR':'AND',constraints:Array.isArray(parsed?.constraints)?parsed.constraints:[]}}
 export function normalizeTimeConfig(value){const parsed=parseJson(value,{});const legacyEvent=String(parsed?.eventCode||'');const conditions=Array.isArray(parsed?.conditions)?parsed.conditions:legacyEvent?[{id:'time-legacy',eventCode:legacyEvent,eventName:String(parsed?.eventName||''),requirement:'必须发生'}]:[];return{baseline:parsed?.baseline==='runtime'?'runtime':'event',logic:parsed?.logic==='OR'?'OR':'AND',conditions:conditions.map((item,index)=>({id:item?.id||`time-${index+1}`,eventCode:String(item?.eventCode||''),eventName:String(item?.eventName||''),requirement:item?.requirement==='不得发生'?'不得发生':'必须发生'})),eventCode:legacyEvent,windowValue:Number(parsed?.windowValue??30),windowUnit:String(parsed?.windowUnit||'天'),direction:String(parsed?.direction||'之前')}}
 export function normalizeAggregateConfig(value){const parsed=parseJson(value,{});const legacyField=String(parsed?.fieldCode||'');const metrics=Array.isArray(parsed?.metrics)?parsed.metrics:legacyField?[{id:'metric-legacy',function:String(parsed?.function||'COUNT'),fieldCode:legacyField,fieldName:String(parsed?.fieldName||''),operator:String(parsed?.operator||'大于等于'),threshold:Number(parsed?.threshold||0)}]:[];return{logic:parsed?.logic==='OR'?'OR':'AND',metrics:metrics.map((item,index)=>({id:item?.id||`metric-${index+1}`,function:String(item?.function||'COUNT'),fieldCode:String(item?.fieldCode||''),fieldName:String(item?.fieldName||''),operator:String(item?.operator||'大于等于'),threshold:Number(item?.threshold||0)})),function:String(parsed?.function||metrics[0]?.function||'COUNT'),fieldCode:legacyField||String(metrics[0]?.fieldCode||''),groupBy:String(parsed?.groupBy||''),operator:String(parsed?.operator||metrics[0]?.operator||'大于等于'),threshold:Number(parsed?.threshold??metrics[0]?.threshold??0)}}
-const advancedExpressionFunctions=new Set(['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS'])
+const advancedExpressionFunctions=new Set(['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','RATIO','SIMILARITY','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS','IN_LIST','TEXT_CLASSIFY'])
 export function validateAdvancedExpression(value){
   const expression=String(value||'').trim()
   if(!expression)return '请填写高级表达式'
@@ -29,7 +29,7 @@ export function validateAdvancedExpression(value){
   if(((expression.match(/"/g)||[]).length%2)||((expression.match(/'/g)||[]).length%2))return '表达式引号不匹配'
   if(/^(AND|OR)\b|\b(AND|OR|NOT)$/i.test(expression))return '表达式不能以逻辑运算符开头或结尾'
   if(!/(==|!=|>=|<=|>|<|\bEXISTS_PATH\s*\()/i.test(expression))return '表达式必须包含比较判断或关系存在判断'
-  const functions=[...expression.matchAll(/\b([A-Z][A-Z0-9_]*)\s*\(/g)].map((item)=>item[1])
+  const functions=[...expression.matchAll(/\b([A-Z][A-Z0-9_]*)\s*\(/g)].map((item)=>item[1]).filter((item)=>!['AND','OR','NOT'].includes(item))
   const unknown=functions.find((item)=>!advancedExpressionFunctions.has(item))
   return unknown?`不支持函数 ${unknown}`:''
 }

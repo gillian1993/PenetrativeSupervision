@@ -1,0 +1,386 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/1v7df1",
+    "id": "1v7df1",
+    "slide": 10,
+    "layoutId": "029bc21a-7e53-4c3e-a2c9-f469b47fd3ed",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#0B3F91",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "029bc21a-7e53-4c3e-a2c9-f469b47fd3ed",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/h43658ja",
+      "id": "1",
+      "bbox": [
+        0,
+        0,
+        1280,
+        720
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#0B3F91",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/uhc7atkz",
+      "id": "2",
+      "bbox": [
+        0,
+        0,
+        360,
+        720
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#0D55C7",
+      "lineWidth": 0
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vilo3y14",
+      "id": "3",
+      "bbox": [
+        950,
+        0,
+        330,
+        720
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F4F8FF",
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/47epgn21",
+      "id": "4",
+      "bbox": [
+        92,
+        138,
+        230,
+        100
+      ],
+      "geometry": "roundRect",
+      "text": "03",
+      "textPreview": "03",
+      "resolvedFontSize": 74,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 74,
+        "typeface": "+mn-lt",
+        "color": "#BFD9FF",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "03"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "03",
+          "resolvedTextStyle": {
+            "fontSize": 74,
+            "color": "#BFD9FF",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "03",
+              "fontSize": 74,
+              "color": "#BFD9FF",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/58nq9sjm",
+      "id": "5",
+      "bbox": [
+        92,
+        278,
+        760,
+        82
+      ],
+      "geometry": "roundRect",
+      "text": "核心能力体系",
+      "textPreview": "核心能力体系",
+      "resolvedFontSize": 46,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 46,
+        "typeface": "+mn-lt",
+        "color": "#FFFFFF",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "核心能力体系"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "核心能力体系",
+          "resolvedTextStyle": {
+            "fontSize": 46,
+            "color": "#FFFFFF",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "核心能力体系",
+              "fontSize": 46,
+              "color": "#FFFFFF",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/i5c7edkv",
+      "id": "6",
+      "bbox": [
+        92,
+        408,
+        760,
+        54
+      ],
+      "geometry": "roundRect",
+      "text": "把“能看见风险”升级为“能解释证据、能推动整改、能持续优化”",
+      "textPreview": "把“能看见风险”升级为“能解释证据、能推动整改、能持续优化”",
+      "resolvedFontSize": 26,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 26,
+        "typeface": "+mn-lt",
+        "color": "#D7E8FF",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "把“能看见风险”升级为“能解释证据、能推动整改、能持续优化”"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "把“能看见风险”升级为“能解释证据、能推动整改、能持续优化”",
+          "resolvedTextStyle": {
+            "fontSize": 26,
+            "color": "#D7E8FF",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "把“能看见风险”升级为“能解释证据、能推动整改、能持续优化”",
+              "fontSize": 26,
+              "color": "#D7E8FF",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/j65o7i1g",
+      "id": "7",
+      "bbox": [
+        92,
+        504,
+        200,
+        5
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#16B7D8",
+      "lineColor": "#16B7D8",
+      "lineWidth": 1
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/sbepkn2x",
+      "id": "8",
+      "bbox": [
+        1056,
+        626,
+        150,
+        24
+      ],
+      "geometry": "roundRect",
+      "text": "中国电子云",
+      "textPreview": "中国电子云",
+      "resolvedFontSize": 18,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18,
+        "typeface": "+mn-lt",
+        "color": "#0B3F91",
+        "bold": true,
+        "alignment": "right",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "中国电子云"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "中国电子云",
+          "resolvedTextStyle": {
+            "fontSize": 18,
+            "color": "#0B3F91",
+            "bold": true,
+            "alignment": "right"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中国电子云",
+              "fontSize": 18,
+              "color": "#0B3F91",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

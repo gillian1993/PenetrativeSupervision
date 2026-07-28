@@ -1,0 +1,1241 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/dvewps",
+    "id": "dvewps",
+    "slide": 11,
+    "layoutId": "029bc21a-7e53-4c3e-a2c9-f469b47fd3ed",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#FFFFFF",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "029bc21a-7e53-4c3e-a2c9-f469b47fd3ed",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ze1kjqps",
+      "id": "1",
+      "bbox": [
+        0,
+        0,
+        1280,
+        88
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F4F8FF",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/kfalcvqd",
+      "id": "2",
+      "bbox": [
+        0,
+        88,
+        1280,
+        2
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#176DFF",
+      "lineColor": "#176DFF",
+      "lineWidth": 1
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/lgj2l07y",
+      "id": "3",
+      "bbox": [
+        72,
+        28,
+        820,
+        44
+      ],
+      "geometry": "roundRect",
+      "text": "核心能力体系围绕六个能力组展开",
+      "textPreview": "核心能力体系围绕六个能力组展开",
+      "resolvedFontSize": 34,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 34,
+        "typeface": "+mn-lt",
+        "color": "#0B3F91",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "核心能力体系围绕六个能力组展开"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "核心能力体系围绕六个能力组展开",
+          "resolvedTextStyle": {
+            "fontSize": 34,
+            "color": "#0B3F91",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "核心能力体系围绕六个能力组展开",
+              "fontSize": 34,
+              "color": "#0B3F91",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mhs3e58j",
+      "id": "4",
+      "bbox": [
+        72,
+        94,
+        960,
+        34
+      ],
+      "geometry": "roundRect",
+      "text": "每个能力组对应当前工程中的真实页面或配置对象",
+      "textPreview": "每个能力组对应当前工程中的真实页面或配置对象",
+      "resolvedFontSize": 19,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 19,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "每个能力组对应当前工程中的真实页面或配置对象"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "每个能力组对应当前工程中的真实页面或配置对象",
+          "resolvedTextStyle": {
+            "fontSize": 19,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "每个能力组对应当前工程中的真实页面或配置对象",
+              "fontSize": 19,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7214nap4",
+      "id": "5",
+      "bbox": [
+        1056,
+        34,
+        150,
+        24
+      ],
+      "geometry": "roundRect",
+      "text": "中国电子云",
+      "textPreview": "中国电子云",
+      "resolvedFontSize": 18,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18,
+        "typeface": "+mn-lt",
+        "color": "#0B3F91",
+        "bold": true,
+        "alignment": "right",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "中国电子云"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "中国电子云",
+          "resolvedTextStyle": {
+            "fontSize": 18,
+            "color": "#0B3F91",
+            "bold": true,
+            "alignment": "right"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中国电子云",
+              "fontSize": 18,
+              "color": "#0B3F91",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/83algvqp",
+      "id": "6",
+      "bbox": [
+        98,
+        190,
+        310,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/94jmp07a",
+      "id": "7",
+      "bbox": [
+        98,
+        190,
+        8,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#176DFF",
+      "lineColor": "#176DFF",
+      "lineWidth": 1
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/u5c3i58f",
+      "id": "8",
+      "bbox": [
+        120,
+        208,
+        270,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "监管工作台",
+      "textPreview": "监管工作台",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "监管工作台"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "监管工作台",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "监管工作台",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/v6l4rap0",
+      "id": "9",
+      "bbox": [
+        120,
+        248,
+        268,
+        58
+      ],
+      "geometry": "roundRect",
+      "text": "待办、消息、刷新、转派联动",
+      "textPreview": "待办、消息、刷新、转派联动",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "待办、消息、刷新、转派联动"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "待办、消息、刷新、转派联动",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "待办、消息、刷新、转派联动",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/rmhoru9o",
+      "id": "10",
+      "bbox": [
+        463,
+        190,
+        310,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/q18ny983",
+      "id": "11",
+      "bbox": [
+        463,
+        190,
+        8,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#16B7D8",
+      "lineColor": "#16B7D8",
+      "lineWidth": 1
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/doz6t4ru",
+      "id": "12",
+      "bbox": [
+        485,
+        208,
+        270,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "监管态势",
+      "textPreview": "监管态势",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "监管态势"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "监管态势",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "监管态势",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/cnq50zq9",
+      "id": "13",
+      "bbox": [
+        485,
+        248,
+        268,
+        58
+      ],
+      "geometry": "roundRect",
+      "text": "风险规模、等级分布、趋势下钻",
+      "textPreview": "风险规模、等级分布、趋势下钻",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "风险规模、等级分布、趋势下钻"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "风险规模、等级分布、趋势下钻",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "风险规模、等级分布、趋势下钻",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/3yh4nu9s",
+      "id": "14",
+      "bbox": [
+        828,
+        190,
+        310,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/2xonup87",
+      "id": "15",
+      "bbox": [
+        828,
+        190,
+        8,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#D92D20",
+      "lineColor": "#D92D20",
+      "lineWidth": 1
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/p0zmp4ri",
+      "id": "16",
+      "bbox": [
+        850,
+        208,
+        270,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "风险监管",
+      "textPreview": "风险监管",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "风险监管"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "风险监管",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "风险监管",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4zq5wzqx",
+      "id": "17",
+      "bbox": [
+        850,
+        248,
+        268,
+        58
+      ],
+      "geometry": "roundRect",
+      "text": "统一预警、证据研判、事件闭环",
+      "textPreview": "统一预警、证据研判、事件闭环",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "统一预警、证据研判、事件闭环"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "统一预警、证据研判、事件闭环",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "统一预警、证据研判、事件闭环",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nu1oze9w",
+      "id": "18",
+      "bbox": [
+        98,
+        390,
+        310,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mtsn6t8b",
+      "id": "19",
+      "bbox": [
+        98,
+        390,
+        8,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F59E0B",
+      "lineColor": "#F59E0B",
+      "lineWidth": 1
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/i1gzehwv",
+      "id": "20",
+      "bbox": [
+        120,
+        408,
+        270,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "场景与规则",
+      "textPreview": "场景与规则",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "场景与规则"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "场景与规则",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "场景与规则",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/j2p0nmxg",
+      "id": "21",
+      "bbox": [
+        120,
+        448,
+        268,
+        58
+      ],
+      "geometry": "roundRect",
+      "text": "风险场景、规则资产、Skill资产",
+      "textPreview": "风险场景、规则资产、Skill资产",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "风险场景、规则资产、Skill资产"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "风险场景、规则资产、Skill资产",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "风险场景、规则资产、Skill资产",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 22,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4nyhgre1",
+      "id": "22",
+      "bbox": [
+        463,
+        390,
+        310,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 23,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5o7ipwf6",
+      "id": "23",
+      "bbox": [
+        463,
+        390,
+        8,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#16A36A",
+      "lineColor": "#16A36A",
+      "lineWidth": 1
+    },
+    {
+      "order": 24,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/6pgzi1wr",
+      "id": "24",
+      "bbox": [
+        485,
+        408,
+        270,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "知识图谱",
+      "textPreview": "知识图谱",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "知识图谱"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "知识图谱",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "知识图谱",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 25,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/rqp0rmxc",
+      "id": "25",
+      "bbox": [
+        485,
+        448,
+        268,
+        58
+      ],
+      "geometry": "roundRect",
+      "text": "图谱结构、数据源、映射与发布",
+      "textPreview": "图谱结构、数据源、映射与发布",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "图谱结构、数据源、映射与发布"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "图谱结构、数据源、映射与发布",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "图谱结构、数据源、映射与发布",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 26,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/sryhkrex",
+      "id": "26",
+      "bbox": [
+        828,
+        390,
+        310,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 27,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ts7itwfi",
+      "id": "27",
+      "bbox": [
+        828,
+        390,
+        8,
+        130
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#0B3F91",
+      "lineColor": "#0B3F91",
+      "lineWidth": 1
+    },
+    {
+      "order": 28,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/mtcz6xwn",
+      "id": "28",
+      "bbox": [
+        850,
+        408,
+        270,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "系统底座",
+      "textPreview": "系统底座",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "系统底座"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "系统底座",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "系统底座",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 29,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7u5gf2x8",
+      "id": "29",
+      "bbox": [
+        850,
+        448,
+        268,
+        58
+      ],
+      "geometry": "roundRect",
+      "text": "角色权限、模型管理、审计日志",
+      "textPreview": "角色权限、模型管理、审计日志",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "角色权限、模型管理、审计日志"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "角色权限、模型管理、审计日志",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "角色权限、模型管理、审计日志",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

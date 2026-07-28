@@ -1,0 +1,13 @@
+{"kind":"deck","id":"pr/nv0sns","name":"Deck"}
+{"kind":"layout","layoutId":"/ppt/slideMasters/slideMaster1.xml","name":"","type":"master"}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout1.xml","name":"封面-主副标题","placeholders":[{"name":"body","type":"body","textPreview":"XXXX 公司职称 ·人名 | 2026.1.13"},{"name":"body","type":"body","textPreview":"点击编辑副标题内"},{"name":"title","type":"title","textPreview":"点击编辑主标题内容"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout2.xml","name":"目录页","placeholders":[{"name":"2","textPreview":"第一级 | 第二级 | 第三级 | 第四级 | 第五级"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout3.xml","name":"章节页","placeholders":[{"name":"title","type":"title","textPreview":"xxxxxxxxx | xxxxxxxxx"},{"name":"body","type":"body","textPreview":"01"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout4.xml","name":"内容页-浅色","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"body","type":"body","textPreview":"单击此处编辑母版副标题样式-双行"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout5.xml","name":"内容页-深色","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"body","type":"body","textPreview":"单击此处编辑母版副标题样式-双行"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout6.xml","name":"封底","placeholders":[{"name":"title","type":"title","textPreview":"封底"}]}
+{"kind":"layout","layoutId":"/ppt/slideLayouts/slideLayout7.xml","name":"内容页","placeholders":[{"name":"title","type":"title","textPreview":"单击此处编辑母版标题样式"},{"name":"body","type":"body","textPreview":"单击此处编辑母版文本样式"}]}
+{"kind":"slide","id":"sl/xd2lvw","slide":1,"title":"穿透式监管智能应用平台","textShapes":2}
+{"kind":"textbox","id":"sh/tcbqh83e","slide":1,"name":"标题 1","placeholder":"title","text":"穿透式监管智能应用平台","textPreview":"穿透式监管智能应用平台","textChars":11,"textLines":1,"bbox":[0,0,0,0]}
+{"kind":"textbox","id":"sh/69076d43","slide":1,"name":"文本占位符 8","placeholder":"body","text":"产品介绍","textPreview":"产品介绍","textChars":4,"textLines":1,"bbox":[0,0,0,35.2]}
+{"kind":"notes","id":"nt/xd2lvw","slide":1,"text":""}

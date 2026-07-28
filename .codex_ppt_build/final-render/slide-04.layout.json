@@ -1,0 +1,1028 @@
+{
+  "schema": "openai.presentation.layout/v4",
+  "unit": "px",
+  "slide": {
+    "aid": "sl/wlfe0p",
+    "id": "wlfe0p",
+    "slide": 4,
+    "layoutId": "029bc21a-7e53-4c3e-a2c9-f469b47fd3ed",
+    "layoutName": "Title Slide",
+    "layoutType": "title",
+    "masterLayoutId": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+    "masterLayoutName": "Master",
+    "backgroundColor": "#FFFFFF",
+    "frame": {
+      "left": 0,
+      "top": 0,
+      "width": 1280,
+      "height": 720
+    }
+  },
+  "theme": {
+    "colorSchemeName": "ChatGPT",
+    "colors": {
+      "accent1": "#156082",
+      "accent2": "#E97132",
+      "accent3": "#196B24",
+      "accent4": "#0F9ED5",
+      "accent5": "#A02B93",
+      "accent6": "#4EA72E",
+      "bg1": "#FFFFFF",
+      "bg2": "#000000",
+      "tx1": "#1F1F1F",
+      "tx2": "#FFFFFF",
+      "dk1": "#000000",
+      "lt1": "#FFFFFF",
+      "dk2": "#0E2841",
+      "lt2": "#E8E8E8",
+      "hlink": "#467886",
+      "folHlink": "#96607D"
+    },
+    "typefaces": [
+      "+mn-lt"
+    ]
+  },
+  "inheritedLayers": [
+    {
+      "scope": "layout",
+      "id": "029bc21a-7e53-4c3e-a2c9-f469b47fd3ed",
+      "name": "Title Slide",
+      "type": "title",
+      "parentLayoutId": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+      "elements": []
+    },
+    {
+      "scope": "master",
+      "id": "7b3b5384-72f1-4feb-98f9-3e0c8baf6c88",
+      "name": "Master",
+      "type": "master",
+      "elements": []
+    }
+  ],
+  "elements": [
+    {
+      "order": 1,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/8vitsnuh",
+      "id": "1",
+      "bbox": [
+        0,
+        0,
+        1280,
+        88
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F4F8FF",
+      "lineWidth": 0
+    },
+    {
+      "order": 2,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/7u9sjitw",
+      "id": "2",
+      "bbox": [
+        0,
+        88,
+        1280,
+        2
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#176DFF",
+      "lineColor": "#176DFF",
+      "lineWidth": 1
+    },
+    {
+      "order": 3,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/m90bqdcb",
+      "id": "3",
+      "bbox": [
+        72,
+        28,
+        820,
+        44
+      ],
+      "geometry": "roundRect",
+      "text": "监管难点不是缺少系统，而是缺少跨层级、跨业务的统一监管视图",
+      "textPreview": "监管难点不是缺少系统，而是缺少跨层级、跨业务的统一监管视图",
+      "resolvedFontSize": 34,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 34,
+        "typeface": "+mn-lt",
+        "color": "#0B3F91",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 2,
+        "lines": [
+          {
+            "index": 1,
+            "text": "监管难点不是缺少系统，而是缺少跨层级、跨业务的"
+          },
+          {
+            "index": 2,
+            "text": "统一监管视图"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "监管难点不是缺少系统，而是缺少跨层级、跨业务的统一监管视图",
+          "resolvedTextStyle": {
+            "fontSize": 34,
+            "color": "#0B3F91",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "监管难点不是缺少系统，而是缺少跨层级、跨业务的统一监管视图",
+              "fontSize": 34,
+              "color": "#0B3F91",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 4,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/h0bapsby",
+      "id": "4",
+      "bbox": [
+        72,
+        94,
+        960,
+        34
+      ],
+      "geometry": "roundRect",
+      "text": "集团监管需要同时回答对象在哪里、风险怎么来、责任如何落、整改是否闭环",
+      "textPreview": "集团监管需要同时回答对象在哪里、风险怎么来、责任如何落、整改是否闭环",
+      "resolvedFontSize": 19,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 19,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "集团监管需要同时回答对象在哪里、风险怎么来、责任如何落、整改是否闭环"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "集团监管需要同时回答对象在哪里、风险怎么来、责任如何落、整改是否闭环",
+          "resolvedTextStyle": {
+            "fontSize": 19,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "集团监管需要同时回答对象在哪里、风险怎么来、责任如何落、整改是否闭环",
+              "fontSize": 19,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 5,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/wzitw7ud",
+      "id": "5",
+      "bbox": [
+        1056,
+        34,
+        150,
+        24
+      ],
+      "geometry": "roundRect",
+      "text": "中国电子云",
+      "textPreview": "中国电子云",
+      "resolvedFontSize": 18,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 18,
+        "typeface": "+mn-lt",
+        "color": "#0B3F91",
+        "bold": true,
+        "alignment": "right",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "中国电子云"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "中国电子云",
+          "resolvedTextStyle": {
+            "fontSize": 18,
+            "color": "#0B3F91",
+            "bold": true,
+            "alignment": "right"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "中国电子云",
+              "fontSize": 18,
+              "color": "#0B3F91",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 6,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vy9sn2t8",
+      "id": "6",
+      "bbox": [
+        80,
+        210,
+        260,
+        250
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 7,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ux0buxcn",
+      "id": "7",
+      "bbox": [
+        80,
+        210,
+        8,
+        250
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#176DFF",
+      "lineColor": "#176DFF",
+      "lineWidth": 1
+    },
+    {
+      "order": 8,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/d47ad8vu",
+      "id": "8",
+      "bbox": [
+        102,
+        228,
+        220,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "组织层级长",
+      "textPreview": "组织层级长",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "组织层级长"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "组织层级长",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "组织层级长",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 9,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/c3y9k3u9",
+      "id": "9",
+      "bbox": [
+        102,
+        268,
+        218,
+        178
+      ],
+      "geometry": "roundRect",
+      "text": "总部、二级单位、基层企业和项目账户分散，风险对象难以一次性定位。",
+      "textPreview": "总部、二级单位、基层企业和项目账户分散，风险对象难以一次性定位。",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "总部、二级单位、基层企"
+          },
+          {
+            "index": 2,
+            "text": "业和项目账户分散，风险"
+          },
+          {
+            "index": 3,
+            "text": "对象难以一次性定位。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "总部、二级单位、基层企业和项目账户分散，风险对象难以一次性定位。",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "总部、二级单位、基层企业和项目账户分散，风险对象难以一次性定位。",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 10,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ulg3ilgv",
+      "id": "10",
+      "bbox": [
+        372,
+        210,
+        260,
+        250
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 11,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/vmp4rqx0",
+      "id": "11",
+      "bbox": [
+        372,
+        210,
+        8,
+        250
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#F59E0B",
+      "lineColor": "#F59E0B",
+      "lineWidth": 1
+    },
+    {
+      "order": 12,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/gnylkvyl",
+      "id": "12",
+      "bbox": [
+        394,
+        228,
+        220,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "业务链条断",
+      "textPreview": "业务链条断",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "业务链条断"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "业务链条断",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "业务链条断",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 13,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ho7mt0f6",
+      "id": "13",
+      "bbox": [
+        394,
+        268,
+        218,
+        178
+      ],
+      "geometry": "roundRect",
+      "text": "投资、采购、合同、财务、司库、人事和资产数据分布在多系统，证据链拼接成本高。",
+      "textPreview": "投资、采购、合同、财务、司库、人事和资产数据分布在多系统，证据链拼接成本高。",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 4,
+        "lines": [
+          {
+            "index": 1,
+            "text": "投资、采购、合同、财务"
+          },
+          {
+            "index": 2,
+            "text": "、司库、人事和资产数据"
+          },
+          {
+            "index": 3,
+            "text": "分布在多系统，证据链拼"
+          },
+          {
+            "index": 4,
+            "text": "接成本高。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "投资、采购、合同、财务、司库、人事和资产数据分布在多系统，证据链拼接成本高。",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "投资、采购、合同、财务、司库、人事和资产数据分布在多系统，证据链拼接成本高。",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 14,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ipg3m5gr",
+      "id": "14",
+      "bbox": [
+        664,
+        210,
+        260,
+        250
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 15,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/3qp4vqxc",
+      "id": "15",
+      "bbox": [
+        664,
+        210,
+        8,
+        250
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#D92D20",
+      "lineColor": "#D92D20",
+      "lineWidth": 1
+    },
+    {
+      "order": 16,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/4rilovex",
+      "id": "16",
+      "bbox": [
+        686,
+        228,
+        220,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "处置节奏慢",
+      "textPreview": "处置节奏慢",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "处置节奏慢"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "处置节奏慢",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "处置节奏慢",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 17,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/5srmx0fi",
+      "id": "17",
+      "bbox": [
+        686,
+        268,
+        218,
+        178
+      ],
+      "geometry": "roundRect",
+      "text": "事前校验、事中监测、事后整改复核割裂，容易形成发现晚、流转慢、复盘弱。",
+      "textPreview": "事前校验、事中监测、事后整改复核割裂，容易形成发现晚、流转慢、复盘弱。",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 4,
+        "lines": [
+          {
+            "index": 1,
+            "text": "事前校验、事中监测、事"
+          },
+          {
+            "index": 2,
+            "text": "后整改复核割裂，容易形"
+          },
+          {
+            "index": 3,
+            "text": "成发现晚、流转慢、复盘"
+          },
+          {
+            "index": 4,
+            "text": "弱。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "事前校验、事中监测、事后整改复核割裂，容易形成发现晚、流转慢、复盘弱。",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "事前校验、事中监测、事后整改复核割裂，容易形成发现晚、流转慢、复盘弱。",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 18,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/qt03q5w3",
+      "id": "18",
+      "bbox": [
+        956,
+        210,
+        260,
+        250
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#FFFFFF",
+      "lineColor": "#D8E5F8",
+      "lineWidth": 1
+    },
+    {
+      "order": 19,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/ru94zax8",
+      "id": "19",
+      "bbox": [
+        956,
+        210,
+        8,
+        250
+      ],
+      "geometry": "roundRect",
+      "fillColor": "#16A36A",
+      "lineColor": "#16A36A",
+      "lineWidth": 1
+    },
+    {
+      "order": 20,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/nitk7adg",
+      "id": "20",
+      "bbox": [
+        978,
+        228,
+        220,
+        30
+      ],
+      "geometry": "roundRect",
+      "text": "责任边界虚",
+      "textPreview": "责任边界虚",
+      "resolvedFontSize": 22,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 22,
+        "typeface": "+mn-lt",
+        "color": "#1D2939",
+        "bold": true,
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "责任边界虚"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "责任边界虚",
+          "resolvedTextStyle": {
+            "fontSize": 22,
+            "color": "#1D2939",
+            "bold": true,
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "责任边界虚",
+              "fontSize": 22,
+              "color": "#1D2939",
+              "bold": true
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 21,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/2x03e5cv",
+      "id": "21",
+      "bbox": [
+        978,
+        268,
+        218,
+        178
+      ],
+      "geometry": "roundRect",
+      "text": "主体、资金、合同、资产、人员、规则、证据和责任没有统一关系表达。",
+      "textPreview": "主体、资金、合同、资产、人员、规则、证据和责任没有统一关系表达。",
+      "resolvedFontSize": 17,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 17,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 3,
+        "lines": [
+          {
+            "index": 1,
+            "text": "主体、资金、合同、资产"
+          },
+          {
+            "index": 2,
+            "text": "、人员、规则、证据和责"
+          },
+          {
+            "index": 3,
+            "text": "任没有统一关系表达。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "主体、资金、合同、资产、人员、规则、证据和责任没有统一关系表达。",
+          "resolvedTextStyle": {
+            "fontSize": 17,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "主体、资金、合同、资产、人员、规则、证据和责任没有统一关系表达。",
+              "fontSize": 17,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    },
+    {
+      "order": 22,
+      "kind": "shape",
+      "scope": "slide",
+      "aid": "sh/pkb29kvm",
+      "id": "22",
+      "bbox": [
+        72,
+        626,
+        620,
+        28
+      ],
+      "geometry": "roundRect",
+      "text": "痛点收敛：监管对象、证据链、处置链、责任链需要在同一平台内贯通。",
+      "textPreview": "痛点收敛：监管对象、证据链、处置链、责任链需要在同一平台内贯通。",
+      "resolvedFontSize": 15,
+      "resolvedTextStyle": {
+        "anchor": 1,
+        "fontSize": 15,
+        "typeface": "+mn-lt",
+        "color": "#667085",
+        "alignment": "left",
+        "verticalAlignment": "top",
+        "insets": {
+          "top": 5,
+          "right": 8,
+          "bottom": 5,
+          "left": 8
+        }
+      },
+      "textLayout": {
+        "lineCount": 1,
+        "lines": [
+          {
+            "index": 1,
+            "text": "痛点收敛：监管对象、证据链、处置链、责任链需要在同一平台内贯通。"
+          }
+        ]
+      },
+      "paragraphs": [
+        {
+          "index": 1,
+          "text": "痛点收敛：监管对象、证据链、处置链、责任链需要在同一平台内贯通。",
+          "resolvedTextStyle": {
+            "fontSize": 15,
+            "color": "#667085",
+            "alignment": "left"
+          },
+          "runs": [
+            {
+              "index": 1,
+              "text": "痛点收敛：监管对象、证据链、处置链、责任链需要在同一平台内贯通。",
+              "fontSize": 15,
+              "color": "#667085"
+            }
+          ],
+          "marginLeft": 0
+        }
+      ],
+      "lineWidth": 0
+    }
+  ],
+  "composeRuns": []
+}

@@ -1,0 +1,226 @@
+[
+  {
+    "kind": "slide",
+    "id": "sl/y90nupkv",
+    "slide": 1,
+    "title": "2026V1版本",
+    "textShapes": 2
+  },
+  {
+    "kind": "slide",
+    "id": "sl/hwbqtkby",
+    "slide": 2,
+    "title": "封面设计",
+    "textShapes": 1
+  },
+  {
+    "kind": "slide",
+    "id": "sl/ofy9wn61",
+    "slide": 3,
+    "title": "封面使用说明",
+    "textShapes": 5
+  },
+  {
+    "kind": "slide",
+    "id": "sl/jyx0ra1s",
+    "slide": 4,
+    "title": "XXXX 公司职称 ·人名",
+    "textShapes": 3
+  },
+  {
+    "kind": "slide",
+    "id": "sl/i107q5of",
+    "slide": 5,
+    "title": "XXXX 公司职称 ·人名",
+    "textShapes": 3
+  },
+  {
+    "kind": "slide",
+    "id": "sl/x8f69ofe",
+    "slide": 6,
+    "title": "类型：①目录页、②章节页",
+    "textShapes": 5
+  },
+  {
+    "kind": "slide",
+    "id": "sl/gnmp4jqx",
+    "slide": 7,
+    "title": "目录文字",
+    "textShapes": 2
+  },
+  {
+    "kind": "slide",
+    "id": "sl/fu1gfa1s",
+    "slide": 8,
+    "title": "内容版心设计说明",
+    "textShapes": 5
+  },
+  {
+    "kind": "slide",
+    "id": "sl/udsvah03",
+    "slide": 9,
+    "title": "主题色设计说明",
+    "textShapes": 25
+  },
+  {
+    "kind": "slide",
+    "id": "sl/m90b6t0r",
+    "slide": 10,
+    "title": "字体：①微软雅黑、②Arail（数字和英文使用Arail）",
+    "textShapes": 14
+  },
+  {
+    "kind": "slide",
+    "id": "sl/jetc3ut0",
+    "slide": 11,
+    "title": "圆角设计",
+    "textShapes": 5
+  },
+  {
+    "kind": "slide",
+    "id": "sl/8f2psfyx",
+    "slide": 12,
+    "title": "说明",
+    "textShapes": 8
+  },
+  {
+    "kind": "slide",
+    "id": "sl/hgzapcr6",
+    "slide": 13,
+    "title": "原子组件",
+    "textShapes": 2
+  },
+  {
+    "kind": "slide",
+    "id": "sl/6lsnupw7",
+    "slide": 14,
+    "title": "内容卡片",
+    "textShapes": 19
+  },
+  {
+    "kind": "slide",
+    "id": "sl/vaxsvy10",
+    "slide": 15,
+    "title": "元素组件",
+    "textShapes": 12
+  },
+  {
+    "kind": "slide",
+    "id": "sl/gny5sjyp",
+    "slide": 16,
+    "title": "图标库",
+    "textShapes": 2
+  },
+  {
+    "kind": "slide",
+    "id": "sl/14bup87q",
+    "slide": 17,
+    "title": "基础",
+    "textShapes": 42
+  },
+  {
+    "kind": "slide",
+    "id": "sl/y5wne50z",
+    "slide": 18,
+    "title": "基础",
+    "textShapes": 22
+  },
+  {
+    "kind": "slide",
+    "id": "sl/nid43ytk",
+    "slide": 19,
+    "title": "安全",
+    "textShapes": 33
+  },
+  {
+    "kind": "slide",
+    "id": "sl/zyxsni5k",
+    "slide": 20,
+    "title": "大数据",
+    "textShapes": 26
+  },
+  {
+    "kind": "slide",
+    "id": "sl/m1wvqtk3",
+    "slide": 21,
+    "title": "人工智能",
+    "textShapes": 26
+  },
+  {
+    "kind": "slide",
+    "id": "sl/5onypobq",
+    "slide": 22,
+    "title": "其他",
+    "textShapes": 22
+  },
+  {
+    "kind": "slide",
+    "id": "sl/c7uhcr6t",
+    "slide": 23,
+    "title": "反白图标",
+    "textShapes": 42
+  },
+  {
+    "kind": "slide",
+    "id": "sl/7qto7e10",
+    "slide": 24,
+    "title": "反白图标",
+    "textShapes": 22
+  },
+  {
+    "kind": "slide",
+    "id": "sl/69wfm9o7",
+    "slide": 25,
+    "title": "反白图标",
+    "textShapes": 33
+  },
+  {
+    "kind": "slide",
+    "id": "sl/l0bepsfm",
+    "slide": 26,
+    "title": "反白图标",
+    "textShapes": 26
+  },
+  {
+    "kind": "slide",
+    "id": "sl/4vyxknqp",
+    "slide": 27,
+    "title": "反白图标",
+    "textShapes": 26
+  },
+  {
+    "kind": "slide",
+    "id": "sl/3mdove10",
+    "slide": 28,
+    "title": "反白图标",
+    "textShapes": 22
+  },
+  {
+    "kind": "slide",
+    "id": "sl/i5o3q10v",
+    "slide": 29,
+    "title": "数据/连接",
+    "textShapes": 19
+  },
+  {
+    "kind": "slide",
+    "id": "sl/wnqh07ex",
+    "slide": 30,
+    "title": "插画图标",
+    "textShapes": 19
+  },
+  {
+    "kind": "slide",
+    "id": "sl/lcn6tkb6",
+    "slide": 31,
+    "title": "插画图标",
+    "textShapes": 19
+  },
+  {
+    "kind": "slide",
+    "id": "sl/6l0j294r",
+    "slide": 32,
+    "title": "设备图标",
+    "textShapes": 31
+  }
+]

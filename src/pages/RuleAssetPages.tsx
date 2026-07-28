@@ -40,8 +40,8 @@ const messageOf=(error:unknown)=>error instanceof Error?error.message:'操作失
 const dateText=(value:unknown)=>value?new Date(String(value)).toLocaleString('zh-CN',{hour12:false}):'—'
 const unique=(items:string[])=>[...new Set(items.filter(Boolean))]
 const outputsForRuleType=(type:RuleItem['type'])=>unique([...defaultOutputs,...(type==='关系路径'?['关系路径']:type==='时序'?['事件时间']:type==='聚合'?['聚合结果']:type==='高级表达式'?['表达式计算明细']:[])])
-const expressionFunctions=['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS'] as const
-const expressionFunctionLabels:Record<string,string>={SUM:'求和',AVG:'平均值',MAX:'最大值',MIN:'最小值',COUNT:'计数',COUNT_DISTINCT:'去重计数',EVENT_COUNT:'事件次数',EXISTS_PATH:'存在关系路径',DATE_DIFF:'日期差',ABS:'绝对值'}
+const expressionFunctions=['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','RATIO','SIMILARITY','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS','IN_LIST','TEXT_CLASSIFY'] as const
+const expressionFunctionLabels:Record<string,string>={SUM:'求和',AVG:'平均值',MAX:'最大值',MIN:'最小值',COUNT:'计数',COUNT_DISTINCT:'去重计数',RATIO:'比例',SIMILARITY:'相似度',EVENT_COUNT:'事件次数',EXISTS_PATH:'存在关系路径',DATE_DIFF:'日期差',ABS:'绝对值',IN_LIST:'名单匹配',TEXT_CLASSIFY:'文本分类'}
 function advancedExpressionIssue(value:string){
   const expression=value.trim()
   if(!expression)return '请填写高级表达式'
@@ -54,7 +54,7 @@ function advancedExpressionIssue(value:string){
   if(((expression.match(/"/g)||[]).length%2)||((expression.match(/'/g)||[]).length%2))return '表达式引号不匹配'
   if(/^(AND|OR)\b|\b(AND|OR|NOT)$/i.test(expression))return '表达式不能以逻辑运算符开头或结尾'
   if(!/(==|!=|>=|<=|>|<|\bEXISTS_PATH\s*\()/i.test(expression))return '表达式必须包含比较判断或关系存在判断'
-  const functions=[...expression.matchAll(/\b([A-Z][A-Z0-9_]*)\s*\(/g)].map((item)=>item[1])
+  const functions=[...expression.matchAll(/\b([A-Z][A-Z0-9_]*)\s*\(/g)].map((item)=>item[1]).filter((item)=>!['AND','OR','NOT'].includes(item))
   const unknown=functions.find((item)=>!expressionFunctions.includes(item as typeof expressionFunctions[number]))
   return unknown?`不支持函数 ${unknown}`:''
 }
@@ -452,7 +452,7 @@ function AggregateMetricRows({metrics,properties,readonly,onAdd,onUpdate,onRemov
   const options=numericProperties.length?numericProperties:properties
   return <div className="aggregate-metric-list">
     {metrics.length>0&&<div className="aggregate-metric-head"><span>序号</span><span>聚合函数</span><span>统计属性</span><span>运算符</span><span>阈值</span><span>操作</span></div>}
-    {metrics.map((metric,index)=><div className="aggregate-metric-row" key={metric.id}><b>{index+1}</b><select value={metric.function} disabled={readonly} onChange={(event)=>onUpdate(metric.id,{function:event.target.value})}><option>COUNT</option><option>SUM</option><option>AVG</option><option>MAX</option><option>MIN</option></select><select value={metric.fieldCode} disabled={readonly} onChange={(event)=>{const item=options.find((candidate)=>candidate.code===event.target.value);onUpdate(metric.id,{fieldCode:event.target.value,fieldName:item?.name||''})}}><option value="">选择统计属性</option>{options.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select><select value={metric.operator} disabled={readonly} onChange={(event)=>onUpdate(metric.id,{operator:event.target.value})}><option>大于</option><option>大于等于</option><option>等于</option><option>小于</option><option>小于等于</option></select><input type="number" value={metric.threshold} disabled={readonly} onChange={(event)=>onUpdate(metric.id,{threshold:Number(event.target.value)})}/>{!readonly&&<button type="button" onClick={()=>onRemove(metric.id)}><Icon name="close" size={14}/></button>}</div>)}
+    {metrics.map((metric,index)=><div className="aggregate-metric-row" key={metric.id}><b>{index+1}</b><select value={metric.function} disabled={readonly} onChange={(event)=>onUpdate(metric.id,{function:event.target.value})}><option>COUNT</option><option>COUNT_DISTINCT</option><option>SUM</option><option>AVG</option><option>MAX</option><option>MIN</option><option>RATIO</option><option>SIMILARITY</option></select><select value={metric.fieldCode} disabled={readonly} onChange={(event)=>{const item=options.find((candidate)=>candidate.code===event.target.value);onUpdate(metric.id,{fieldCode:event.target.value,fieldName:item?.name||''})}}><option value="">选择统计属性</option>{options.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select><select value={metric.operator} disabled={readonly} onChange={(event)=>onUpdate(metric.id,{operator:event.target.value})}><option>大于</option><option>大于等于</option><option>等于</option><option>小于</option><option>小于等于</option></select><input type="number" value={metric.threshold} disabled={readonly} onChange={(event)=>onUpdate(metric.id,{threshold:Number(event.target.value)})}/>{!readonly&&<button type="button" onClick={()=>onRemove(metric.id)}><Icon name="close" size={14}/></button>}</div>)}
     {!metrics.length&&<EmptyState title="尚未配置统计指标" description="添加一至三个统计指标，指标之间可按 AND 或 OR 组合。"/>}
     {!readonly&&<Button icon="plus" onClick={onAdd}>添加统计指标</Button>}
   </div>
