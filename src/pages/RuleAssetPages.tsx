@@ -33,7 +33,7 @@ const fallbackElements:OntologyElement[]=[
 ]
 type OntologyOption={id:string;name:string;status?:string;elements:OntologyElement[]}
 type GraphOption={id:string;status:string;ontologyId:string;graphName?:string;ontologyVersion?:string}
-type RuleCreateDraft={name:string;code:string;type:RuleItem['type'];levelMode:'inherit'|'override';level:RiskLevel;domain:string;ontologyId:string;objectCode:string;objectName:string;eventCode:string;eventName:string;graphVersion:string}
+type RuleCreateDraft={name:string;code:string;version:string;type:RuleItem['type'];levelMode:'inherit'|'override';level:RiskLevel;domain:string;ontologyId:string;objectCode:string;objectName:string;eventCode:string;eventName:string;graphVersion:string}
 type RuleEditorStep='basic'|'logic'|'governance'
 type GovernanceTab='policies'|'evidence'
 
@@ -117,7 +117,7 @@ function ruleGraphScope(rule:Pick<RuleItem,'graphVersion'|'ontologyId'|'eventNam
   const ontologyText=graph?.ontologyVersion||rule.ontologyId||'图谱结构由适用图谱带出'
   return{graphText,detailText:`${ontologyText}${rule.eventName?` · ${rule.eventName}`:''}`}
 }
-function makeNewRuleDraft():RuleCreateDraft{return{name:'',code:'',type:'高级表达式',levelMode:'inherit',level:'高',domain:'采购',ontologyId:'',objectCode:'',objectName:'',eventCode:'',eventName:'',graphVersion:''}}
+function makeNewRuleDraft():RuleCreateDraft{return{name:'',code:'',version:'V1',type:'高级表达式',levelMode:'inherit',level:'高',domain:'采购',ontologyId:'',objectCode:'',objectName:'',eventCode:'',eventName:'',graphVersion:''}}
 function editorRouteStep():RuleEditorStep{const value=routeParams().get('step');return value==='logic'||value==='governance'?value:'basic'}
 function generatedDetection(input:string,draft:RuleItem,elements:OntologyElement[]){
   const text=cleanSentence(input)
@@ -208,14 +208,16 @@ export function RuleAssetCreatePage(){
   const [saving,setSaving]=useState(false)
   const patch=(next:Partial<RuleCreateDraft>)=>{setDraft((value)=>({...value,...next}));setDirty(true)}
   useEffect(()=>{const handler=(event:BeforeUnloadEvent)=>{if(dirty&&!saving){event.preventDefault();event.returnValue=''}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler)},[dirty,saving])
-  const basicDone=Boolean(draft.name.trim()&&draft.domain&&draft.levelMode)
+  const basicDone=Boolean(draft.name.trim()&&draft.version.trim()&&draft.domain&&draft.levelMode)
   const targetPath=(ruleId:string,nextStep=false)=>{const params=new URLSearchParams();if(sceneId)params.set('sceneId',sceneId);if(nextStep)params.set('step','logic');const query=params.toString();return `/rules/${encodeURIComponent(ruleId)}${query?`?${query}`:''}`}
   const createDraft=async(nextStep=false)=>{
     if(saving)return
     if(!draft.name.trim()){setToast('规则名称不能为空');return}
+    const normalizedVersion=draft.version.trim().toUpperCase()
+    if(!normalizedVersion){setToast('规则版本号不能为空');return}
     setSaving(true)
     try{
-      const rule=await ruleClosureApi.createRule({name:draft.name.trim(),code:draft.code.trim()||undefined,type:draft.type,level:draft.levelMode==='inherit'?'继承场景':draft.level,domain:draft.domain})
+      const rule=await ruleClosureApi.createRule({name:draft.name.trim(),code:draft.code.trim()||undefined,version:normalizedVersion,type:draft.type,level:draft.levelMode==='inherit'?'继承场景':draft.level,domain:draft.domain})
       if(sceneId)await ruleClosureApi.selectRules(sceneId,[rule.versionId])
       setDirty(false)
       setToast(sceneId?'规则草稿已创建并关联当前场景':'规则草稿已创建')
@@ -224,23 +226,23 @@ export function RuleAssetCreatePage(){
   }
   const cancel=()=>{if(dirty&&!window.confirm('当前新建内容尚未保存，确认放弃并返回？'))return;navigate(returnPath)}
   const stepCards:Array<{key:RuleEditorStep;label:string;description:string;done:boolean}>=[
-    {key:'basic',label:'基本信息',description:'名称、领域与风险等级',done:basicDone},
+    {key:'basic',label:'基本信息',description:'名称、版本、领域与风险等级',done:basicDone},
     {key:'logic',label:'检测口径',description:'创建草稿后继续配置',done:false},
     {key:'governance',label:'依据与证据',description:'创建草稿后继续配置',done:false},
   ]
   return <>
-    <div className="simple-rule-header"><div><button className="back-button" onClick={cancel}>‹ {sceneId?'返回风险场景':'返回规则管理'}</button><p className="eyebrow">风险规则 / 新建规则</p><h1>{draft.name.trim()||'新增风险规则'}</h1><div className="editor-meta"><StatusTag>未创建</StatusTag><span>尚未生成规则版本</span><span>{dirty?'存在未保存修改':'填写基本信息后创建草稿'}</span></div></div></div>
+    <div className="simple-rule-header"><div><button className="back-button" onClick={cancel}>‹ {sceneId?'返回风险场景':'返回规则管理'}</button><p className="eyebrow">风险规则 / 新建规则</p><h1>{draft.name.trim()||'新增风险规则'}</h1><div className="editor-meta"><StatusTag>未创建</StatusTag><span>规则版本：{draft.version.trim()||'V1'}</span><span>{dirty?'存在未保存修改':'填写基本信息后创建草稿'}</span></div></div></div>
     <nav className="rule-editor-tabs" aria-label="规则配置步骤">{stepCards.map((step,index)=><button type="button" className={[step.key==='basic'?'active':'',step.done?'done':''].filter(Boolean).join(' ')} onClick={()=>step.key==='basic'?undefined:setToast('请先完成基本信息并点击下一步创建规则草稿')} key={step.key}><i>{step.done?'✓':index+1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span></button>)}</nav>
     <main className="rule-step-content">
-      <Panel title="1. 基本信息" subtitle="先填写规则资产的基础信息；适用图谱、检测口径和依据证据在创建草稿后继续配置">
+      <Panel title="1. 基本信息" subtitle="先填写规则资产基础信息；版本号默认 V1，可在发布前调整，适用图谱和检测口径在下一步配置">
         <div className="form-section two-column">
           <Field label="规则名称 *"><input value={draft.name} onChange={(event)=>patch({name:event.target.value})} placeholder="例如：供应商与评审人员联系电话相同"/></Field>
           <Field label="规则编码"><input value={draft.code} onChange={(event)=>patch({code:event.target.value.toUpperCase()})} placeholder="留空自动生成"/></Field>
           <Field label="监管领域 *"><select value={draft.domain} onChange={(event)=>patch({domain:event.target.value})}>{domains.map((item)=><option key={item}>{item}</option>)}</select></Field>
           <Field label="命中风险等级"><select value={draft.levelMode==='inherit'?'inherit':draft.level} onChange={(event)=>event.target.value==='inherit'?patch({levelMode:'inherit'}):patch({levelMode:'override',level:event.target.value as RiskLevel})}><option value="inherit">继承场景默认等级</option>{levels.map((item)=><option value={item} key={item}>固定为：{item}</option>)}</select></Field>
-          <Field label="规则版本"><input value="创建后自动生成 v0.1" disabled/></Field>
+          <Field label="规则版本号 *"><input value={draft.version} onChange={(event)=>patch({version:event.target.value.toUpperCase()})} placeholder="例如：V1"/></Field>
         </div>
-        <div className="next-action-card"><Icon name={basicDone?'check':'clock'}/><div><strong>{basicDone?'基本信息已完整':'请先补齐基本信息'}</strong><span>{basicDone?'点击下一步后创建规则草稿，并进入检测口径配置。':'至少填写规则名称、监管领域和命中风险等级。'}</span></div></div>
+        <div className="next-action-card"><Icon name={basicDone?'check':'clock'}/><div><strong>{basicDone?'基本信息已完整':'请先补齐基本信息'}</strong><span>{basicDone?'点击下一步后创建规则草稿，并进入检测口径配置。':'至少填写规则名称、规则版本号、监管领域和命中风险等级。'}</span></div></div>
       </Panel>
     </main>
     <footer className="editor-action-bar"><div><span className={dirty?'dirty-dot':''}/><strong>{dirty?'新建内容尚未保存':'尚未创建规则草稿'}</strong><small>{sceneId?'创建后会自动关联当前风险场景':'创建后可被多个风险场景引用'}</small></div><div><Button onClick={cancel}>取消</Button><Button disabled={saving} onClick={()=>void createDraft(false)}>{saving?'正在创建…':'保存草稿'}</Button><Button variant="primary" disabled={saving} onClick={()=>void createDraft(true)}>{saving?'正在创建…':'下一步'}</Button></div></footer>
@@ -370,7 +372,7 @@ export function RuleAssetEditorPage(){
     const pathConfig={...draft.pathConfig,logic:draft.pathConfig.logic||'AND',constraints:pathConstraints}
     const timeConfig={...draft.timeConfig,baseline:usesTimeWindow?scopeBaseline:'runtime',logic:draft.timeConfig.logic||'AND',conditions:draft.type==='时序'?timeConditions:[],eventCode:draft.type==='时序'?(firstTime?.eventCode||''):'',windowValue:Number(draft.timeConfig.windowValue??30),windowUnit:draft.timeConfig.windowUnit||'天',direction:draft.timeConfig.direction||'之前'}
     const aggregateConfig={...draft.aggregateConfig,logic:draft.aggregateConfig.logic||'AND',metrics:aggregateMetrics,function:firstMetric?.function||'COUNT',fieldCode:firstMetric?.fieldCode||'',operator:firstMetric?.operator||'大于等于',threshold:Number(firstMetric?.threshold||0)}
-    return{name:draft.name,domain:draft.domain,objectCode:draft.objectCode,objectName:draft.objectName,eventCode:usesTimeWindow&&scopeBaseline==='event'?draft.eventCode:'',eventName:usesTimeWindow&&scopeBaseline==='event'?draft.eventName:'',ontologyId:draft.ontologyId,graphVersion:draft.graphVersion,type:draft.type,level:draft.levelMode==='inherit'?'继承场景':draft.level,enabled:true,conditions:normalizedConditions(),pathConfig,timeConfig,aggregateConfig,exceptions:draft.exceptions,outputs:outputsForRuleType(draft.type),evidenceRequirements,policies,failureStrategy:draft.failureStrategy,lockVersion:rule?.lockVersion||draft.lockVersion}
+    return{version:draft.version.trim().toUpperCase(),name:draft.name,domain:draft.domain,objectCode:draft.objectCode,objectName:draft.objectName,eventCode:usesTimeWindow&&scopeBaseline==='event'?draft.eventCode:'',eventName:usesTimeWindow&&scopeBaseline==='event'?draft.eventName:'',ontologyId:draft.ontologyId,graphVersion:draft.graphVersion,type:draft.type,level:draft.levelMode==='inherit'?'继承场景':draft.level,enabled:true,conditions:normalizedConditions(),pathConfig,timeConfig,aggregateConfig,exceptions:draft.exceptions,outputs:outputsForRuleType(draft.type),evidenceRequirements,policies,failureStrategy:draft.failureStrategy,lockVersion:rule?.lockVersion||draft.lockVersion}
   }
   const save=async(silent=false)=>{
     if(!draft||!rule)return null
@@ -427,12 +429,12 @@ export function RuleAssetEditorPage(){
   const logicDone=Boolean(effectiveDetectionText.trim()&&!advancedIssue)
   const currentStatus=displayStatus({...draft,conditions:normalizedConditions()})
 
-  const basicDone=Boolean(draft.name.trim()&&draft.domain&&draft.levelMode)
+  const basicDone=Boolean(draft.name.trim()&&draft.version.trim()&&draft.domain&&draft.levelMode)
   const scopeDone=Boolean(draft.ontologyId&&draft.graphVersion)
   const dataLogicDone=scopeDone&&logicDone
   const allDone=basicDone&&dataLogicDone&&governanceDone
   const editorSteps:Array<{key:RuleEditorStep;label:string;description:string;done:boolean;incomplete:string}>=[
-    {key:'basic',label:'基本信息',description:'名称、领域与风险等级',done:basicDone,incomplete:'请先填写规则名称、监管领域和命中风险等级'},
+    {key:'basic',label:'基本信息',description:'名称、版本、领域与风险等级',done:basicDone,incomplete:'请先填写规则名称、规则版本号、监管领域和命中风险等级'},
     {key:'logic',label:'检测口径',description:'规则描述、标准口径与表达式',done:dataLogicDone,incomplete:'请填写规则描述，生成或填写标准检测口径和表达式，并确认适用图谱'},
     {key:'governance',label:'依据与证据',description:'制度依据与证据要求',done:governanceDone,incomplete:'请至少配置一条制度依据和一项完整的证据要求'},
   ]
@@ -442,16 +444,16 @@ export function RuleAssetEditorPage(){
   const goNext=()=>{const current=editorSteps[activeIndex];if(!current.done){setToast(current.incomplete);return}if(activeIndex<editorSteps.length-1)setActiveStep(editorSteps[activeIndex+1].key)}
   const goPrevious=()=>{if(activeIndex>0)setActiveStep(editorSteps[activeIndex-1].key)}
   return <>
-    <div className="simple-rule-header"><div><button className="back-button" onClick={cancel}>‹ {sceneId?'返回风险场景':'返回规则管理'}</button><p className="eyebrow">风险规则 / {rule.code} / {rule.version}</p><h1>{draft.name}</h1><div className="editor-meta"><StatusTag>{currentStatus}</StatusTag><span>被 {draft.bindingCount||0} 个场景版本引用</span><span>{dirty?'存在未保存修改':'最近保存：'+dateText(rule.updatedAt)}</span></div></div></div>
+    <div className="simple-rule-header"><div><button className="back-button" onClick={cancel}>‹ {sceneId?'返回风险场景':'返回规则管理'}</button><p className="eyebrow">风险规则 / {rule.code} / {draft.version}</p><h1>{draft.name}</h1><div className="editor-meta"><StatusTag>{currentStatus}</StatusTag><span>被 {draft.bindingCount||0} 个场景版本引用</span><span>{dirty?'存在未保存修改':'最近保存：'+dateText(rule.updatedAt)}</span></div></div></div>
     <nav className="rule-editor-tabs" aria-label="规则配置步骤">{editorSteps.map((step,index)=>{const hasIssue=issues.some((issue)=>issueStep(issue)===step.key);return <button type="button" className={[activeStep===step.key?'active':'',step.done?'done':'',hasIssue?'error':''].filter(Boolean).join(' ')} onClick={()=>setActiveStep(step.key)} key={step.key}><i>{step.done?'✓':index+1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span></button>})}</nav>
     {issues.length>0&&<section className="rule-validation-banner"><div><Icon name="warning"/><span><strong>还有 {issues.length} 项需要完成</strong><small>点击问题可直接进入对应配置步骤</small></span></div><div>{issues.map((issue,index)=><button type="button" onClick={()=>goToIssue(issue)} key={issue.field+'-'+index}>{issue.message}</button>)}</div></section>}
     <main className="rule-step-content">
-      {activeStep==='basic'&&<Panel title="1. 基本信息" subtitle="维护规则资产信息以及命中后的风险等级"><div className="form-section two-column">
+      {activeStep==='basic'&&<Panel title="1. 基本信息" subtitle="维护规则资产信息、规则版本号以及命中后的风险等级"><div className="form-section two-column">
         <Field label="规则名称 *"><input value={draft.name} disabled={readonly} onChange={(event)=>patch({name:event.target.value})}/></Field>
         <Field label="规则编码"><input value={rule.code} disabled/></Field>
         <Field label="监管领域 *"><select value={draft.domain||'采购'} disabled={readonly} onChange={(event)=>patch({domain:event.target.value})}>{domains.map((item)=><option key={item}>{item}</option>)}</select></Field>
         <Field label="命中风险等级"><select value={draft.levelMode==='inherit'?'inherit':draft.level} disabled={readonly} onChange={(event)=>event.target.value==='inherit'?patch({levelMode:'inherit'}):patch({levelMode:'override',level:event.target.value as RiskLevel})}><option value="inherit">继承场景默认等级</option>{levels.map((item)=><option value={item} key={item}>固定为：{item}</option>)}</select></Field>
-        <Field label="规则版本"><input value={rule.version} disabled/></Field>
+        <Field label="规则版本号 *"><input value={draft.version} disabled={readonly} onChange={(event)=>patch({version:event.target.value.toUpperCase()})} placeholder="例如：V1"/></Field>
       </div><div className="rule-basic-summary"><div><span>当前状态</span><strong>{currentStatus}</strong></div><div><span>引用场景</span><strong>{draft.bindingCount||0} 个版本</strong></div><div><span>最近保存</span><strong>{dateText(rule.updatedAt)}</strong></div></div></Panel>}
       {activeStep==='logic'&&<Panel title="2. 检测口径" subtitle="先选择适用图谱，再用自然语言描述检测规则，系统生成标准口径和可编辑表达式">
         <div className="rule-editor-section detection-graph-section">
