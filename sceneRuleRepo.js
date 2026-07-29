@@ -98,7 +98,7 @@ export function mapSceneRow(row, rules = [], skills = [], versions = []) {
     enabledRuleCount:rules.length?rules.filter((item)=>item.enabled).length:Number(row.enabled_rule_count||0), versions,
     skills,skillCount:skills.length||Number(row.skill_count||0),
     enabledSkillCount:skills.length?skills.filter((item)=>item.enabled).length:Number(row.enabled_skill_count||0),
-    canDelete:editableSceneStatuses.has(row.status)&&Number(row.version_count||versions.length||0)===1&&Number(row.run_count||0)===0,
+    canDelete:editableSceneStatuses.has(row.status)&&Number(row.run_count||0)===0,
   }
 }
 

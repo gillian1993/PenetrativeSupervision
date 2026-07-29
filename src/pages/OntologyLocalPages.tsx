@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useOntologyStore, type OntologyElement, type OntologyElementType } from '../ontologyMysqlStore'
 import { useAppStore } from '../store'
 import { Button, Drawer, EmptyState, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, StatusTag, Tabs } from '../ui'
@@ -59,7 +59,7 @@ const rememberEditorMode = (ontologyId: string, mode: OntologyEditorMode) => {
 export function OntologyListPage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate()
   const ontologies = useOntologyStore((state) => state.ontologies)
-  const createOntology = useOntologyStore((state) => state.createOntology)
+
   const copyOntology = useOntologyStore((state) => state.copyOntology)
   const deleteOntology = useOntologyStore((state) => state.deleteOntology)
   const retireOntology = useOntologyStore((state) => state.retireOntology)
@@ -69,23 +69,13 @@ export function OntologyListPage({ embedded = false }: { embedded?: boolean } = 
   const setToast = useAppStore((state) => state.setToast)
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('全部')
-  const [createOpen, setCreateOpen] = useState(false)
-  const [form, setForm] = useState(createInitial)
+
   const [target, setTarget] = useState<(typeof ontologies)[number] | null>(null)
   const [retireTarget, setRetireTarget] = useState<(typeof ontologies)[number] | null>(null)
   const [listDeleteTarget, setListDeleteTarget] = useState<(typeof ontologies)[number] | null>(null)
 
   const rows = useMemo(() => ontologies.filter((item) => (!keyword || `${productText(item.name)}${item.id}${item.domain}`.toLowerCase().includes(keyword.toLowerCase())) && (status === '全部' || item.status === status)), [ontologies, keyword, status])
 
-  const create = async () => {
-    const result = await createOntology(form)
-    setToast(result.message)
-    if (!result.ok || !result.objectId) return
-    addAudit({ operator: '尹晨阳', organization: '集团监管部', action: '新建图谱结构', objectType: '图谱结构', objectId: result.objectId, summary: `${form.name} / ${form.domain}`, result: '成功', risk: '普通' })
-    setCreateOpen(false)
-    setForm(createInitial)
-    navigate(`/ontology/${result.objectId}`)
-  }
 
   const confirmVersionAction = async () => {
     if (!target) return
@@ -117,19 +107,78 @@ export function OntologyListPage({ embedded = false }: { embedded?: boolean } = 
   }
 
   return <>
-    {!embedded && <PageHeader eyebrow="知识图谱 / 图谱结构" title="图谱结构" description="维护知识图谱中的类、属性与关系定义。" actions={<><Button icon="refresh" onClick={() => setToast('图谱结构列表已刷新')}>刷新</Button><Button variant="primary" icon="plus" onClick={() => setCreateOpen(true)}>新建图谱结构</Button></>}/>}
-    {embedded && <div className="section-toolbar"><div><strong>图谱结构</strong><span>维护知识图谱中的类、属性与关系定义。</span></div><div className="page-actions"><Button icon="refresh" onClick={() => setToast('图谱结构列表已刷新')}>刷新</Button><Button variant="primary" icon="plus" onClick={() => setCreateOpen(true)}>新建图谱结构</Button></div></div>}
+    {!embedded && <PageHeader eyebrow="知识图谱 / 图谱结构" title="图谱结构" description="维护知识图谱中的类、属性与关系定义。" actions={<><Button icon="refresh" onClick={() => setToast('图谱结构列表已刷新')}>刷新</Button><Button variant="primary" icon="plus" onClick={() => navigate('/ontology/new')}>新建图谱结构</Button></>}/>}
+    {embedded && <div className="section-toolbar"><div><strong>图谱结构</strong><span>维护知识图谱中的类、属性与关系定义。</span></div><div className="page-actions"><Button icon="refresh" onClick={() => setToast('图谱结构列表已刷新')}>刷新</Button><Button variant="primary" icon="plus" onClick={() => navigate('/ontology/new')}>新建图谱结构</Button></div></div>}
     <FilterGrid onReset={() => { setKeyword(''); setStatus('全部') }} onSearch={() => setToast(`查询完成，共${rows.length}个图谱结构`)}><Field label="关键词"><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="结构名称、编码或领域"/></Field><Field label="状态"><select value={status} onChange={(event) => setStatus(event.target.value)}><option>全部</option><option>草稿</option><option>待校验</option><option>已发布</option><option>已下架</option><option>已废止</option></select></Field></FilterGrid>
     <Panel title="图谱结构列表" subtitle="已发布和已下架版本只读，变更必须复制新版本">{rows.length === 0 ? <EmptyState title="没有符合条件的图谱结构" description="请调整筛选条件或新建图谱结构。"/> : <div className="table-container"><table><thead><tr><th>结构名称 / 编码</th><th>范围 / 领域</th><th>版本</th><th>类 / 属性 / 关系</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/ontology/${item.id}`)}><strong>{productText(item.name)}</strong><span>{item.id}</span></button></td><td>{productText(item.scope)}<small className="cell-sub">{item.domain}</small></td><td>{item.version}</td><td><span className="metrics-inline"><b>{item.classes}</b>类 · <b>{item.properties}</b>属性 · <b>{item.relations}</b>关系</span></td><td><StatusTag>{item.status}</StatusTag></td><td>{item.updatedAt}</td><td><div className="row-actions"><button onClick={() => navigate(`/ontology/${item.id}`)}>{isReadonlyOntology(item.status) ? '查看' : '编辑'}</button><button onClick={() => setTarget(item)}>{ontologyActionLabel(item.status)}</button>{item.status === '已发布' && <button onClick={() => setRetireTarget(item)}>下架</button>}<button className="danger-link" onClick={() => setListDeleteTarget(item)}>删除</button></div></td></tr>)}</tbody></table></div>}</Panel>
-    <Modal open={createOpen} title="新建图谱结构" description="创建独立草稿后，可继续配置类、属性和关系。" confirmText="创建并编辑" onClose={() => setCreateOpen(false)} onConfirm={create}><div className="form-stack"><Field label="结构名称 *"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="例如：供应链监管图谱结构"/></Field><Field label="结构编码 *"><input value={form.id} onChange={(event) => setForm({ ...form, id: event.target.value })} placeholder="请输入唯一的结构编码"/></Field><Field label="适用范围"><select value={form.scope} onChange={(event) => setForm({ ...form, scope: event.target.value })}><option>领域图谱结构</option><option>基础图谱结构</option></select></Field><Field label="监管领域"><select value={form.domain} onChange={(event) => setForm({ ...form, domain: event.target.value })}><option>采购</option><option>合同</option><option>财务</option><option>投资</option><option>通用</option></select></Field><Field label="结构说明"><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="说明图谱结构覆盖的业务对象、业务记录和边界"/></Field></div></Modal>
+
     <Modal open={!!target} title={ontologyActionTitle(target?.status)} description={target ? `${productText(target.name)} ${target.version}` : ''} confirmText={ontologyActionConfirm(target?.status)} onClose={() => setTarget(null)} onConfirm={confirmVersionAction}><div className="publish-checklist">{['基本信息完整','至少定义一个类','属性和关系引用真实类','结构元素与引用完整','发布/下架后版本只读'].map((label, index) => { const pass = index === 1 ? Boolean(target && target.classes > 0) : index === 2 || index === 3 ? Boolean(target && (target.validation?.blockers.length || 0) === 0) : true; return <div key={label}><Icon name={pass ? 'check' : 'warning'}/><span>{label}</span><StatusTag>{pass ? '通过' : '未通过'}</StatusTag></div> })}</div></Modal>
     <Modal open={!!retireTarget} title="下架图谱结构" description={retireTarget ? `${productText(retireTarget.name)} · ${retireTarget.id}` : ''} confirmText="确认下架" onClose={() => setRetireTarget(null)} onConfirm={retire}><div className="alert-box"><Icon name="warning"/><span>下架后该图谱结构不再允许新业务引用，但历史数据、引用关系和审计记录会继续保留；如需调整请复制新版本。</span></div></Modal>
     <Modal open={!!listDeleteTarget} title={deleteOntologyTitle(listDeleteTarget?.status)} description={listDeleteTarget ? `${productText(listDeleteTarget.name)} · ${listDeleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setListDeleteTarget(null)} onConfirm={remove}><div className="alert-box danger"><Icon name="warning"/><span>{deleteOntologyNotice(listDeleteTarget?.status)}</span></div></Modal>
   </>
 }
+export function OntologyCreatePage() {
+  const navigate = useNavigate()
+  const createOntology = useOntologyStore((state) => state.createOntology)
+  const addAudit = useAppStore((state) => state.addAudit)
+  const setToast = useAppStore((state) => state.setToast)
+  const [form, setForm] = useState(createInitial)
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const patch = (next: Partial<typeof createInitial>) => { setForm((value) => ({ ...value, ...next })); setDirty(true) }
+  useEffect(() => {
+    const handler = (event: BeforeUnloadEvent) => {
+      if (!dirty || saving) return
+      event.preventDefault(); event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty, saving])
+  const basicDone = Boolean(form.name.trim() && form.scope && form.domain && form.description.trim())
+  const createDraft = async (nextStep = false) => {
+    if (saving) return
+    if (!form.name.trim()) { setToast('结构名称不能为空'); return }
+    if (!form.description.trim()) { setToast('请填写结构说明'); return }
+    setSaving(true)
+    const payload = { ...form, id: form.id.trim().toUpperCase(), name: form.name.trim(), description: form.description.trim() }
+    const result = await createOntology(payload)
+    setToast(result.message)
+    if (!result.ok || !result.objectId) { setSaving(false); return }
+    addAudit({ operator: '尹晨阳', organization: '集团监管部', action: '新建图谱结构', objectType: '图谱结构', objectId: result.objectId, summary: `${payload.name} / ${payload.domain}`, result: '成功', risk: '普通' })
+    setDirty(false)
+    navigate(`/ontology/${encodeURIComponent(result.objectId)}${nextStep ? '?tab=class' : ''}`, { replace: true })
+  }
+  const cancel = () => { if (dirty && !window.confirm('当前新建内容尚未保存，确认放弃并返回？')) return; navigate('/graphs/structures') }
+  const stepCards = [
+    { key: 'basic', label: '基本信息', description: '名称、编码、范围与说明', done: basicDone },
+    { key: 'class', label: '类定义', description: '创建草稿后继续配置', done: false },
+    { key: 'relation', label: '属性与关系', description: '创建草稿后继续配置', done: false },
+  ]
+  return <>
+    <div className="simple-rule-header"><div><button className="back-button" onClick={cancel}>‹ 返回图谱结构</button><p className="eyebrow">图谱结构 / 新建图谱结构</p><h1>{form.name.trim() || '新增图谱结构'}</h1><div className="editor-meta"><StatusTag>未创建</StatusTag><span>尚未生成图谱结构版本</span><span>{dirty ? '存在未保存修改' : '填写基本信息后创建草稿'}</span></div></div></div>
+    <nav className="rule-editor-tabs" aria-label="图谱结构创建步骤">{stepCards.map((step, index) => <button type="button" className={[step.key === 'basic' ? 'active' : '', step.done ? 'done' : ''].filter(Boolean).join(' ')} onClick={() => step.key === 'basic' ? undefined : setToast('请先完成基本信息并点击下一步创建图谱结构草稿')} key={step.key}><i>{step.done ? '✓' : index + 1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span></button>)}</nav>
+    <main className="rule-step-content">
+      <Panel title="1. 基本信息" subtitle="先创建图谱结构草稿；类、属性、关系和版本校验在编辑页继续维护">
+        <div className="form-section two-column">
+          <Field label="结构名称 *"><input value={form.name} onChange={(event) => patch({ name: event.target.value })} placeholder="例如：供应链监管图谱结构"/></Field>
+          <Field label="结构编码"><input value={form.id} onChange={(event) => patch({ id: event.target.value.toUpperCase() })} placeholder="留空自动生成"/></Field>
+          <Field label="结构类型 *"><select value={form.scope} onChange={(event) => patch({ scope: event.target.value })}><option>领域图谱结构</option><option>基础图谱结构</option></select></Field>
+          <Field label="监管领域 *"><select value={form.domain} onChange={(event) => patch({ domain: event.target.value })}><option>采购</option><option>合同</option><option>财务</option><option>投资</option><option>通用</option></select></Field>
+          <Field label="结构说明 *" wide><textarea value={form.description} onChange={(event) => patch({ description: event.target.value })} placeholder="说明图谱结构覆盖的业务对象、业务记录和边界"/></Field>
+        </div>
+        <div className="next-action-card"><Icon name={basicDone ? 'check' : 'clock'}/><div><strong>{basicDone ? '基本信息已完整' : '请先补齐基本信息'}</strong><span>{basicDone ? '点击下一步后创建图谱结构草稿，并进入类定义配置。' : '至少填写结构名称、结构类型、监管领域和结构说明；结构编码可留空自动生成。'}</span></div></div>
+      </Panel>
+    </main>
+    <footer className="editor-action-bar"><div><span className={dirty ? 'dirty-dot' : ''}/><strong>{dirty ? '新建内容尚未保存' : '尚未创建图谱结构草稿'}</strong><small>创建后可继续维护类、属性和关系</small></div><div><Button onClick={cancel}>取消</Button><Button disabled={saving} onClick={() => void createDraft(false)}>{saving ? '正在创建…' : '保存草稿'}</Button><Button variant="primary" disabled={saving} onClick={() => void createDraft(true)}>{saving ? '正在创建…' : '下一步'}</Button></div></footer>
+  </>
+}
+
 export function OntologyEditorPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const requestedTab = searchParams.get('tab') || 'basic'
+  const normalizedRequestedTab = ['basic','class','property','relation','versions'].includes(requestedTab) ? requestedTab : 'basic'
   const item = useOntologyStore((state) => state.ontologies.find((row) => row.id === id))
   const updateOntology = useOntologyStore((state) => state.updateOntology)
   const copyOntology = useOntologyStore((state) => state.copyOntology)
@@ -138,7 +187,7 @@ export function OntologyEditorPage() {
   const deleteElement = useOntologyStore((state) => state.deleteElement)
   const addAudit = useAppStore((state) => state.addAudit)
   const setToast = useAppStore((state) => state.setToast)
-  const [tab, setTab] = useState('basic')
+  const [tab, setTab] = useState(normalizedRequestedTab)
   const [editorMode, setEditorMode] = useState<OntologyEditorMode>(() => readEditorMode(id) || 'structured')
   const [draft, setDraft] = useState({ name: '', scope: '领域图谱结构', domain: '采购', description: '' })
   const [elementOpen, setElementOpen] = useState(false)
@@ -160,9 +209,9 @@ export function OntologyEditorPage() {
   useEffect(() => {
     if (!item) return
     setEditorMode(readEditorMode(item.id) || (isReadonlyOntology(item.status) ? 'visual' : 'structured'))
-    setTab('basic')
+    setTab(normalizedRequestedTab)
     modeScrollPositions.current = { structured: 0, visual: 0 }
-  }, [item?.id])
+  }, [item?.id, normalizedRequestedTab])
 
   if (!item) return <EmptyState title="图谱结构版本不存在" description="请从图谱结构列表选择可访问版本。"/>
   const readonly = isReadonlyOntology(item.status)

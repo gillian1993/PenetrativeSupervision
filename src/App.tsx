@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { AuditPage, DataSourceDetailPage, GraphManagementPage, ModelManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
+import { AuditPage, DataSourceCreatePage, DataSourceDetailPage, GraphManagementPage, ModelManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
 import { ProcurementHomePage, ProcurementModulePage, ProcurementOverviewPage, SuperAgentPage } from './pages/ProcurementApplicationPages'
 import { GraphCreatePage } from './pages/GraphCreateWizard'
-import { SceneEditorPage, SceneListPage } from './pages/SceneRulePages'
+import { SceneCreatePage, SceneEditorPage, SceneListPage } from './pages/SceneRulePages'
 import { RuleAssetCreatePage, RuleAssetEditorPage, RuleAssetManagementPage } from './pages/RuleAssetPages'
-import { OntologyEditorPage } from './pages/OntologyLocalPages'
+import { OntologyCreatePage, OntologyEditorPage } from './pages/OntologyLocalPages'
 import { SituationPage, WorkbenchPage } from './pages/OverviewPages'
 import { RiskEventDetailPage, RiskEventListPage, WarningDetailPage, WarningListPage } from './pages/RiskPages'
 import { demoDataApi } from './demoDataApi'
@@ -371,6 +371,7 @@ function AppEnhanced() {
       <Route path="/risk/events" element={<RiskEventListPage/>}/>
       <Route path="/risk/events/:id" element={<RiskEventDetailPage/>}/>
       <Route path="/scenes" element={<SceneListPage/>}/>
+      <Route path="/scenes/new" element={<SceneCreatePage/>}/>
       <Route path="/scenes/:id" element={<SceneEditorPage key={location.key}/>}/>
       <Route path="/rules" element={<RuleAssetManagementPage/>}/>
       <Route path="/rules/new" element={<RuleAssetCreatePage/>}/>
@@ -378,12 +379,16 @@ function AppEnhanced() {
       <Route path="/skills" element={<Navigate to="/rules" replace/>}/>
       <Route path="/skills/:id" element={<Navigate to="/rules" replace/>}/>
       <Route path="/ontology" element={<Navigate to="/graphs/structures" replace/>}/>
+      <Route path="/ontology/new" element={<OntologyCreatePage/>}/>
       <Route path="/ontology/:id" element={<OntologyEditorPage/>}/>
       <Route path="/data-access" element={<Navigate to="/graphs/sources" replace/>}/>
+      <Route path="/data-access/new" element={<DataSourceCreatePage/>}/>
       <Route path="/data-access/:id" element={<DataSourceDetailPage/>}/>
       <Route path="/graphs" element={<GraphManagementPage/>}/>
       <Route path="/graphs/structures" element={<GraphManagementPage/>}/>
+      <Route path="/graphs/structures/new" element={<OntologyCreatePage/>}/>
       <Route path="/graphs/sources" element={<GraphManagementPage/>}/>
+      <Route path="/graphs/sources/new" element={<DataSourceCreatePage/>}/>
       <Route path="/graphs/new" element={<GraphCreatePage/>}/>
       <Route path="/graphs/:id/edit" element={<GraphCreatePage/>}/>
       <Route path="/graphs/sources/:id" element={<DataSourceDetailPage/>}/>
