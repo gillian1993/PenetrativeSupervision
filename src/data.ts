@@ -67,16 +67,16 @@ export const ontologies: OntologyItem[] = [
 ]
 
 export const dataSources: DataSourceItem[] = [
-  { id: 'SRC-ERP', name: '集团ERP采购视图', mode: '数据库视图', range: '采购项目、订单、供应商', owner: '张海', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '今天 11:52', status: '启用' },
-  { id: 'SRC-OA', name: 'OA审批事件接口', mode: 'API', range: '审批实例、节点、意见', owner: '刘敏', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '今天 12:06', status: '启用' },
-  { id: 'SRC-TREASURY', name: '司库付款消息', mode: '消息', range: '付款申请、账户、流水', owner: '王宁', ontologyIds: ['ONT-FIN'], ontologyNames: ['财务资金扩展图谱结构'], lastSuccess: '今天 12:08', status: '启用' },
-  { id: 'SRC-EXTERNAL', name: '工商司法外部数据', mode: 'API', range: '主体、股东、司法风险', owner: '陈洁', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '昨天 23:00', status: '异常' },
+  { id: 'SRC-ERP', name: '集团ERP采购视图', mode: '数据库接入', range: '采购项目、订单、供应商', owner: '张海', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '今天 11:52', status: '启用' },
+  { id: 'SRC-OA', name: 'OA审批事件接口', mode: '接口接入', range: '审批实例、节点、意见', owner: '刘敏', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '今天 12:06', status: '启用' },
+  { id: 'SRC-TREASURY', name: '司库付款接口', mode: '接口接入', range: '付款申请、账户、流水', owner: '王宁', ontologyIds: ['ONT-FIN'], ontologyNames: ['财务资金扩展图谱结构'], lastSuccess: '今天 12:08', status: '启用' },
+  { id: 'SRC-EXTERNAL', name: '工商司法外部数据', mode: '接口接入', range: '主体、股东、司法风险', owner: '陈洁', ontologyIds: ['ONT-PROC'], ontologyNames: ['采购监管扩展图谱结构'], lastSuccess: '昨天 23:00', status: '异常' },
 ]
 
 export const graphVersions: GraphVersion[] = [
   { id: 'GRAPH-20260717.2', graphCode: 'PROCUREMENT-RISK', graphName: '采购监管图谱', ontologyId: 'ONT-PROC', ontologyVersion: 'BASE v1.6 / PROC v2.2', mappingVersion: 'MAP v3.4', range: '2026-01-01 至 2026-07-17', sourceIds: ['SRC-ERP', 'SRC-OA'], sourceNames: ['集团ERP采购视图', 'OA审批事件接口'], entities: 128542, relations: 309861, events: 48210, blockers: 0, warnings: 8, status: '已发布', publishedAt: '今天 08:45' },
   { id: 'GRAPH-20260717.3', graphCode: 'PROCUREMENT-RISK', graphName: '采购监管图谱', ontologyId: 'ONT-PROC', ontologyVersion: 'BASE v1.6 / PROC v2.2', mappingVersion: 'MAP v3.5', range: '2026-01-01 至 2026-07-17', sourceIds: ['SRC-ERP', 'SRC-OA'], sourceNames: ['集团ERP采购视图', 'OA审批事件接口'], entities: 129104, relations: 311202, events: 48637, blockers: 0, warnings: 3, status: '待发布', publishedAt: '—' },
-  { id: 'GRAPH-20260716.4', graphCode: 'FINANCE-RISK', graphName: '财务监管图谱', ontologyId: 'ONT-FIN', ontologyVersion: 'BASE v1.6 / FIN v1.0', mappingVersion: 'MAP v2.8', range: '2025-01-01 至 2026-07-16', sourceIds: ['SRC-TREASURY'], sourceNames: ['司库付款消息'], entities: 98412, relations: 206871, events: 39605, blockers: 2, warnings: 12, status: '失败', publishedAt: '—' },
+  { id: 'GRAPH-20260716.4', graphCode: 'FINANCE-RISK', graphName: '财务监管图谱', ontologyId: 'ONT-FIN', ontologyVersion: 'BASE v1.6 / FIN v1.0', mappingVersion: 'MAP v2.8', range: '2025-01-01 至 2026-07-16', sourceIds: ['SRC-TREASURY'], sourceNames: ['司库付款接口'], entities: 98412, relations: 206871, events: 39605, blockers: 2, warnings: 12, status: '失败', publishedAt: '—' },
 ]
 
 export const users: UserItem[] = [

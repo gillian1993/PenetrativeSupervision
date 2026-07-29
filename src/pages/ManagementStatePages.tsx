@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store'
-import type { AuditItem, DataSourceItem, OntologyItem, RoleItem, SceneItem, UserItem } from '../types'
+import type { AuditItem, DataSourceAccessConfig, DataSourceItem, OntologyItem, RoleItem, SceneItem, UserItem } from '../types'
 import { dataGraphApi, type MappingItem, type SourceMetadataItem, type SyncRecordItem } from '../dataGraphApi'
 import { ontologyApi } from '../ontologyApi'
 import type { OntologyElement, OntologyRecord } from '../ontologyLocalStore'
@@ -157,7 +157,80 @@ function OntologyElements({ rows }: { rows: string[] }) {
   return <div className="table-container"><table><thead><tr><th>编码 / 名称</th><th>类型</th><th>约束</th><th>操作</th></tr></thead><tbody>{rows.map((value) => { const row = value.split('|'); return <tr key={row[0]}><td><strong>{row[1]}</strong><small className="cell-sub">{row[0]}</small></td><td>{row[2]}</td><td>{row[3]}</td><td><button className="table-action" onClick={() => setToast(`${row[1]}定义详情已打开`)}>查看</button></td></tr> })}</tbody></table></div>
 }
 
-const sourceInitial = { name: '', mode: '数据库视图', range: '', owner: '张海', ontologyIds: [] as string[] }
+const databaseDefaultPorts: Record<string, string> = { MySQL: '3306', Oracle: '1521', PostgreSQL: '5432', 'SQL Server': '1433' }
+const sourceModeOptions = ['数据库接入', '接口接入', '文件导入']
+const defaultAccessConfig = (mode = '数据库接入'): DataSourceAccessConfig => {
+  if (mode === '接口接入') return { apiUrl: '', method: 'GET', authType: 'Token', token: '' }
+  if (mode === '文件导入') return { fileName: '' }
+  return { databaseType: 'MySQL', host: '', port: '3306', databaseName: '', username: '', password: '' }
+}
+const sourceInitial = { name: '', mode: '数据库接入', range: '', owner: '张海', ontologyIds: [] as string[], accessConfig: defaultAccessConfig('数据库接入') }
+
+function validateSourceAccessConfig(mode: string, config: DataSourceAccessConfig) {
+  if (mode === '数据库接入') {
+    if (!config.host?.trim()) return '请填写数据库地址/IP'
+    if (!config.port?.trim()) return '请填写数据库端口'
+    if (!config.databaseName?.trim()) return '请填写数据库名/Schema'
+    if (!config.username?.trim()) return '请填写数据库用户名'
+    if (!config.password?.trim()) return '请填写数据库密码'
+  }
+  if (mode === '接口接入') {
+    if (!config.apiUrl?.trim()) return '请填写接口地址'
+    if (!config.method?.trim()) return '请选择请求方式'
+    if (!config.authType?.trim()) return '请选择认证方式'
+    if (config.authType !== '无认证' && !config.token?.trim()) return '请填写 Token/密钥'
+  }
+  if (mode === '文件导入' && !config.fileName?.trim()) return '请上传数据文件'
+  return ''
+}
+
+function AccessConfigFields({ mode, config, onChange }: { mode: string; config: DataSourceAccessConfig; onChange: (patch: DataSourceAccessConfig) => void }) {
+  if (mode === '接口接入') return <Panel title="接口接入配置" subtitle="填写接口地址和认证信息；Token/密钥保存后不明文回显。">
+    <div className="form-section two-column">
+      <Field label="接口地址 *"><input value={config.apiUrl || ''} onChange={(event) => onChange({ apiUrl: event.target.value })} placeholder="例如 https://api.example.com/orders"/></Field>
+      <Field label="请求方式 *"><select value={config.method || 'GET'} onChange={(event) => onChange({ method: event.target.value })}><option>GET</option><option>POST</option></select></Field>
+      <Field label="认证方式 *"><select value={config.authType || 'Token'} onChange={(event) => onChange({ authType: event.target.value })}><option>Token</option><option>API Key</option><option>Basic Auth</option><option>无认证</option></select></Field>
+      <Field label="Token/密钥"><input type="password" value={config.token || ''} onChange={(event) => onChange({ token: event.target.value })} placeholder={config.authType === '无认证' ? '无认证时可不填' : '请输入 Token 或密钥'}/></Field>
+    </div>
+  </Panel>
+  if (mode === '文件导入') return <Panel title="文件导入配置" subtitle="P0 只需要上传文件，文件结构在字段映射前解析。">
+    <div className="form-section two-column">
+      <Field label="上传文件 *"><input type="file" onChange={(event) => onChange({ fileName: event.target.files?.[0]?.name || '' })}/></Field>
+      <Field label="已选择文件"><input value={config.fileName || '尚未选择文件'} disabled/></Field>
+    </div>
+  </Panel>
+  return <Panel title="数据库接入配置" subtitle="填写数据库连接信息；密码保存后不明文回显，表/视图由后续解析来源结构自动读取。">
+    <div className="form-section two-column">
+      <Field label="数据库类型 *"><select value={config.databaseType || 'MySQL'} onChange={(event) => onChange({ databaseType: event.target.value, port: databaseDefaultPorts[event.target.value] || config.port })}>{Object.keys(databaseDefaultPorts).map((item) => <option key={item}>{item}</option>)}</select></Field>
+      <Field label="数据库地址/IP *"><input value={config.host || ''} onChange={(event) => onChange({ host: event.target.value })} placeholder="例如 10.10.1.12"/></Field>
+      <Field label="端口 *"><input value={config.port || ''} onChange={(event) => onChange({ port: event.target.value })} placeholder="例如 3306"/></Field>
+      <Field label="数据库名/Schema *"><input value={config.databaseName || ''} onChange={(event) => onChange({ databaseName: event.target.value })} placeholder="例如 erp_procurement"/></Field>
+      <Field label="用户名 *"><input value={config.username || ''} onChange={(event) => onChange({ username: event.target.value })} placeholder="例如 readonly_user"/></Field>
+      <Field label="密码 *"><input type="password" value={config.password || ''} onChange={(event) => onChange({ password: event.target.value })} placeholder="请输入数据库密码"/></Field>
+    </div>
+  </Panel>
+}
+
+function sourceAccessConfigItems(source: DataSourceItem) {
+  const config = source.accessConfig || {}
+  if (source.mode === '接口接入') return [
+    { label: '接口地址', value: config.apiUrl || '未配置' },
+    { label: '请求方式', value: config.method || '未配置' },
+    { label: '认证方式', value: config.authType || '未配置' },
+    { label: 'Token/密钥', value: config.tokenConfigured ? '已配置' : '未配置' },
+  ]
+  if (source.mode === '文件导入') return [
+    { label: '上传文件', value: config.fileName || '未配置' },
+  ]
+  return [
+    { label: '数据库类型', value: config.databaseType || '未配置' },
+    { label: '数据库地址/IP', value: config.host || '未配置' },
+    { label: '端口', value: config.port || '未配置' },
+    { label: '数据库名/Schema', value: config.databaseName || '未配置' },
+    { label: '用户名', value: config.username || '未配置' },
+    { label: '密码', value: config.passwordConfigured ? '已配置' : '未配置' },
+  ]
+}
 
 export function DataSourceCreatePage() {
   const navigate = useNavigate()
@@ -167,6 +240,8 @@ export function DataSourceCreatePage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const publishedOntologies = useMemo(() => ontologies.filter((item) => item.status === '已发布'), [ontologies])
+  const updateAccessConfig = (patch: DataSourceAccessConfig) => setForm({ ...form, accessConfig: { ...form.accessConfig, ...patch } })
+  const changeMode = (mode: string) => setForm({ ...form, mode, accessConfig: defaultAccessConfig(mode) })
 
   useEffect(() => {
     let active = true
@@ -185,6 +260,8 @@ export function DataSourceCreatePage() {
     if (saving) return
     if (!form.ontologyIds.length) { setToast('请至少选择一个适用图谱结构'); return }
     if (!form.name.trim()) { setToast('请填写数据源名称'); return }
+    const configError = validateSourceAccessConfig(form.mode, form.accessConfig)
+    if (configError) { setToast(configError); return }
     setSaving(true)
     try {
       const source = await dataGraphApi.createSource(form)
@@ -198,22 +275,22 @@ export function DataSourceCreatePage() {
   }
 
   return <>
-    <PageHeader eyebrow="知识图谱 / 数据源" title="新建数据源" description="填写数据源基本配置，保存后进入字段映射。" actions={<><Button onClick={() => navigate('/graphs/sources')}>取消</Button><Button variant="primary" disabled={loading || saving || !publishedOntologies.length} onClick={() => void create()}>{saving ? '保存中…' : '保存并继续'}</Button></>}/>
+    <PageHeader eyebrow="知识图谱 / 数据源" title="新建数据源" description="填写数据源基本配置和接入配置，保存后进入字段映射。" actions={<><Button onClick={() => navigate('/graphs/sources')}>取消</Button><Button variant="primary" disabled={loading || saving || !publishedOntologies.length} onClick={() => void create()}>{saving ? '保存中…' : '保存并继续'}</Button></>}/>
     <Panel className="data-access-panel" title="数据源配置" subtitle="P0 流程：基本配置 → 字段映射">
       <div className="step-indicator"><span className="active">1 基本配置</span><span>2 字段映射</span></div>
       {loading ? <div className="loading-state"><i/><span>正在加载图谱结构…</span></div> : <div className="form-stack">
         <Field label="适用图谱结构 *">{publishedOntologies.length ? <select value={form.ontologyIds[0] || ''} onChange={(event) => setForm({ ...form, ontologyIds: event.target.value ? [event.target.value] : [] })}><option value="">请选择适用图谱结构</option>{publishedOntologies.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.version}</option>)}</select> : <div className="alert-box danger"><Icon name="warning"/><span>暂无已发布图谱结构，请先发布图谱结构后再新建数据源。</span></div>}</Field>
         <div className="form-section two-column">
           <Field label="来源系统名称 *"><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="请输入数据源名称"/></Field>
-          <Field label="来源方式"><select value={form.mode} onChange={(event) => setForm({ ...form, mode: event.target.value })}><option>数据库视图</option><option>API</option><option>消息</option><option>批量文件</option></select></Field>
+          <Field label="来源方式"><select value={form.mode} onChange={(event) => changeMode(event.target.value)}>{sourceModeOptions.map((item) => <option key={item}>{item}</option>)}</select></Field>
           <Field label="责任人"><select value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })}><option>张海</option><option>陈洁</option></select></Field>
           <Field label="数据范围"><input value={form.range} onChange={(event) => setForm({ ...form, range: event.target.value })} placeholder="可选，说明对象、时间和组织范围"/></Field>
         </div>
+        <AccessConfigFields mode={form.mode} config={form.accessConfig} onChange={updateAccessConfig}/>
       </div>}
     </Panel>
   </>
 }
-
 export function DataAccessPage() {
   const navigate = useNavigate()
   const setToast = useAppStore((state) => state.setToast)
@@ -374,8 +451,9 @@ function SourceBasicConfig({ source, metadata, onParse, onMapping }: { source: D
   return <>
     <div className="source-basic-navigation"><div><strong>下一步：维护字段映射</strong><span>{metadata.length ? '进入字段映射维护来源字段与图谱字段的对应关系。' : '也可以先进入字段映射页，在那里一键解析并生成映射建议。'}</span></div><Button variant="primary" onClick={onMapping}>进入字段映射</Button></div>
     <div className="detail-grid source-basic-grid">
-      <Panel title="来源基本信息"><KeyValue items={[{ label: '来源名称', value: source.name }, { label: '来源编码', value: source.id }, { label: '来源方式', value: source.mode }, { label: '数据范围', value: source.range }, { label: '责任人', value: source.owner }, { label: '最近同步成功', value: source.lastSuccess }, { label: '当前状态', value: <StatusTag>{source.status}</StatusTag> }]}/></Panel>
-      <Panel title="来源结构解析" subtitle="读取来源表、接口或消息结构，并生成字段映射建议" actions={<Button onClick={onParse}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button>}>
+      <Panel title="来源基本信息"><KeyValue items={[{ label: '来源名称', value: source.name }, { label: '来源编码', value: source.id }, { label: '来源方式', value: source.mode }, { label: '数据范围', value: source.range || '未填写' }, { label: '责任人', value: source.owner }, { label: '最近同步成功', value: source.lastSuccess }, { label: '当前状态', value: <StatusTag>{source.status}</StatusTag> }]}/></Panel>
+      <Panel title="接入配置" subtitle="敏感信息已脱敏展示"><KeyValue items={sourceAccessConfigItems(source)}/></Panel>
+      <Panel title="来源结构解析" subtitle="读取来源表、接口或文件结构，并生成字段映射建议" actions={<Button onClick={onParse}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button>}>
         <KeyValue items={[{ label: '解析状态', value: <StatusTag>{metadata.length ? '已解析' : '待解析'}</StatusTag> }, { label: '已解析对象', value: metadata.length }]}/>
         {metadata.length ? <div className="metadata-list">{metadata.map((item) => <button key={item.id}><span><strong>{item.displayName}</strong><small>{item.tableName} · {item.fieldCount}字段</small></span><Icon name="chevron" size={14}/></button>)}</div> : <EmptyState title="尚未解析来源结构" description="请先通过页面顶部的连接测试，再解析来源结构。"/>}
       </Panel>

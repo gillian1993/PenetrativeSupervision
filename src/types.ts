@@ -98,6 +98,21 @@ export interface OntologyItem {
   updatedAt: string
 }
 
+export interface DataSourceAccessConfig {
+  databaseType?: string
+  host?: string
+  port?: string
+  databaseName?: string
+  username?: string
+  password?: string
+  passwordConfigured?: boolean
+  apiUrl?: string
+  method?: string
+  authType?: string
+  token?: string
+  tokenConfigured?: boolean
+  fileName?: string
+}
 export interface DataSourceItem {
   id: string
   name: string
@@ -106,6 +121,7 @@ export interface DataSourceItem {
   owner: string
   ontologyIds: string[]
   ontologyNames?: string[]
+  accessConfig?: DataSourceAccessConfig
   lastSuccess: string
   status: '草稿' | '启用' | '停用' | '异常'
 }
