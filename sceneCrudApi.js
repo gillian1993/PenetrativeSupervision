@@ -1,4 +1,4 @@
-﻿import { assertSemanticReferences, collectAdvancedExpressionReferenceIssues, collectSemanticReferenceIssues, editableSceneStatuses, getBoundRuleRows, getBoundSkillRows, getCurrentSceneRow, getSceneAggregate, mapSceneRow, makeBusinessId, toJson, parseJson, validateRuleRecord, validateSkillRecord, writeSceneAudit } from './sceneRuleRepo.js'
+import { assertSemanticReferences, collectAdvancedExpressionReferenceIssues, collectSemanticReferenceIssues, editableSceneStatuses, getBoundRuleRows, getCurrentSceneRow, getSceneAggregate, mapSceneRow, makeBusinessId, toJson, parseJson, validateRuleRecord, writeSceneAudit } from './sceneRuleRepo.js'
 
 async function listScenes(pool,url){
   const keyword=String(url.searchParams.get('keyword')||'').trim();const status=String(url.searchParams.get('status')||'').trim();const domain=String(url.searchParams.get('domain')||'').trim()
@@ -11,7 +11,7 @@ async function listScenes(pool,url){
     (SELECT COUNT(*) FROM scene_rule_bindings b WHERE b.scene_version_id=sv.id AND b.enabled=1) AS enabled_rule_count,
     (SELECT COUNT(*) FROM scene_skill_bindings b WHERE b.scene_version_id=sv.id) AS skill_count,
     (SELECT COUNT(*) FROM scene_skill_bindings b WHERE b.scene_version_id=sv.id AND b.enabled=1) AS enabled_skill_count,
-    ((SELECT COUNT(*) FROM rule_run_records rr WHERE rr.scene_version_id=sv.id)+(SELECT COUNT(*) FROM skill_run_records sr WHERE sr.scene_version_id=sv.id)) AS run_count,
+    (SELECT COUNT(*) FROM rule_run_records rr WHERE rr.scene_version_id=sv.id) AS run_count,
     (SELECT COUNT(*) FROM scene_versions history WHERE history.scene_id=sv.scene_id) AS version_count,
     (SELECT status FROM rule_trial_tasks tt WHERE tt.id=sv.last_trial_id) AS last_trial_status
     FROM risk_scenes rs JOIN scene_versions sv ON sv.id=rs.current_version_id ${where.length?`WHERE ${where.join(' AND ')}`:''} ORDER BY sv.updated_at DESC`,params)
@@ -41,13 +41,12 @@ async function updateScene(pool,id,payload){
 
 async function validateScene(pool,id){
   const row=await getCurrentSceneRow(pool,id);if(!row)throw Object.assign(new Error('场景不存在'),{status:404});if(!editableSceneStatuses.has(row.status))throw Object.assign(new Error('当前版本不可校验'),{status:409})
-  const rules=await getBoundRuleRows(pool,row.id);const skills=await getBoundSkillRows(pool,row.id);const blockers=[];const warnings=[]
+  const rules=await getBoundRuleRows(pool,row.id);const blockers=[];const warnings=[]
   if(!row.description.trim())blockers.push({field:'description',tab:'basic',message:'场景说明不能为空'})
   if(!parseJson(row.organization_json,[]).length)blockers.push({field:'organizations',tab:'scope',message:'至少选择一个适用组织'})
-  const template=parseJson(row.check_template_json,{});if(!template.requirements||!Number(template.deadlineHours))blockers.push({field:'checkTemplate',tab:'template',message:'核查要求和处理时限不能为空'})
-  const enabledRules=rules.filter((rule)=>Boolean(rule.binding_enabled));const enabledSkills=skills.filter((skill)=>Boolean(skill.binding_enabled));if(!enabledRules.length&&!enabledSkills.length)blockers.push({field:'detections',tab:'rules',message:'至少需要一条启用规则或一个启用Skill'})
+  const enabledRules=rules.filter((rule)=>Boolean(rule.binding_enabled));if(!enabledRules.length)blockers.push({field:'detections',tab:'rules',message:'至少需要一条启用规则'})
   for(const rule of enabledRules){const result=validateRuleRecord(rule);blockers.push(...result.blockers.map((item)=>({...item,ruleId:rule.id,message:`${rule.name}：${item.message}`})));warnings.push(...result.warnings.map((item)=>({...item,ruleId:rule.id,message:`${rule.name}：${item.message}`})))}
-for(const skill of enabledSkills){const result=validateSkillRecord(skill);blockers.push(...result.blockers.map((item)=>({...item,skillId:skill.id,tab:'skills',message:`${skill.name}：${item.message}`})));warnings.push(...result.warnings.map((item)=>({...item,skillId:skill.id,tab:'skills',message:`${skill.name}：${item.message}`})))}
+
   for(const rule of enabledRules){
     const refs=await collectSemanticReferenceIssues(pool,{ontologyId:rule.ontology_id,objectCode:rule.object_code,eventCode:rule.event_code,graphVersion:rule.graph_version},'rules')
     blockers.push(...refs.blockers.map((item)=>({...item,ruleId:rule.id,message:`${rule.name}：${item.message}`})))

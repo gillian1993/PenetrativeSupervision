@@ -1,4 +1,4 @@
-﻿import { configHash, editableSceneStatuses, getBoundRuleRows, getBoundSkillRows, getCurrentSceneRow, getSceneAggregate, makeBusinessId, mapRuleRow, normalizeAggregateConfig, normalizeEvidenceRequirements, normalizePathConfig, normalizePolicyList, normalizeSkillInputs, normalizeSkillOutputs, normalizeTimeConfig, parseJson, snapshotForHash, toJson, validateRuleRecord, writeSceneAudit } from './sceneRuleRepo.js'
+import { configHash, editableSceneStatuses, getBoundRuleRows, getCurrentSceneRow, getSceneAggregate, makeBusinessId, mapRuleRow, normalizeAggregateConfig, normalizeEvidenceRequirements, normalizePathConfig, normalizePolicyList, normalizeTimeConfig, parseJson, snapshotForHash, toJson, validateRuleRecord, writeSceneAudit } from './sceneRuleRepo.js'
 
 async function getRule(pool,id){
   const [rows]=await pool.query(`SELECT rv.*,rr.scene_id,rr.code,sv.name AS scene_name,sv.status AS scene_status,sv.ontology_id,sv.graph_version FROM rule_versions rv JOIN risk_rules rr ON rr.id=rv.rule_id JOIN scene_versions sv ON sv.id=rv.scene_version_id WHERE rv.id=? OR (rr.id=? AND sv.id=(SELECT current_version_id FROM risk_scenes WHERE id=rr.scene_id)) OR (rr.code=? AND sv.id=(SELECT current_version_id FROM risk_scenes WHERE id=rr.scene_id)) LIMIT 1`,[id,id,id])
@@ -87,28 +87,17 @@ function executionProfile(rule,outcome){
     normalizedConfig:{path,time,aggregate,conditions:root},
   }
 }
-function skillExecutionProfile(skill,outcome){
-  const config=parseJson(skill.config_json,{})
-  const score=outcome==='命中'?Math.min(99,Math.max(Number(config.threshold||80)+4,88)):Math.max(20,Number(config.threshold||80)-18)
-  return{
-    sourceType:'skill',sourceVersionId:skill.id,sourceName:skill.name,skillName:skill.name,score,
-    inputs:normalizeSkillInputs(skill.input_json),outputs:normalizeSkillOutputs(skill.output_json),threshold:Number(config.threshold||80),
-    instruction:String(config.instruction||''),conclusion:outcome==='命中'?`${skill.name}达到命中阈值`:`${skill.name}未达到命中阈值`,
-  }
-}
 
 async function createTrial(pool,sceneId,payload){
   const scene=await getCurrentSceneRow(pool,sceneId)
   if(!scene)throw Object.assign(new Error('场景不存在'),{status:404})
   if(!['待试跑','待发布'].includes(scene.status))throw Object.assign(new Error('请先保存并通过场景校验'),{status:409})
   const enabledRules=await getBoundRuleRows(pool,scene.id,true)
-  const enabledSkills=await getBoundSkillRows(pool,scene.id,true)
   const rules=payload.ruleVersionId?enabledRules.filter((item)=>item.id===payload.ruleVersionId):enabledRules
-  const skills=payload.skillVersionId?enabledSkills.filter((item)=>item.id===payload.skillVersionId):(payload.ruleVersionId?[]:enabledSkills)
-  const units=[...rules.map((item)=>({sourceType:'rule',item})),...skills.map((item)=>({sourceType:'skill',item}))]
-  if(!units.length)throw Object.assign(new Error('没有可试跑的启用规则或Skill'),{status:409})
+  const units=rules.map((item)=>({sourceType:'rule',item}))
+  if(!units.length)throw Object.assign(new Error('没有可试跑的启用规则'),{status:409})
   const taskId=makeBusinessId('TRIAL')
-  const cfgHash=configHash(snapshotForHash(scene,enabledRules,enabledSkills))
+  const cfgHash=configHash(snapshotForHash(scene,enabledRules,[]))
   const sampleDays=Math.max(1,Math.min(365,Number(payload.sampleDays||90)))
   const maxSamples=Math.max(10,Math.min(5000,Number(payload.maxSamples||500)))
   const timeoutSeconds=Math.max(5,Math.min(300,Number(payload.timeoutSeconds||60)))
@@ -121,15 +110,13 @@ async function createTrial(pool,sceneId,payload){
     const outcome=i<hit?'命中':'未命中'
     const unit=units[i%units.length]
     const item=unit.item
-    const detail=unit.sourceType==='skill'
-      ?{...skillExecutionProfile(item,outcome),matchedFields:outcome==='命中'?['风险评分','关键原文','附件位置']:[],message:outcome==='命中'?'Skill分析达到命中阈值，已生成结构化证据':'Skill分析未达到命中阈值'}
-      :{sourceType:'rule',sourceVersionId:item.id,sourceName:item.name,ruleName:item.name,matchedFields:outcome==='命中'?['联系电话','人员ID','关系有效时间']:[],message:outcome==='命中'?'组合条件成立，已生成检测口径与证据快照':'组合条件未达到命中要求',...executionProfile(item,outcome)}
+    const detail={sourceType:'rule',sourceVersionId:item.id,sourceName:item.name,ruleName:item.name,matchedFields:outcome==='命中'?['联系电话','人员ID','关系有效时间']:[],message:outcome==='命中'?'组合条件成立，已生成检测口径与证据快照':'组合条件未达到命中要求',...executionProfile(item,outcome)}
     await pool.query('INSERT INTO rule_trial_samples (task_id,sample_code,object_name,outcome,risk_level,evidence_status,detail_json) VALUES (?,?,?,?,?,?,?)',[taskId,`SAMPLE-${String(i+1).padStart(4,'0')}`,names[i%names.length],outcome,item.effective_risk_level||item.risk_level,'完整',toJson(detail)])
   }
-  const summary={total:hit+miss,hit,miss,error:0,evidenceCompleteness:100,durationMs:680+rules.length*240+skills.length*520,passed:hit>0}
+  const summary={total:hit+miss,hit,miss,error:0,evidenceCompleteness:100,durationMs:680+rules.length*240,passed:hit>0}
   await pool.query("UPDATE rule_trial_tasks SET status='已完成',summary_json=?,finished_at=NOW() WHERE id=?",[toJson(summary),taskId])
   await pool.query("UPDATE scene_versions SET last_trial_id=?,status='待发布',dependency_hash=?,lock_version=lock_version+1 WHERE id=?",[taskId,cfgHash,scene.id])
-  await writeSceneAudit(pool,scene.id,'发起场景试跑',`${sampleDays}天 / ${rules.length}条规则 / ${skills.length}个Skill / 命中${hit}个`)
+  await writeSceneAudit(pool,scene.id,'发起场景试跑',`${sampleDays}天 / ${rules.length}条规则 / 命中${hit}个`)
   return await getTrial(pool,taskId)
 }
 async function publishScene(pool,id,payload){
@@ -140,33 +127,25 @@ async function publishScene(pool,id,payload){
   const trial=scene.last_trial_id?await getTrial(pool,scene.last_trial_id):null
   if(!trial||trial.status!=='已完成'||!trial.summary.passed)throw Object.assign(new Error('最近一次试跑未通过'),{status:409})
   const rules=await getBoundRuleRows(pool,scene.id,true)
-  const skills=await getBoundSkillRows(pool,scene.id,true)
-  if(configHash(snapshotForHash(scene,rules,skills))!==scene.dependency_hash)throw Object.assign(new Error('规则、Skill或依赖在试跑后发生变化，请重新校验并试跑'),{status:409})
+  if(configHash(snapshotForHash(scene,rules,[]))!==scene.dependency_hash)throw Object.assign(new Error('规则或依赖在试跑后发生变化，请重新校验并试跑'),{status:409})
   const connection=await pool.getConnection()
   try{
     await connection.beginTransaction()
     await connection.query("UPDATE scene_versions SET status='已发布',published_at=NOW(),lock_version=lock_version+1 WHERE id=?",[scene.id])
     await connection.query("UPDATE rule_asset_versions SET status='已发布' WHERE id IN (SELECT rule_version_id FROM scene_rule_bindings WHERE scene_version_id=?)",[scene.id])
     await connection.query("UPDATE rule_assets SET status='已发布' WHERE current_version_id IN (SELECT rule_version_id FROM scene_rule_bindings WHERE scene_version_id=?)",[scene.id])
-    await connection.query("UPDATE skill_asset_versions SET status='已发布' WHERE id IN (SELECT skill_version_id FROM scene_skill_bindings WHERE scene_version_id=?)",[scene.id])
-    await connection.query("UPDATE skill_assets SET status='已发布' WHERE current_version_id IN (SELECT skill_version_id FROM scene_skill_bindings WHERE scene_version_id=?)",[scene.id])
+
+
     const [samples]=await connection.query("SELECT * FROM rule_trial_samples WHERE task_id=? AND outcome='命中' LIMIT 5",[trial.id])
     for(let i=0;i<samples.length;i++){
       const detail=parseJson(samples[i].detail_json,{})
       const warningCode=`WARN-DEMO-${Date.now()}-${String(i+1).padStart(2,'0')}`
-      if(detail.sourceType==='skill'){
-        const skill=skills.find((item)=>item.id===detail.sourceVersionId)||skills[i%Math.max(skills.length,1)]
-        if(!skill)continue
-        const evidenceSnapshot={...detail,sourceType:'skill',skillVersionId:skill.id,policySnapshot:normalizePolicyList(skill.policy_json),evidenceRequirements:normalizeEvidenceRequirements(skill.evidence_json),inputs:normalizeSkillInputs(skill.input_json),outputs:normalizeSkillOutputs(skill.output_json)}
-        await connection.query('INSERT INTO skill_run_records (id,scene_version_id,skill_version_id,trial_sample_id,object_code,object_name,outcome,score,evidence_json,warning_code) VALUES (?,?,?,?,?,?,?,?,?,?)',[makeBusinessId('SRUN'),scene.id,skill.id,samples[i].id,samples[i].sample_code,samples[i].object_name,'命中',Number(detail.score||0),toJson(evidenceSnapshot),warningCode])
-      }else{
-        const rule=rules.find((item)=>item.id===detail.sourceVersionId)||rules[i%Math.max(rules.length,1)]
-        if(!rule)continue
-        const evidenceSnapshot={...detail,...executionProfile(rule,'命中'),sourceType:'rule',ontologyId:rule.ontology_id,graphVersion:rule.graph_version,objectCode:rule.object_code,targetEventCode:rule.event_code,policySnapshot:normalizePolicyList(rule.policy_json),evidenceRequirements:normalizeEvidenceRequirements(rule.evidence_json)}
-        await connection.query('INSERT INTO rule_run_records (id,scene_version_id,rule_version_id,trial_sample_id,object_code,object_name,outcome,evidence_json,warning_code) VALUES (?,?,?,?,?,?,?,?,?)',[makeBusinessId('RUN'),scene.id,rule.id,samples[i].id,samples[i].sample_code,samples[i].object_name,'命中',toJson(evidenceSnapshot),warningCode])
-      }
+      const rule=rules.find((item)=>item.id===detail.sourceVersionId)||rules[i%Math.max(rules.length,1)]
+      if(!rule)continue
+      const evidenceSnapshot={...detail,...executionProfile(rule,'命中'),sourceType:'rule',ontologyId:rule.ontology_id,graphVersion:rule.graph_version,objectCode:rule.object_code,targetEventCode:rule.event_code,policySnapshot:normalizePolicyList(rule.policy_json),evidenceRequirements:normalizeEvidenceRequirements(rule.evidence_json)}
+      await connection.query('INSERT INTO rule_run_records (id,scene_version_id,rule_version_id,trial_sample_id,object_code,object_name,outcome,evidence_json,warning_code) VALUES (?,?,?,?,?,?,?,?,?)',[makeBusinessId('RUN'),scene.id,rule.id,samples[i].id,samples[i].sample_code,samples[i].object_name,'命中',toJson(evidenceSnapshot),warningCode])
     }
-    await writeSceneAudit(connection,scene.id,'发布场景版本',`${scene.version}；${rules.length}条规则；${skills.length}个Skill；${payload.versionNote}；原因：${payload.reason}`,'高危')
+    await writeSceneAudit(connection,scene.id,'发布场景版本',`${scene.version}；${rules.length}条规则；${payload.versionNote}；原因：${payload.reason}`,'高危')
     await connection.commit()
     return await getSceneAggregate(pool,scene.scene_id)
   }catch(error){await connection.rollback();throw error}finally{connection.release()}
@@ -177,8 +156,7 @@ async function references(pool,id){
   const scene=await getCurrentSceneRow(pool,id)
   if(!scene)throw Object.assign(new Error('场景不存在'),{status:404})
   const [ruleRuns]=await pool.query('SELECT id,object_code,object_name,outcome,evidence_json,warning_code,executed_at FROM rule_run_records WHERE scene_version_id=? ORDER BY executed_at DESC LIMIT 20',[scene.id])
-  const [skillRuns]=await pool.query('SELECT id,object_code,object_name,outcome,evidence_json,warning_code,executed_at FROM skill_run_records WHERE scene_version_id=? ORDER BY executed_at DESC LIMIT 20',[scene.id])
-  const runs=[...ruleRuns.map((item)=>({...item,sourceType:'rule'})),...skillRuns.map((item)=>({...item,sourceType:'skill'}))].sort((a,b)=>new Date(b.executed_at).getTime()-new Date(a.executed_at).getTime()).slice(0,20)
+  const runs=ruleRuns.map((item)=>({...item,sourceType:'rule'})).sort((a,b)=>new Date(b.executed_at).getTime()-new Date(a.executed_at).getTime()).slice(0,20)
   const [audits]=await pool.query('SELECT * FROM scene_rule_audits WHERE scene_version_id=? ORDER BY created_at DESC LIMIT 30',[scene.id])
   return{runs:runs.map((item)=>({id:item.id,objectCode:item.object_code,objectName:item.object_name,outcome:item.outcome,warningCode:item.warning_code,executedAt:item.executed_at,evidence:{...parseJson(item.evidence_json,{}),sourceType:item.sourceType}})),audits:audits.map((item)=>({id:Number(item.id),action:item.action,summary:item.summary,operator:item.operator_name,risk:item.risk_level,createdAt:item.created_at}))}
 }

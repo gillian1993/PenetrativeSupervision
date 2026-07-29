@@ -16,7 +16,7 @@ export function normalizeSkillInputs(value){const parsed=parseJson(value,[]);ret
 export function normalizeSkillOutputs(value){const parsed=parseJson(value,[]);return(Array.isArray(parsed)?parsed:[]).map((item,index)=>({id:String(item?.id||`output-${index+1}`),name:String(item?.name||''),dataType:String(item?.dataType||'文本'),description:String(item?.description||'')}))}export function normalizePathConfig(value){const parsed=parseJson(value,{});return{hops:Array.isArray(parsed?.hops)?parsed.hops:[],logic:parsed?.logic==='OR'?'OR':'AND',constraints:Array.isArray(parsed?.constraints)?parsed.constraints:[]}}
 export function normalizeTimeConfig(value){const parsed=parseJson(value,{});const legacyEvent=String(parsed?.eventCode||'');const conditions=Array.isArray(parsed?.conditions)?parsed.conditions:legacyEvent?[{id:'time-legacy',eventCode:legacyEvent,eventName:String(parsed?.eventName||''),requirement:'必须发生'}]:[];return{baseline:parsed?.baseline==='runtime'?'runtime':'event',logic:parsed?.logic==='OR'?'OR':'AND',conditions:conditions.map((item,index)=>({id:item?.id||`time-${index+1}`,eventCode:String(item?.eventCode||''),eventName:String(item?.eventName||''),requirement:item?.requirement==='不得发生'?'不得发生':'必须发生'})),eventCode:legacyEvent,windowValue:Number(parsed?.windowValue??30),windowUnit:String(parsed?.windowUnit||'天'),direction:String(parsed?.direction||'之前')}}
 export function normalizeAggregateConfig(value){const parsed=parseJson(value,{});const legacyField=String(parsed?.fieldCode||'');const metrics=Array.isArray(parsed?.metrics)?parsed.metrics:legacyField?[{id:'metric-legacy',function:String(parsed?.function||'COUNT'),fieldCode:legacyField,fieldName:String(parsed?.fieldName||''),operator:String(parsed?.operator||'大于等于'),threshold:Number(parsed?.threshold||0)}]:[];return{logic:parsed?.logic==='OR'?'OR':'AND',metrics:metrics.map((item,index)=>({id:item?.id||`metric-${index+1}`,function:String(item?.function||'COUNT'),fieldCode:String(item?.fieldCode||''),fieldName:String(item?.fieldName||''),operator:String(item?.operator||'大于等于'),threshold:Number(item?.threshold||0)})),function:String(parsed?.function||metrics[0]?.function||'COUNT'),fieldCode:legacyField||String(metrics[0]?.fieldCode||''),groupBy:String(parsed?.groupBy||''),operator:String(parsed?.operator||metrics[0]?.operator||'大于等于'),threshold:Number(parsed?.threshold??metrics[0]?.threshold??0)}}
-const advancedExpressionFunctions=new Set(['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','RATIO','SIMILARITY','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS','IN_LIST','TEXT_CLASSIFY'])
+const advancedExpressionFunctions=new Set(['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','RATIO','SIMILARITY','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS','IN_LIST','TEXT_CLASSIFY','AI_REVIEW'])
 export function validateAdvancedExpression(value){
   const expression=String(value||'').trim()
   if(!expression)return '请填写高级表达式'
@@ -75,7 +75,7 @@ export function mapRuleRow(row) {
     policy:policies[0]||{name:'',version:'',clause:''},policies,failureStrategy:row.failure_strategy,
     summary:row.summary,lockVersion:Number(row.lock_version),updatedAt:row.updated_at,
     domain:row.domain||'',objectCode:row.object_code||'',objectName:row.object_name||'',eventCode:row.event_code||'',eventName:row.event_name||'',
-    sceneName:row.scene_name||sceneNames[0]||'',sceneNames,sceneIds,bindingCount:Number(row.binding_count||sceneNames.length||0),
+    sceneName:row.scene_name||sceneNames[0]||'',sceneNames,sceneIds,bindingCount:Number(row.binding_count||sceneNames.length||0),catalogBindingCount:Number(row.catalog_binding_count||0),
     sceneStatus:row.scene_status||'',ontologyId:row.ontology_id||'',graphVersion:row.graph_version||'',priority:Number(row.priority||100),
   }
 }
@@ -108,7 +108,11 @@ export async function writeSceneAudit(connection, sceneVersionId, action, summar
 export async function getBoundRuleRows(connection,sceneVersionId,enabledOnly=false){
   const sql=['SELECT rav.*,ra.code,sv.scene_id,sv.name AS scene_name,sv.status AS scene_status,',
     'b.scene_version_id,b.enabled AS binding_enabled,b.priority,b.risk_level_override,',
-    "COALESCE(b.risk_level_override,NULLIF(rav.risk_level,'继承场景'),sv.risk_level) AS effective_risk_level",
+    "COALESCE(b.risk_level_override,NULLIF(rav.risk_level,'继承场景'),sv.risk_level) AS effective_risk_level,",
+    "(SELECT COUNT(*) FROM scene_rule_bindings bx JOIN rule_asset_versions rvx ON rvx.id=bx.rule_version_id WHERE rvx.rule_id=rav.rule_id) AS binding_count,",
+    "(SELECT COUNT(*) FROM pattern_rule_bindings prb JOIN rule_asset_versions rvx ON rvx.id=prb.rule_version_id WHERE rvx.rule_id=rav.rule_id) AS catalog_binding_count,",
+    "(SELECT GROUP_CONCAT(DISTINCT svx.name ORDER BY svx.name SEPARATOR '、') FROM scene_rule_bindings bx JOIN rule_asset_versions rvx ON rvx.id=bx.rule_version_id JOIN scene_versions svx ON svx.id=bx.scene_version_id WHERE rvx.rule_id=rav.rule_id) AS scene_names,",
+    "(SELECT GROUP_CONCAT(DISTINCT svx.scene_id ORDER BY svx.scene_id SEPARATOR ',') FROM scene_rule_bindings bx JOIN rule_asset_versions rvx ON rvx.id=bx.rule_version_id JOIN scene_versions svx ON svx.id=bx.scene_version_id WHERE rvx.rule_id=rav.rule_id) AS scene_ids",
     'FROM scene_rule_bindings b JOIN rule_asset_versions rav ON rav.id=b.rule_version_id',
     'JOIN rule_assets ra ON ra.id=rav.rule_id JOIN scene_versions sv ON sv.id=b.scene_version_id',
     'WHERE b.scene_version_id=?',enabledOnly?'AND b.enabled=1':'','ORDER BY b.priority ASC,rav.updated_at DESC'].filter(Boolean).join(' ')
@@ -165,15 +169,18 @@ export async function collectSemanticReferenceIssues(connection, reference, tab 
   const graphVersion=reference.graphVersion||reference.graph_version||''
   const objectCode=reference.objectCode||reference.object_code||''
   const eventCode=reference.eventCode||reference.event_code||''
-  const [ontologies]=await connection.query('SELECT id,status FROM ontologies WHERE id=? LIMIT 1',[ontologyId])
-  if(!ontologies.length)blockers.push({field:'ontologyId',tab,message:`适用本体 ${ontologyId} 不存在`})
-  else if(ontologies[0].status!=='已发布')blockers.push({field:'ontologyId',tab,message:`适用本体 ${ontologyId} 尚未发布`})
-  if(objectCode){const [objects]=await connection.query("SELECT element_id FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND code=? LIMIT 1",[ontologyId,objectCode]);if(!objects.length)blockers.push({field:'objectCode',tab,message:`主对象 ${objectCode} 不存在于适用本体类`})}
-  if(eventCode){const [targets]=await connection.query("SELECT element_id FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND code=? LIMIT 1",[ontologyId,eventCode]);if(!targets.length)blockers.push({field:'eventCode',tab,message:`目标类 ${eventCode} 不存在于适用本体`})}
-  const [graphs]=await connection.query('SELECT id,status,ontology_id FROM graph_versions WHERE id=? LIMIT 1',[graphVersion])
-  if(!graphs.length)blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 不存在`})
-  else {if(graphs[0].status!=='已发布')blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 尚未发布`});if(graphs[0].ontology_id&&graphs[0].ontology_id!==ontologyId)blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 使用的本体与当前配置不一致`})}
-  if(!graphVersion)warnings.push({field:'graphVersion',tab,message:'建议选择一个已发布生产图谱版本'})
+  if(ontologyId){
+    const [ontologies]=await connection.query('SELECT id,status FROM ontologies WHERE id=? LIMIT 1',[ontologyId])
+    if(!ontologies.length)blockers.push({field:'ontologyId',tab,message:`适用本体 ${ontologyId} 不存在`})
+    else if(ontologies[0].status!=='已发布')blockers.push({field:'ontologyId',tab,message:`适用本体 ${ontologyId} 尚未发布`})
+  }
+  if(objectCode&&ontologyId){const [objects]=await connection.query("SELECT element_id FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND code=? LIMIT 1",[ontologyId,objectCode]);if(!objects.length)blockers.push({field:'objectCode',tab,message:`主对象 ${objectCode} 不存在于适用本体类`})}
+  if(eventCode&&ontologyId){const [targets]=await connection.query("SELECT element_id FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND code=? LIMIT 1",[ontologyId,eventCode]);if(!targets.length)blockers.push({field:'eventCode',tab,message:`目标类 ${eventCode} 不存在于适用本体`})}
+  if(graphVersion){
+    const [graphs]=await connection.query('SELECT id,status,ontology_id FROM graph_versions WHERE id=? LIMIT 1',[graphVersion])
+    if(!graphs.length)blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 不存在`})
+    else {if(graphs[0].status!=='已发布')blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 尚未发布`});if(graphs[0].ontology_id&&ontologyId&&graphs[0].ontology_id!==ontologyId)blockers.push({field:'graphVersion',tab,message:`图谱版本 ${graphVersion} 使用的本体与当前配置不一致`})}
+  }else warnings.push({field:'graphVersion',tab,message:'建议选择一个已发布生产图谱版本'})
   return {blockers,warnings}
 }
 
@@ -196,7 +203,6 @@ export function validateRuleRecord(rule){
   if(!String(rule.name||'').trim())blockers.push({field:'name',tab:'basic',message:'规则名称不能为空'})
   if(!String(rule.ontology_id||'').trim())blockers.push({field:'ontologyId',tab:'basic',message:'适用本体不能为空'})
   if(!String(rule.graph_version||'').trim())blockers.push({field:'graphVersion',tab:'basic',message:'图谱版本不能为空'})
-  if(!String(rule.object_code||'').trim())blockers.push({field:'objectCode',tab:'basic',message:'主对象不能为空'})
   const usesTimeWindow=['时序','聚合'].includes(rule.rule_type)
   const scope=normalizeTimeConfig(rule.time_json)
   if(usesTimeWindow&&scope.baseline==='event'&&!String(rule.event_code||'').trim())blockers.push({field:'eventCode',tab:'conditions',message:'以目标类节点为计算基准时，必须配置目标类'})

@@ -4,8 +4,7 @@ import { AuditPage, DataSourceDetailPage, GraphManagementPage, ModelManagementPa
 import { ProcurementHomePage, ProcurementModulePage, ProcurementOverviewPage, SuperAgentPage } from './pages/ProcurementApplicationPages'
 import { GraphCreatePage } from './pages/GraphCreateWizard'
 import { SceneEditorPage, SceneListPage } from './pages/SceneRulePages'
-import { RuleAssetEditorPage, RuleAssetManagementPage } from './pages/RuleAssetPages'
-import { SkillAssetEditorPage, SkillAssetManagementPage } from './pages/SkillAssetPages'
+import { RuleAssetCreatePage, RuleAssetEditorPage, RuleAssetManagementPage } from './pages/RuleAssetPages'
 import { OntologyEditorPage } from './pages/OntologyLocalPages'
 import { SituationPage, WorkbenchPage } from './pages/OverviewPages'
 import { RiskEventDetailPage, RiskEventListPage, WarningDetailPage, WarningListPage } from './pages/RiskPages'
@@ -74,7 +73,7 @@ const navSections: NavSection[] = [
       { id: 'scene', label: '场景与规则', icon: 'rules', children: [
         { label: '风险场景', path: '/scenes', permission: 'menu.supervision.scene.scenes' },
         { label: '规则管理', path: '/rules', permission: 'menu.supervision.scene.rules' },
-        { label: 'Skill管理', path: '/skills', permission: 'menu.supervision.scene.skills' },
+
       ] },
       { id: 'ontology', label: '知识图谱', icon: 'graph', children: [
         { label: '图谱结构', path: '/graphs/structures', permission: 'menu.supervision.ontology.structures' },
@@ -127,7 +126,7 @@ const permissionsForPath = (path: string): PermissionCode[] => {
   if (path.startsWith('/risk/events')) return ['menu.supervision.risk.events']
   if (path.startsWith('/scenes')) return ['menu.supervision.scene.scenes']
   if (path.startsWith('/rules')) return ['menu.supervision.scene.rules']
-  if (path.startsWith('/skills')) return ['menu.supervision.scene.skills']
+
   if (path.startsWith('/graphs/sources') || path.startsWith('/data-access')) return ['menu.supervision.ontology.sources']
   if (path === '/graphs') return ['menu.supervision.ontology.structures', 'menu.supervision.ontology.sources']
   if (path.startsWith('/graphs') || path.startsWith('/ontology')) return ['menu.supervision.ontology.structures']
@@ -252,9 +251,9 @@ function AppEnhanced() {
     if (path === '/risk/warnings') return { page: '统一预警', guide: '这里统一查询事前、事中和事后预警，并进入证据研判与处置流程。', next: '可先使用状态和风险等级筛选，再进入预警详情查看证据或开展处置。', data: `当前加载${warnings.length}条预警，其中${warnings.filter((item) => ['重大', '高'].includes(item.level)).length}条为重大或高风险。` }
     if (path.startsWith('/risk/events/')) { const item = riskEvents.find((event) => event.id === objectId); return { page: `风险事件详情 · ${objectId}`, guide: '这里用于跟踪风险事件的责任人、整改过程、证据材料和监管复核。', next: '建议确认当前状态和完成时限，再执行派发、整改提交或监管复核。', data: item ? `该事件风险等级为${item.level}，当前状态为${item.status}，责任人为${item.owner || '待分配'}。` : '当前风险事件详情正在加载，请稍后查看处置状态。' } }
     if (path === '/risk/events') return { page: '风险事件', guide: '这里管理由预警升级形成的风险事件，并跟踪整改、复核和关闭过程。', next: '建议优先处理逾期和待复核事件，再检查核查整改中的事项。', data: `当前共有${riskEvents.length}个风险事件，其中${riskEvents.filter((item) => item.overdue && item.status !== '已关闭').length}个已逾期。` }
-    if (path.startsWith('/scenes')) return { page: '风险场景', guide: '这里维护风险场景，并组织标准规则和智能Skill。', next: '建议先确认场景状态和版本，再进入编辑页面维护规则或发布新版本。', data: `当前共有${scenes.length}个风险场景，其中${scenes.filter((item) => item.status === '已发布').length}个已发布。` }
+    if (path.startsWith('/scenes')) return { page: '风险场景', guide: '这里维护风险场景，并组织标准规则。', next: '建议先确认场景状态和版本，再进入编辑页面维护规则或发布新版本。', data: `当前共有${scenes.length}个风险场景，其中${scenes.filter((item) => item.status === '已发布').length}个已发布。` }
     if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里配置规则判断逻辑、风险等级、证据要求和运行策略。', next: '建议先选择所属场景，再检查判断条件、输出证据和失败策略。', data: '规则数据按所属场景和版本管理，发布前需要完成配置与校验。' }
-    if (path.startsWith('/skills')) return { page: 'Skill管理', guide: '这里维护文档分析、语义判断和复杂研判等智能检测能力。', next: '填写基本信息和审查需求，生成并确认审查内容、审查要求与输出结果后，即可在风险场景中选择使用。', data: 'Skill独立版本化，可被多个风险场景引用。' }
+
     if (path.startsWith('/ontology')) return { page: '图谱结构', guide: '这里维护知识图谱中的类、属性和关系定义。', next: '需要表达带时间的业务记录时，为普通类配置标识、发生时间属性及关联对象关系。', data: '图谱结构版本会影响规则配置、字段映射和图谱构建，请在发布前确认影响范围。' }
     if (path.startsWith('/graphs')) return { page: '知识图谱', guide: '这里维护图谱结构、数据源、字段映射和知识图谱发布状态。', next: '建议先确认数据源和图谱结构，再检查映射模板和发布条件。', data: '知识图谱用于证据关联和风险穿透分析，发布后会被后续规则运行引用。' }
     if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
@@ -374,9 +373,10 @@ function AppEnhanced() {
       <Route path="/scenes" element={<SceneListPage/>}/>
       <Route path="/scenes/:id" element={<SceneEditorPage key={location.key}/>}/>
       <Route path="/rules" element={<RuleAssetManagementPage/>}/>
+      <Route path="/rules/new" element={<RuleAssetCreatePage/>}/>
       <Route path="/rules/:id" element={<RuleAssetEditorPage/>}/>
-      <Route path="/skills" element={<SkillAssetManagementPage/>}/>
-      <Route path="/skills/:id" element={<SkillAssetEditorPage/>}/>
+      <Route path="/skills" element={<Navigate to="/rules" replace/>}/>
+      <Route path="/skills/:id" element={<Navigate to="/rules" replace/>}/>
       <Route path="/ontology" element={<Navigate to="/graphs/structures" replace/>}/>
       <Route path="/ontology/:id" element={<OntologyEditorPage/>}/>
       <Route path="/data-access" element={<Navigate to="/graphs/sources" replace/>}/>

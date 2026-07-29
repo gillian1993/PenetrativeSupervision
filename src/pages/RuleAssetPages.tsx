@@ -7,7 +7,7 @@ import type { AggregateMetric, ConditionGroup, EvidenceRequirement, Logic, Ontol
 import { isConditionGroup } from '../sceneRuleTypes'
 import type { RiskLevel } from '../types'
 import { useAppStore } from '../store'
-import { Button, Drawer, EmptyState, Field, FilterGrid, Icon, Modal, PageHeader, Panel, RiskTag, StatusTag } from '../ui'
+import { Button, Drawer, EmptyState, Field, FilterGrid, Icon, PageHeader, Panel, RiskTag, StatusTag } from '../ui'
 
 const ruleTypes:RuleItem['type'][]=['属性','字段比对','关系路径','时序','聚合','高级表达式']
 const ruleTypeHelp:Record<RuleItem['type'],string>={
@@ -32,7 +32,8 @@ const fallbackElements:OntologyElement[]=[
   {id:'e1',type:'class',code:'PROC.BidConfirmed',name:'中标确认',dataType:'类',constraint:'发生时间必填',description:'用于表达中标确认业务记录的普通类'},
 ]
 type OntologyOption={id:string;name:string;status?:string;elements:OntologyElement[]}
-type GraphOption={id:string;status:string;ontologyId:string}
+type GraphOption={id:string;status:string;ontologyId:string;graphName?:string;ontologyVersion?:string}
+type RuleCreateDraft={name:string;code:string;type:RuleItem['type'];levelMode:'inherit'|'override';level:RiskLevel;domain:string;ontologyId:string;objectCode:string;objectName:string;eventCode:string;eventName:string;graphVersion:string}
 type RuleEditorStep='basic'|'logic'|'governance'
 type GovernanceTab='policies'|'evidence'
 
@@ -40,8 +41,8 @@ const messageOf=(error:unknown)=>error instanceof Error?error.message:'操作失
 const dateText=(value:unknown)=>value?new Date(String(value)).toLocaleString('zh-CN',{hour12:false}):'—'
 const unique=(items:string[])=>[...new Set(items.filter(Boolean))]
 const outputsForRuleType=(type:RuleItem['type'])=>unique([...defaultOutputs,...(type==='关系路径'?['关系路径']:type==='时序'?['事件时间']:type==='聚合'?['聚合结果']:type==='高级表达式'?['表达式计算明细']:[])])
-const expressionFunctions=['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','RATIO','SIMILARITY','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS','IN_LIST','TEXT_CLASSIFY'] as const
-const expressionFunctionLabels:Record<string,string>={SUM:'求和',AVG:'平均值',MAX:'最大值',MIN:'最小值',COUNT:'计数',COUNT_DISTINCT:'去重计数',RATIO:'比例',SIMILARITY:'相似度',EVENT_COUNT:'事件次数',EXISTS_PATH:'存在关系路径',DATE_DIFF:'日期差',ABS:'绝对值',IN_LIST:'名单匹配',TEXT_CLASSIFY:'文本分类'}
+const expressionFunctions=['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','RATIO','SIMILARITY','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS','IN_LIST','TEXT_CLASSIFY','AI_REVIEW'] as const
+const expressionFunctionLabels:Record<string,string>={SUM:'求和',AVG:'平均值',MAX:'最大值',MIN:'最小值',COUNT:'计数',COUNT_DISTINCT:'去重计数',RATIO:'比例',SIMILARITY:'相似度',EVENT_COUNT:'事件次数',EXISTS_PATH:'存在关系路径',DATE_DIFF:'日期差',ABS:'绝对值',IN_LIST:'名单匹配',TEXT_CLASSIFY:'文本分类',AI_REVIEW:'智能判定'}
 function advancedExpressionIssue(value:string){
   const expression=value.trim()
   if(!expression)return '请填写高级表达式'
@@ -100,105 +101,151 @@ function ruleExpression(rule:RuleItem,elements:OntologyElement[]=[]){
   const items=rule.conditions.items.filter((item):item is RuleCondition=>!isConditionGroup(item)).map((item)=>`${item.fieldName||item.fieldCode} ${item.operator} ${item.valueFieldName||item.value||''}`)
   return{business:`按当前有效数据，${items.join(` ${logicWord(rule.conditions.logic)} `)||'至少配置一个判断条件'}时命中。`,machine:`CURRENT_${rule.conditions.logic}(${items.join(', ')})`}
 }
+type DetectionGenerationMode='generate'
+function cleanSentence(value:string){return value.trim().replace(/\s+/g,' ').replace(/[。；;,.，]+$/,'')}
+function expressionLiteral(value:string){return `"${value.replace(/["']/g,'').trim()||'业务事实'}"`}
+function codeOrLiteral(element:OntologyElement|undefined,fallback:string){return element?.code||expressionLiteral(fallback)}
+function findElement(elements:OntologyElement[],patterns:RegExp[],type?:OntologyElement['type']){return elements.find((item)=>(!type||item.type===type)&&patterns.some((pattern)=>pattern.test(item.name)||pattern.test(item.code)))}
+function numberFromText(value:string,fallback:number){const percent=value.match(/(\d+(?:\.\d+)?)\s*%/);if(percent)return Number(percent[1])/100;const decimal=value.match(/(?:比例|相似度|超过|达到|高于|大于|不低于)[^0-9]*(0?\.\d+)/);if(decimal)return Number(decimal[1]);const number=value.match(/(?:超过|达到|高于|大于|不低于)\s*(\d+(?:\.\d+)?)/);return number?Number(number[1]):fallback}
+function hasExplicitThreshold(value:string){return /(\d+(?:\.\d+)?)\s*%/.test(value)||/(?:比例|相似度|超过|达到|高于|大于|不低于|不少于|至少|金额|价格|报价|费率|天内|日前|日后)[^0-9]*(\d+(?:\.\d+)?)/.test(value)}
+function hasExplicitDays(value:string){return /(\d+)\s*天/.test(value)}
+function aiReviewExpression(risk:string,text:string){return `AI_REVIEW(${expressionLiteral(risk)}, ${expressionLiteral(text)}) == true`}
+function graphLabel(graph?:GraphOption){return graph?`${graph.graphName||graph.ontologyVersion||graph.id}（${graph.id}）`:'未选择知识图谱'}
+function ruleGraphScope(rule:Pick<RuleItem,'graphVersion'|'ontologyId'|'eventName'>,graphs:GraphOption[]=[]){
+  const graph=graphs.find((item)=>item.id===rule.graphVersion)
+  const graphText=graph?graphLabel(graph):(rule.graphVersion||'未配置适用图谱')
+  const ontologyText=graph?.ontologyVersion||rule.ontologyId||'图谱结构由适用图谱带出'
+  return{graphText,detailText:`${ontologyText}${rule.eventName?` · ${rule.eventName}`:''}`}
+}
+function makeNewRuleDraft():RuleCreateDraft{return{name:'',code:'',type:'高级表达式',levelMode:'inherit',level:'高',domain:'采购',ontologyId:'',objectCode:'',objectName:'',eventCode:'',eventName:'',graphVersion:''}}
+function editorRouteStep():RuleEditorStep{const value=routeParams().get('step');return value==='logic'||value==='governance'?value:'basic'}
+function generatedDetection(input:string,draft:RuleItem,elements:OntologyElement[]){
+  const text=cleanSentence(input)
+  const risk=draft.name?.trim()||'该风险'
+  const sourceElements=elements.length?elements:fallbackElements
+  const classes=sourceElements.filter((item)=>item.type==='class')
+  const properties=sourceElements.filter((item)=>item.type==='property')
+  const supplier=findElement(sourceElements,[/供应商|投标人|供方/i],'class')||classes[0]
+  const project=findElement(sourceElements,[/项目|采购|标段/i],'class')||classes[0]
+  const event=findElement(sourceElements,[/中标|确认|签订|审批|发生/i],'class')||classes[0]
+  const contactA=findElement(sourceElements,[/供应商.*(电话|手机|联系人)|联系电话|手机号|联系方式/i],'property')||properties[0]
+  const contactB=properties.find((item)=>item.code!==contactA?.code&&/电话|手机|联系人|联系方式/i.test(item.name+item.code))
+  const amount=findElement(sourceElements,[/金额|比例|变更|价格|报价|费率/i],'property')||properties[0]
+  const days=Number((text.match(/(\d+)\s*天/)||[])[1]||0)
+  if(/相似|重复|围标|串标|雷同/.test(text)){
+    if(!hasExplicitThreshold(text))return{detectionText:`系统对${text}进行智能审查，综合文本相似、异常一致、附件特征和业务上下文判断是否构成${risk}。`,expression:aiReviewExpression(risk,text)}
+    const threshold=numberFromText(text,0.7)
+    const expression=[
+      `COUNT(${codeOrLiteral(supplier,'供应商')}) >= 2`,
+      `SIMILARITY(${expressionLiteral('投标文件正文')}, ${expressionLiteral('投标文件正文')}) >= ${Number(threshold.toFixed(2))}`,
+    ]
+    if(days&&event)expression.push(`EVENT_COUNT("${event.code}", ${days}, "DAY", "BEFORE") >= 1`)
+    return{detectionText:`当同一采购项目下，两个及以上供应商提交的投标文件正文内容相似度达到或超过 ${Math.round(threshold*100)}%，且存在连续重复段落、异常一致格式或相同错误内容时，判定为${risk}。`,expression:expression.join('\nAND ')}
+  }
+  if(/电话|手机|联系人|联系方式|地址|邮箱|关联/.test(text)){
+    const expression=contactA&&contactB?`${contactA.code} == ${contactB.code}`:`${codeOrLiteral(contactA,'联系方式')} != ""`
+    return{detectionText:`当${text}，且相关主体信息经标准化后仍保持一致或存在异常重合时，判定为${risk}。`,expression}
+  }
+  if(/金额|变更|价格|报价|比例|费率|超预算|超概算/.test(text)){
+    if(!hasExplicitThreshold(text))return{detectionText:`系统对${text}进行智能审查，结合金额、价格、比例变化及业务背景判断是否构成${risk}。`,expression:aiReviewExpression(risk,text)}
+    const threshold=numberFromText(text,0)
+    const expression=`${codeOrLiteral(amount,'金额或比例')} >= ${Number(threshold.toFixed(2))}`
+    return{detectionText:`当${text}，且金额、比例或价格指标达到规则阈值时，判定为${risk}。`,expression}
+  }
+  if(/之前|之后|天内|期间|时序|发生/.test(text)&&event){
+    if(!hasExplicitDays(text))return{detectionText:`系统对${text}进行智能审查，结合相关事件顺序、时间间隔和业务上下文判断是否构成${risk}。`,expression:aiReviewExpression(risk,text)}
+    const windowDays=days||30
+    return{detectionText:`当${text}，且相关事件在 ${windowDays} 天观察范围内满足发生要求时，判定为${risk}。`,expression:`EVENT_COUNT("${event.code}", ${windowDays}, "DAY", "BEFORE") >= 1`}
+  }
+  return{detectionText:`系统对${text}进行智能审查，综合业务事实、关系证据和附件材料判断是否构成${risk}。`,expression:aiReviewExpression(risk,text)}
+}
 export function RuleAssetManagementPage(){
   const navigate=useNavigate()
   const setToast=useAppStore((state)=>state.setToast)
   const [keyword,setKeyword]=useState('')
   const [rows,setRows]=useState<RuleItem[]>([])
-  const [ontologies,setOntologies]=useState<OntologyOption[]>([])
   const [loading,setLoading]=useState(true)
   const [graphs,setGraphs]=useState<GraphOption[]>([])
   const [error,setError]=useState('')
-  const [open,setOpen]=useState(false)
-  const [draft,setDraft]=useState({name:'',code:'',type:'属性' as RuleItem['type'],levelMode:'inherit' as 'inherit'|'override',level:'高' as RiskLevel,domain:'采购',ontologyId:'ONT-PROC',objectCode:'PROC.Supplier',objectName:'供应商',eventCode:'',eventName:'',graphVersion:''})
-  const ontology=ontologies.find((item)=>item.id===draft.ontologyId)
-  const classes=(ontology?.elements||[]).filter((item)=>item.type==='class')
-  const events=(ontology?.elements||[]).filter((item)=>item.type==='class')
-  const availableGraphs=graphs
 
   const load=async(nextKeyword=keyword)=>{
     setLoading(true);setError('')
     try{
-      const [ruleRows,ontologyRows,graphRows]=await Promise.all([
+      const [ruleRows,graphRows]=await Promise.all([
         ruleClosureApi.listRules(nextKeyword),
-        fetch('/api/ontologies').then((response)=>response.json()) as Promise<OntologyOption[]>,
         dataGraphApi.listGraphs('已发布'),
       ])
-      const graphOntologyIds=new Set(graphRows.map((item)=>item.ontologyId))
-      const availableOntologies=ontologyRows.filter((item)=>item.status==='已发布'&&item.elements?.some((element)=>element.type==='class')&&graphOntologyIds.has(item.id))
-      const availableGraphRows=graphRows.map((item)=>({id:item.id,status:item.status,ontologyId:item.ontologyId}))
-      setRows(ruleRows);setOntologies(availableOntologies);setGraphs(availableGraphRows)
-      const params=routeParams()
-      if(params.get('create')==='1'){
-        const selected=availableOntologies.find((item)=>item.id==='ONT-PROC')||availableOntologies[0];const object=selected?.elements.find((item)=>item.type==='class');const graph=availableGraphRows.find((item)=>item.ontologyId===selected?.id)
-        setDraft({name:'',code:'',type:'属性',levelMode:'inherit',level:'高',domain:'采购',ontologyId:selected?.id||'',objectCode:object?.code||'',objectName:object?.name||'',eventCode:'',eventName:'',graphVersion:graph?.id||''});setOpen(true)
-      }
+      const availableGraphRows=graphRows.map((item)=>({id:item.id,status:item.status,ontologyId:item.ontologyId,graphName:item.graphName,ontologyVersion:item.ontologyVersion}))
+      setRows(ruleRows);setGraphs(availableGraphRows)
     }catch(err){setError(messageOf(err))}finally{setLoading(false)}
   }
+  useEffect(()=>{const params=routeParams();if(params.get('create')==='1'){const sceneId=params.get('sceneId')||'';navigate('/rules/new'+(sceneId?'?sceneId='+encodeURIComponent(sceneId):''),{replace:true})}},[navigate])
   useEffect(()=>{void load('')},[])
-  const openNew=()=>{
-    const selected=ontologies.find((item)=>item.id==='ONT-PROC')||ontologies[0]
-    const selectedClasses=(selected?.elements||[]).filter((item)=>item.type==='class')
-    const selectedEvents=(selected?.elements||[]).filter((item)=>item.type==='class')
-    const object=selectedClasses[0]
-    const event=selectedEvents[0]
-    const graph=graphs.find((item)=>item.ontologyId===selected?.id)
-    setDraft({name:'',code:'',type:'属性',levelMode:'inherit',level:'高',domain:'采购',ontologyId:selected?.id||'',objectCode:object?.code||'',objectName:object?.name||'',eventCode:'',eventName:'',graphVersion:graph?.id||''})
-    setOpen(true)
-  }
-  const chooseOntology=(ontologyId:string)=>{
-    const selected=ontologies.find((item)=>item.id===ontologyId)
-    const object=selected?.elements.find((item)=>item.type==='class')
-    const event=selected?.elements.find((item)=>item.type==='class')
-    const graph=graphs.find((item)=>item.ontologyId===ontologyId)
-    setDraft({...draft,ontologyId,objectCode:object?.code||'',objectName:object?.name||'',eventCode:event?.code||'',eventName:event?.name||'',graphVersion:graph?.id||''})
-  }
-  const chooseGraph=(graphVersion:string)=>{
-    const graph=graphs.find((item)=>item.id===graphVersion)
-    const selected=ontologies.find((item)=>item.id===graph?.ontologyId)
-    const object=selected?.elements.find((item)=>item.type==='class')
-    const event=selected?.elements.find((item)=>item.type==='class')
-    setDraft({...draft,graphVersion,ontologyId:graph?.ontologyId||'',objectCode:object?.code||'',objectName:object?.name||'',eventCode:event?.code||'',eventName:event?.name||''})
-  }
-  const create=async()=>{
-    if(!draft.name.trim()){setToast('规则名称不能为空');return}
-    if(!draft.ontologyId||!draft.objectCode){setToast('请先选择已发布图谱结构和主对象');return}
-    if(!draft.graphVersion){setToast('请先选择与图谱结构匹配的已发布知识图谱');return}
-    try{
-      const sceneId=routeParams().get('sceneId')||''
-      const rule=await ruleClosureApi.createRule({...draft,level:draft.levelMode==='inherit'?'继承场景':draft.level,code:draft.code||undefined})
-      if(sceneId)await ruleClosureApi.selectRules(sceneId,[rule.versionId])
-      setOpen(false);setToast(sceneId?'规则草稿已创建并关联当前场景':'独立规则草稿已创建，可被多个场景引用');navigate('/rules/'+rule.versionId+(sceneId?'?sceneId='+encodeURIComponent(sceneId):''))
-    }catch(err){setToast(messageOf(err))}
-  }
+  const openNew=()=>navigate('/rules/new')
   const remove=async(rule:RuleItem)=>{
-    if((rule.bindingCount||0)>0){setToast('该规则仍被场景引用，请先解除关联');return}
-    if(!window.confirm('确认删除规则草稿“'+rule.name+'”？'))return
-    try{await ruleClosureApi.deleteRule(rule.versionId);setToast('规则草稿已删除');await load()}catch(err){setToast(messageOf(err))}
+    const bindingCount=Number(rule.bindingCount||0)
+    const hint=bindingCount?`删除后会同步从 ${bindingCount} 个场景版本中移出。`:''
+    if(!window.confirm(`确认删除规则草稿“${rule.name}”？${hint}删除后不可恢复。`))return
+    try{const result=await ruleClosureApi.deleteRule(rule.versionId);setToast(result.message||'规则草稿已删除');await load()}catch(err){setToast(messageOf(err))}
   }
 
   return <>
     <PageHeader eyebrow="场景与规则 / 规则管理" title="规则管理" description="规则独立维护基本信息、检测口径、制度依据和证据要求，可被多个风险场景引用。" actions={<><Button icon="refresh" onClick={()=>void load()}>刷新</Button><Button variant="primary" icon="plus" onClick={openNew}>新增规则</Button></>}/>
     <FilterGrid onReset={()=>{setKeyword('');void load('')}} onSearch={()=>void load()}><Field label="关键词"><input value={keyword} onChange={(event)=>setKeyword(event.target.value)} placeholder="规则名称、编码或领域"/></Field></FilterGrid>
-    <Panel title="规则资产列表" subtitle="删除规则与移出场景是两个独立操作；被场景引用的规则不可删除">
-      {loading?<div className="loading-state"><i/><span>正在加载规则库…</span></div>:error?<div className="error-state"><Icon name="warning"/><div><strong>规则加载失败</strong><span>{error}</span></div><Button onClick={()=>void load()}>重试</Button></div>:rows.length===0?<EmptyState title="暂无规则资产" description="点击“新增规则”创建第一条可复用规则。"/>:<div className="table-container"><table><thead><tr><th>规则名称 / 编码</th><th>检测范围</th><th>判断类型</th><th>命中等级</th><th>依据与证据</th><th>场景引用</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>{rows.map((rule)=>{const status=displayStatus(rule);const readonly=['已发布','已停用'].includes(status);const canDelete=!readonly&&(rule.bindingCount||0)===0;const deleteReason=readonly?'已发布或已停用规则不可删除':(rule.bindingCount||0)>0?`已被 ${rule.bindingCount} 个场景版本引用，请先解除关联`:'删除规则';return <tr key={rule.versionId}><td><strong>{rule.name}</strong><small className="cell-sub">{rule.code} · {rule.version}</small></td><td>{rule.objectName||'未配置主对象'}<small className="cell-sub">{rule.ontologyId||'未配置图谱结构'} · {rule.graphVersion||'未配置图谱'}{(['时序','聚合'].includes(rule.type)&&rule.eventName)?` · ${rule.eventName}`:''}</small></td><td>{rule.type}</td><td>{rule.levelMode==='inherit'?<span>继承场景</span>:<RiskTag level={rule.defaultLevel||rule.level}/>}</td><td><strong>{rule.policies?.length||0} 条制度依据</strong><small className="cell-sub">{rule.evidenceRequirements?.length||rule.evidence.length} 项证据要求</small></td><td><strong>{rule.bindingCount||0} 个场景版本</strong><small className="cell-sub">{rule.sceneNames?.join('、')||'尚未被场景引用'}</small></td><td><StatusTag>{status}</StatusTag></td><td>{dateText(rule.updatedAt)}</td><td><div className="row-actions"><button onClick={()=>navigate('/rules/'+rule.versionId)}>{readonly?'查看':'编辑'}</button><span className="disabled-action-tip" title={deleteReason}><button className="danger-link" disabled={!canDelete} aria-label={`删除 ${rule.name}`} onClick={()=>void remove(rule)}>删除</button></span></div></td></tr>})}</tbody></table></div>}
+    <Panel title="规则资产列表" subtitle="删除规则与移出场景是两个独立操作；草稿规则可直接删除，删除时会同步解除可编辑场景引用">
+      {loading?<div className="loading-state"><i/><span>正在加载规则库…</span></div>:error?<div className="error-state"><Icon name="warning"/><div><strong>规则加载失败</strong><span>{error}</span></div><Button onClick={()=>void load()}>重试</Button></div>:rows.length===0?<EmptyState title="暂无规则资产" description="点击“新增规则”创建第一条可复用规则。"/>:<div className="table-container"><table><thead><tr><th>规则名称 / 编码</th><th>适用图谱</th><th>命中等级</th><th>依据与证据</th><th>场景引用</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>{rows.map((rule)=>{const status=displayStatus(rule);const readonly=['已发布','已停用'].includes(status);const canDelete=!readonly;const deleteReason=readonly?'已发布或已停用规则不可删除':(rule.bindingCount||0)>0||(rule.catalogBindingCount||0)>0?`删除后会同步解除 ${rule.bindingCount||0} 个场景版本引用、${rule.catalogBindingCount||0} 个风险模式目录引用`:'删除规则';const scope=ruleGraphScope(rule,graphs);return <tr key={rule.versionId}><td><strong>{rule.name}</strong><small className="cell-sub">{rule.code} · {rule.version}</small></td><td>{scope.graphText}<small className="cell-sub">{scope.detailText}</small></td><td>{rule.levelMode==='inherit'?<span>继承场景</span>:<RiskTag level={rule.defaultLevel||rule.level}/>}</td><td><strong>{rule.policies?.length||0} 条制度依据</strong><small className="cell-sub">{rule.evidenceRequirements?.length||rule.evidence.length} 项证据要求</small></td><td><strong>{rule.bindingCount||0} 个场景版本</strong><small className="cell-sub">{rule.sceneNames?.join('、')||'尚未被场景引用'}</small></td><td><StatusTag>{status}</StatusTag></td><td>{dateText(rule.updatedAt)}</td><td><div className="row-actions"><button onClick={()=>navigate('/rules/'+rule.versionId)}>{readonly?'查看':'编辑'}</button><span className="disabled-action-tip" title={deleteReason}><button className="danger-link" disabled={!canDelete} aria-label={`删除 ${rule.name}`} onClick={()=>void remove(rule)}>删除</button></span></div></td></tr>})}</tbody></table></div>}
     </Panel>
-    <Modal open={open} title="新增风险规则" description={routeParams().get('sceneId')?'创建后自动关联当前风险场景。':'规则创建后进入规则管理，可被一个或多个场景引用。'} confirmText="下一步：完善规则" onClose={()=>setOpen(false)} onConfirm={()=>void create()}>
-      <div className="form-stack"><div className="form-section two-column">
-        <Field label="规则名称 *"><input value={draft.name} onChange={(event)=>setDraft({...draft,name:event.target.value})} placeholder="例如：供应商与评审人员联系电话相同"/></Field>
-        <Field label="规则编码"><input value={draft.code} onChange={(event)=>setDraft({...draft,code:event.target.value.toUpperCase()})} placeholder="留空自动生成"/></Field>
-        <Field label="规则类型 *"><select value={draft.type} onChange={(event)=>setDraft({...draft,type:event.target.value as RuleItem['type']})}>{ruleTypes.map((item)=><option key={item}>{item}</option>)}</select></Field>
-        <Field label="命中风险等级"><select value={draft.levelMode==='inherit'?'inherit':draft.level} onChange={(event)=>event.target.value==='inherit'?setDraft({...draft,levelMode:'inherit'}):setDraft({...draft,levelMode:'override',level:event.target.value as RiskLevel})}><option value="inherit">继承场景默认等级</option>{levels.map((item)=><option value={item} key={item}>固定为：{item}</option>)}</select></Field>
-        <Field label="监管领域"><select value={draft.domain} onChange={(event)=>setDraft({...draft,domain:event.target.value})}>{domains.map((item)=><option key={item}>{item}</option>)}</select></Field>
-        <Field label="适用图谱结构（由图谱带出）"><select value={draft.ontologyId} disabled>{ontologies.map((item)=><option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
-        <Field label="主对象"><select value={draft.objectCode} onChange={(event)=>{const item=classes.find((candidate)=>candidate.code===event.target.value);setDraft({...draft,objectCode:event.target.value,objectName:item?.name||''})}}>{classes.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>
-        {draft.type==='时序'&&<Field label="目标类"><select value={draft.eventCode} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);setDraft({...draft,eventCode:event.target.value,eventName:item?.name||''})}}><option value="">请选择目标类</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>}
-        <Field label="已发布知识图谱"><select value={draft.graphVersion} onChange={(event)=>chooseGraph(event.target.value)}><option value="">请选择已发布知识图谱</option>{availableGraphs.map((item)=><option value={item.id} key={item.id}>{item.id}</option>)}</select></Field>
-      </div></div>
-    </Modal>
   </>
 }
 
+export function RuleAssetCreatePage(){
+  const navigate=useNavigate()
+  const setToast=useAppStore((state)=>state.setToast)
+  const sceneId=routeParams().get('sceneId')||''
+  const returnPath=sceneId?`/scenes/${encodeURIComponent(sceneId)}?tab=rules`:'/rules'
+  const [draft,setDraft]=useState<RuleCreateDraft>(()=>makeNewRuleDraft())
+  const [dirty,setDirty]=useState(false)
+  const [saving,setSaving]=useState(false)
+  const patch=(next:Partial<RuleCreateDraft>)=>{setDraft((value)=>({...value,...next}));setDirty(true)}
+  useEffect(()=>{const handler=(event:BeforeUnloadEvent)=>{if(dirty&&!saving){event.preventDefault();event.returnValue=''}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler)},[dirty,saving])
+  const basicDone=Boolean(draft.name.trim()&&draft.domain&&draft.levelMode)
+  const targetPath=(ruleId:string,nextStep=false)=>{const params=new URLSearchParams();if(sceneId)params.set('sceneId',sceneId);if(nextStep)params.set('step','logic');const query=params.toString();return `/rules/${encodeURIComponent(ruleId)}${query?`?${query}`:''}`}
+  const createDraft=async(nextStep=false)=>{
+    if(saving)return
+    if(!draft.name.trim()){setToast('规则名称不能为空');return}
+    setSaving(true)
+    try{
+      const rule=await ruleClosureApi.createRule({name:draft.name.trim(),code:draft.code.trim()||undefined,type:draft.type,level:draft.levelMode==='inherit'?'继承场景':draft.level,domain:draft.domain})
+      if(sceneId)await ruleClosureApi.selectRules(sceneId,[rule.versionId])
+      setDirty(false)
+      setToast(sceneId?'规则草稿已创建并关联当前场景':'规则草稿已创建')
+      navigate(targetPath(rule.versionId,nextStep),{replace:true})
+    }catch(err){setToast(messageOf(err));setSaving(false)}
+  }
+  const cancel=()=>{if(dirty&&!window.confirm('当前新建内容尚未保存，确认放弃并返回？'))return;navigate(returnPath)}
+  const stepCards:Array<{key:RuleEditorStep;label:string;description:string;done:boolean}>=[
+    {key:'basic',label:'基本信息',description:'名称、领域与风险等级',done:basicDone},
+    {key:'logic',label:'检测口径',description:'创建草稿后继续配置',done:false},
+    {key:'governance',label:'依据与证据',description:'创建草稿后继续配置',done:false},
+  ]
+  return <>
+    <div className="simple-rule-header"><div><button className="back-button" onClick={cancel}>‹ {sceneId?'返回风险场景':'返回规则管理'}</button><p className="eyebrow">风险规则 / 新建规则</p><h1>{draft.name.trim()||'新增风险规则'}</h1><div className="editor-meta"><StatusTag>未创建</StatusTag><span>尚未生成规则版本</span><span>{dirty?'存在未保存修改':'填写基本信息后创建草稿'}</span></div></div></div>
+    <nav className="rule-editor-tabs" aria-label="规则配置步骤">{stepCards.map((step,index)=><button type="button" className={[step.key==='basic'?'active':'',step.done?'done':''].filter(Boolean).join(' ')} onClick={()=>step.key==='basic'?undefined:setToast('请先完成基本信息并点击下一步创建规则草稿')} key={step.key}><i>{step.done?'✓':index+1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span></button>)}</nav>
+    <main className="rule-step-content">
+      <Panel title="1. 基本信息" subtitle="先填写规则资产的基础信息；适用图谱、检测口径和依据证据在创建草稿后继续配置">
+        <div className="form-section two-column">
+          <Field label="规则名称 *"><input value={draft.name} onChange={(event)=>patch({name:event.target.value})} placeholder="例如：供应商与评审人员联系电话相同"/></Field>
+          <Field label="规则编码"><input value={draft.code} onChange={(event)=>patch({code:event.target.value.toUpperCase()})} placeholder="留空自动生成"/></Field>
+          <Field label="监管领域 *"><select value={draft.domain} onChange={(event)=>patch({domain:event.target.value})}>{domains.map((item)=><option key={item}>{item}</option>)}</select></Field>
+          <Field label="命中风险等级"><select value={draft.levelMode==='inherit'?'inherit':draft.level} onChange={(event)=>event.target.value==='inherit'?patch({levelMode:'inherit'}):patch({levelMode:'override',level:event.target.value as RiskLevel})}><option value="inherit">继承场景默认等级</option>{levels.map((item)=><option value={item} key={item}>固定为：{item}</option>)}</select></Field>
+          <Field label="规则版本"><input value="创建后自动生成 v0.1" disabled/></Field>
+        </div>
+        <div className="next-action-card"><Icon name={basicDone?'check':'clock'}/><div><strong>{basicDone?'基本信息已完整':'请先补齐基本信息'}</strong><span>{basicDone?'点击下一步后创建规则草稿，并进入检测口径配置。':'至少填写规则名称、监管领域和命中风险等级。'}</span></div></div>
+      </Panel>
+    </main>
+    <footer className="editor-action-bar"><div><span className={dirty?'dirty-dot':''}/><strong>{dirty?'新建内容尚未保存':'尚未创建规则草稿'}</strong><small>{sceneId?'创建后会自动关联当前风险场景':'创建后可被多个风险场景引用'}</small></div><div><Button onClick={cancel}>取消</Button><Button disabled={saving} onClick={()=>void createDraft(false)}>{saving?'正在创建…':'保存草稿'}</Button><Button variant="primary" disabled={saving} onClick={()=>void createDraft(true)}>{saving?'正在创建…':'下一步'}</Button></div></footer>
+  </>
+}
 export function RuleAssetEditorPage(){
   const {id=''}=useParams()
   const navigate=useNavigate()
@@ -215,10 +262,11 @@ export function RuleAssetEditorPage(){
   const [dirty,setDirty]=useState(false)
   const [issues,setIssues]=useState<ValidationIssue[]>([])
   const [advanced,setAdvanced]=useState(false)
-  const [activeStep,setActiveStep]=useState<RuleEditorStep>('basic')
+  const [activeStep,setActiveStep]=useState<RuleEditorStep>(()=>editorRouteStep())
   const [governanceTab,setGovernanceTab]=useState<GovernanceTab>('policies')
   const [policyEditor,setPolicyEditor]=useState<{index:number;value:PolicyBasis}|null>(null)
   const [evidenceEditor,setEvidenceEditor]=useState<{index:number;value:EvidenceRequirement}|null>(null)
+  const [generating,setGenerating]=useState<DetectionGenerationMode|''>('')
   const readonly=!!rule&&['已发布','已停用'].includes(rule.status)
 
   const load=async()=>{
@@ -232,24 +280,28 @@ export function RuleAssetEditorPage(){
       const graphOntologyIds=new Set(graphRows.map((item)=>item.ontologyId))
       setRule(current);setDraft(structuredClone(current))
       setOntologies(ontologyRows.filter((item)=>item.status==='已发布'&&item.elements?.some((element)=>element.type==='class')&&graphOntologyIds.has(item.id)))
-      setEditorGraphs(graphRows.map((item)=>({id:item.id,status:item.status,ontologyId:item.ontologyId})))
+      setEditorGraphs(graphRows.map((item)=>({id:item.id,status:item.status,ontologyId:item.ontologyId,graphName:item.graphName,ontologyVersion:item.ontologyVersion})))
       const found=ontologyRows.find((item)=>item.id===current.ontologyId)
       setElements(found?.elements || [])
     }catch(err){setError(messageOf(err))}finally{setLoading(false)}
   }
   useEffect(()=>{void load()},[id])
+  useEffect(()=>{setActiveStep(editorRouteStep())},[id])
   useEffect(()=>{const handler=(event:BeforeUnloadEvent)=>{if(dirty){event.preventDefault();event.returnValue=''}};window.addEventListener('beforeunload',handler);return()=>window.removeEventListener('beforeunload',handler)},[dirty])
   const patch=(next:Partial<RuleItem>)=>{if(!draft)return;setDraft({...draft,...next});setDirty(true);setIssues([])}
   const properties=elements.filter((item)=>item.type==='property')
   const relations=elements.filter((item)=>item.type==='relation')
   const events=elements.filter((item)=>item.type==='class')
-  const classes=elements.filter((item)=>item.type==='class')
   const flatConditions=draft?draft.conditions.items.filter((item):item is RuleCondition=>!isConditionGroup(item)):[]
   const pathConstraints=draft?.pathConfig.constraints||[]
   const timeConditions=draft?.timeConfig.conditions||[]
   const aggregateMetrics=draft?.aggregateConfig.metrics||[]
   const advancedExpression=draft?.conditions.expression||''
   const advancedIssue=advancedExpressionIssue(advancedExpression)
+  const detectionInput=draft?.conditions.detectionInput||''
+  const detectionText=draft?.conditions.detectionText||''
+  const effectiveDetectionText=detectionText||(draft&&advancedExpression?ruleExpression(draft,elements).business:'')
+  const selectedGraph=editorGraphs.find((item)=>item.id===draft?.graphVersion)
   const usesTimeWindow=Boolean(draft&&(draft.type==='时序'||draft.type==='聚合'))
   const scopeBaseline=usesTimeWindow?(draft?.timeConfig.baseline||(draft?.eventCode?'event':'runtime')):'runtime'
   const conditionLogic:Logic=draft?(draft.type==='关系路径'?draft.pathConfig.logic:draft.type==='时序'?draft.timeConfig.logic:draft.type==='聚合'?draft.aggregateConfig.logic:draft.conditions.logic)||'AND':'AND'
@@ -293,14 +345,23 @@ export function RuleAssetEditorPage(){
   const relationCode=(hop:PathHop)=>relations.find((item)=>item.name===hop.relation)?.code||hop.relation
   const normalizedConditions=():ConditionGroup=>{
     if(!draft)return{id:'group-root',logic:'AND',items:[]}
+    const detectionMeta:Pick<ConditionGroup,'detectionInput'|'detectionText'|'expression'|'expressionLanguage'|'generationMode'|'generatedAt'>={
+      detectionInput:draft.conditions.detectionInput||'',
+      detectionText:draft.conditions.detectionText||effectiveDetectionText||'',
+      expression:draft.conditions.expression||'',
+      expressionLanguage:draft.conditions.expressionLanguage||'DSL',
+      generationMode:draft.conditions.generationMode,
+      generatedAt:draft.conditions.generatedAt||'',
+    }
     if(draft.type==='关系路径'){
       const hop=draft.pathConfig.hops[0]
       const items=pathConstraints.length?pathConstraints:hop?[{id:'relation-condition',fieldCode:relationCode(hop),fieldName:hop.relation,fieldType:'关系',operator:'存在',valueMode:'literal' as const,value:'true'}]:[]
-      return{id:'group-root',logic:draft.pathConfig.logic||'AND',items}
+      return{id:'group-root',logic:draft.pathConfig.logic||'AND',items,...detectionMeta}
     }
-    if(draft.type==='时序')return{id:'group-root',logic:draft.timeConfig.logic||'AND',items:timeConditions.map((item)=>({id:item.id,fieldCode:item.eventCode,fieldName:item.eventName||events.find((event)=>event.code===item.eventCode)?.name||'事件',fieldType:'事件',operator:item.requirement,valueMode:'literal' as const,value:`${draft.timeConfig.direction}${draft.timeConfig.windowValue}${draft.timeConfig.windowUnit}`}))}
-    if(draft.type==='聚合')return{id:'group-root',logic:draft.aggregateConfig.logic||'AND',items:aggregateMetrics.map((item)=>({id:item.id,fieldCode:item.fieldCode,fieldName:item.fieldName||properties.find((field)=>field.code===item.fieldCode)?.name||'聚合字段',fieldType:'聚合',operator:`${item.function} ${item.operator}`,valueMode:'literal' as const,value:String(item.threshold)}))}
-    return draft.conditions
+    if(draft.type==='时序')return{id:'group-root',logic:draft.timeConfig.logic||'AND',items:timeConditions.map((item)=>({id:item.id,fieldCode:item.eventCode,fieldName:item.eventName||events.find((event)=>event.code===item.eventCode)?.name||'事件',fieldType:'事件',operator:item.requirement,valueMode:'literal' as const,value:`${draft.timeConfig.direction}${draft.timeConfig.windowValue}${draft.timeConfig.windowUnit}`})),...detectionMeta}
+    if(draft.type==='聚合')return{id:'group-root',logic:draft.aggregateConfig.logic||'AND',items:aggregateMetrics.map((item)=>({id:item.id,fieldCode:item.fieldCode,fieldName:item.fieldName||properties.find((field)=>field.code===item.fieldCode)?.name||'聚合字段',fieldType:'聚合',operator:`${item.function} ${item.operator}`,valueMode:'literal' as const,value:String(item.threshold)})),...detectionMeta}
+    if(draft.type==='高级表达式')return{...draft.conditions,...detectionMeta}
+    return {...draft.conditions,...detectionMeta}
   }
   const composePayload=()=>{
     if(!draft)return null
@@ -321,47 +382,58 @@ export function RuleAssetEditorPage(){
     try{const result=await sceneRuleApi.validateRule(saved.versionId);if(result.blockers.length){setIssues(result.blockers);goToIssue(result.blockers[0]);setToast('还有'+result.blockers.length+'项需要完成');return}setToast(sceneId?'规则配置完成，已关联当前场景':'规则配置完成，现在可以在多个场景中引用');navigate(returnPath)}catch(err){setToast(messageOf(err))}
   }
   const cancel=()=>{if(dirty&&!window.confirm('当前修改尚未保存，确认放弃并返回？'))return;navigate(returnPath)}
+
   const changeRuleType=(type:RuleItem['type'])=>{if(!draft)return;const temporal=type==='时序'||type==='聚合';const baseline=temporal?scopeBaseline:'runtime';patch({type,eventCode:temporal&&baseline==='event'?draft.eventCode:'',eventName:temporal&&baseline==='event'?draft.eventName:'',conditions:{id:'group-root',logic:'AND',items:[]},pathConfig:{...draft.pathConfig,hops:[],logic:'AND',constraints:[]},timeConfig:{...draft.timeConfig,baseline,logic:'AND',conditions:[],eventCode:''},aggregateConfig:{...draft.aggregateConfig,logic:'AND',metrics:[],fieldCode:'',threshold:0}})}
   const changeOntology=(ontologyId:string)=>{
     const ontology=ontologies.find((item)=>item.id===ontologyId)
     const nextElements=ontology?.elements || []
     setElements(nextElements)
-    const object=nextElements.find((item)=>item.type==='class')
     const event=nextElements.find((item)=>item.type==='class')
     const graph=editorGraphs.find((item)=>item.ontologyId===ontologyId)
-    patch({ontologyId,graphVersion:graph?.id||'',objectCode:object?.code||'',objectName:object?.name||'',eventCode:usesTimeWindow&&scopeBaseline==='event'?event?.code||'':'',eventName:usesTimeWindow&&scopeBaseline==='event'?event?.name||'':'',conditions:{id:'group-root',logic:'AND',items:[]},pathConfig:{...draft!.pathConfig,hops:[],logic:'AND',constraints:[]},timeConfig:{...draft!.timeConfig,conditions:[],eventCode:''},aggregateConfig:{...draft!.aggregateConfig,metrics:[],fieldCode:'',threshold:0}})
+    patch({ontologyId,graphVersion:graph?.id||'',objectCode:'',objectName:'',eventCode:usesTimeWindow&&scopeBaseline==='event'?event?.code||'':'',eventName:usesTimeWindow&&scopeBaseline==='event'?event?.name||'':'',conditions:{id:'group-root',logic:'AND',items:[]},pathConfig:{...draft!.pathConfig,hops:[],logic:'AND',constraints:[]},timeConfig:{...draft!.timeConfig,conditions:[],eventCode:''},aggregateConfig:{...draft!.aggregateConfig,metrics:[],fieldCode:'',threshold:0}})
   }
   const changeGraph=(graphVersion:string)=>{
     const graph=editorGraphs.find((item)=>item.id===graphVersion)
     const ontology=ontologies.find((item)=>item.id===graph?.ontologyId)
     const nextElements=ontology?.elements||[];setElements(nextElements)
-    const object=nextElements.find((item)=>item.type==='class')
     const event=nextElements.find((item)=>item.type==='class')
-    patch({graphVersion,ontologyId:graph?.ontologyId||'',objectCode:object?.code||'',objectName:object?.name||'',eventCode:usesTimeWindow&&scopeBaseline==='event'?event?.code||'':'',eventName:usesTimeWindow&&scopeBaseline==='event'?event?.name||'':'',conditions:{id:'group-root',logic:'AND',items:[]},pathConfig:{...draft!.pathConfig,hops:[],logic:'AND',constraints:[]},timeConfig:{...draft!.timeConfig,conditions:[],eventCode:''},aggregateConfig:{...draft!.aggregateConfig,metrics:[],fieldCode:'',threshold:0}})
+    patch({graphVersion,ontologyId:graph?.ontologyId||'',objectCode:'',objectName:'',eventCode:usesTimeWindow&&scopeBaseline==='event'?event?.code||'':'',eventName:usesTimeWindow&&scopeBaseline==='event'?event?.name||'':'',conditions:{id:'group-root',logic:'AND',items:[]},pathConfig:{...draft!.pathConfig,hops:[],logic:'AND',constraints:[]},timeConfig:{...draft!.timeConfig,conditions:[],eventCode:''},aggregateConfig:{...draft!.aggregateConfig,metrics:[],fieldCode:'',threshold:0}})
   }
 
+  const generateDetection=async()=>{
+    if(!draft)return
+    if(!draft.graphVersion||!draft.ontologyId){setToast('请先选择适用图谱，再生成检测口径和表达式');return}
+    const input=cleanSentence(detectionInput)
+    if(!input){setToast('请先填写规则描述');return}
+    setGenerating('generate')
+    try{
+      const result=generatedDetection(input,draft,elements)
+      patch({
+        type:'高级表达式',
+        eventCode:'',
+        eventName:'',
+        conditions:{...draft.conditions,id:'group-root',logic:'AND',items:[],expression:result.expression,expressionLanguage:'DSL',detectionInput:input,detectionText:result.detectionText,generationMode:'generate',generatedAt:new Date().toISOString()},
+        pathConfig:{...draft.pathConfig,hops:[],logic:'AND',constraints:[]},
+        timeConfig:{...draft.timeConfig,baseline:'runtime',logic:'AND',conditions:[],eventCode:''},
+        aggregateConfig:{...draft.aggregateConfig,logic:'AND',metrics:[],fieldCode:'',threshold:0},
+      })
+      setToast('已生成检测口径和表达式')
+    }finally{setGenerating('')}
+  }
 
   if(loading)return <div className="loading-state page-loading"><i/><span>正在加载规则配置…</span></div>
   if(error||!draft||!rule)return <div className="error-state page-error"><Icon name="warning"/><div><strong>规则加载失败</strong><span>{error||'规则不存在'}</span></div><Button onClick={()=>navigate('/rules')}>返回规则库</Button></div>
   const validCondition=(item:RuleCondition)=>Boolean(item.fieldCode&&item.operator&&(['为空','不为空'].includes(item.operator)||item.value||item.valueFieldCode))
-  const logicDone=draft.type==='高级表达式'
-    ?!advancedIssue
-    :draft.type==='关系路径'
-      ?draft.pathConfig.hops.length>0&&pathConstraints.every(validCondition)
-      :draft.type==='时序'
-        ?timeConditions.length>0&&timeConditions.every((item)=>Boolean(item.eventCode))
-        :draft.type==='聚合'
-          ?aggregateMetrics.length>0&&aggregateMetrics.every((item)=>Boolean(item.fieldCode&&item.function&&item.operator&&Number.isFinite(Number(item.threshold))))
-          :flatConditions.length>0&&flatConditions.every(validCondition)
+  const logicDone=Boolean(effectiveDetectionText.trim()&&!advancedIssue)
   const currentStatus=displayStatus({...draft,conditions:normalizedConditions()})
+
   const basicDone=Boolean(draft.name.trim()&&draft.domain&&draft.levelMode)
-  const scopeDone=Boolean(draft.ontologyId&&draft.graphVersion&&draft.objectCode&&(!usesTimeWindow||(Number(draft.timeConfig.windowValue)>0&&(scopeBaseline==='runtime'||draft.eventCode))))
+  const scopeDone=Boolean(draft.ontologyId&&draft.graphVersion)
   const dataLogicDone=scopeDone&&logicDone
   const allDone=basicDone&&dataLogicDone&&governanceDone
-  const expression=ruleExpression(draft,elements)
   const editorSteps:Array<{key:RuleEditorStep;label:string;description:string;done:boolean;incomplete:string}>=[
     {key:'basic',label:'基本信息',description:'名称、领域与风险等级',done:basicDone,incomplete:'请先填写规则名称、监管领域和命中风险等级'},
-    {key:'logic',label:'检测口径',description:'检测范围与多条件组合',done:dataLogicDone,incomplete:'请完成检测范围和判断条件配置'},
+    {key:'logic',label:'检测口径',description:'规则描述、标准口径与表达式',done:dataLogicDone,incomplete:'请填写规则描述，生成或填写标准检测口径和表达式，并确认适用图谱'},
     {key:'governance',label:'依据与证据',description:'制度依据与证据要求',done:governanceDone,incomplete:'请至少配置一条制度依据和一项完整的证据要求'},
   ]
   const activeIndex=Math.max(0,editorSteps.findIndex((item)=>item.key===activeStep))
@@ -370,7 +442,7 @@ export function RuleAssetEditorPage(){
   const goNext=()=>{const current=editorSteps[activeIndex];if(!current.done){setToast(current.incomplete);return}if(activeIndex<editorSteps.length-1)setActiveStep(editorSteps[activeIndex+1].key)}
   const goPrevious=()=>{if(activeIndex>0)setActiveStep(editorSteps[activeIndex-1].key)}
   return <>
-    <div className="simple-rule-header"><div><button className="back-button" onClick={cancel}>‹ {sceneId?'返回风险场景':'返回规则管理'}</button><p className="eyebrow">风险规则 / {rule.code} / {rule.version}</p><h1>{draft.name}</h1><div className="editor-meta"><StatusTag>{currentStatus}</StatusTag><span>{draft.type}</span><span>被 {draft.bindingCount||0} 个场景版本引用</span><span>{dirty?'存在未保存修改':'最近保存：'+dateText(rule.updatedAt)}</span></div></div></div>
+    <div className="simple-rule-header"><div><button className="back-button" onClick={cancel}>‹ {sceneId?'返回风险场景':'返回规则管理'}</button><p className="eyebrow">风险规则 / {rule.code} / {rule.version}</p><h1>{draft.name}</h1><div className="editor-meta"><StatusTag>{currentStatus}</StatusTag><span>被 {draft.bindingCount||0} 个场景版本引用</span><span>{dirty?'存在未保存修改':'最近保存：'+dateText(rule.updatedAt)}</span></div></div></div>
     <nav className="rule-editor-tabs" aria-label="规则配置步骤">{editorSteps.map((step,index)=>{const hasIssue=issues.some((issue)=>issueStep(issue)===step.key);return <button type="button" className={[activeStep===step.key?'active':'',step.done?'done':'',hasIssue?'error':''].filter(Boolean).join(' ')} onClick={()=>setActiveStep(step.key)} key={step.key}><i>{step.done?'✓':index+1}</i><span><strong>{step.label}</strong><small>{step.description}</small></span></button>})}</nav>
     {issues.length>0&&<section className="rule-validation-banner"><div><Icon name="warning"/><span><strong>还有 {issues.length} 项需要完成</strong><small>点击问题可直接进入对应配置步骤</small></span></div><div>{issues.map((issue,index)=><button type="button" onClick={()=>goToIssue(issue)} key={issue.field+'-'+index}>{issue.message}</button>)}</div></section>}
     <main className="rule-step-content">
@@ -381,36 +453,22 @@ export function RuleAssetEditorPage(){
         <Field label="命中风险等级"><select value={draft.levelMode==='inherit'?'inherit':draft.level} disabled={readonly} onChange={(event)=>event.target.value==='inherit'?patch({levelMode:'inherit'}):patch({levelMode:'override',level:event.target.value as RiskLevel})}><option value="inherit">继承场景默认等级</option>{levels.map((item)=><option value={item} key={item}>固定为：{item}</option>)}</select></Field>
         <Field label="规则版本"><input value={rule.version} disabled/></Field>
       </div><div className="rule-basic-summary"><div><span>当前状态</span><strong>{currentStatus}</strong></div><div><span>引用场景</span><strong>{draft.bindingCount||0} 个版本</strong></div><div><span>最近保存</span><strong>{dateText(rule.updatedAt)}</strong></div></div></Panel>}
-      {activeStep==='logic'&&<Panel title="2. 检测口径" subtitle="单条规则绑定一套检测范围，并在范围内组合多条判断条件">
-        <div className="rule-editor-section detection-scope-section">
-          <header><div><strong>检测范围</strong><span>图谱和主对象始终必填；只有时序、聚合规则需要时间范围</span></div><em className={scopeDone?'complete':'pending'}>{scopeDone?'已完成':'待完成'}</em></header>
-          <div className="form-section detection-scope-grid">
-            <Field label="已发布知识图谱 *"><select value={draft.graphVersion||''} disabled={readonly} onChange={(event)=>changeGraph(event.target.value)}><option value="">请选择已发布知识图谱</option>{availableEditorGraphs.map((item)=><option value={item.id} key={item.id}>{item.id}</option>)}</select></Field>
-            <Field label="适用图谱结构（由图谱带出）"><select value={draft.ontologyId} disabled>{ontologies.map((item)=><option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
-            <Field label="主对象 *"><select value={draft.objectCode||''} disabled={readonly} onChange={(event)=>{const item=classes.find((candidate)=>candidate.code===event.target.value);patch({objectCode:event.target.value,objectName:item?.name||''})}}>{classes.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>
-            {usesTimeWindow&&<>
-              <Field label="计算基准 *"><select value={scopeBaseline} disabled={readonly} onChange={(event)=>{const baseline=event.target.value as 'event'|'runtime';const target=events[0];patch({timeConfig:{...draft.timeConfig,baseline},eventCode:baseline==='event'?(draft.eventCode||target?.code||''):'',eventName:baseline==='event'?(draft.eventName||target?.name||''):''})}}><option value="event">目标类节点的发生时间</option><option value="runtime">规则运行时间</option></select></Field>
-              {scopeBaseline==='event'&&<Field label="目标类 *"><select value={draft.eventCode||''} disabled={readonly} onChange={(event)=>{const item=events.find((candidate)=>candidate.code===event.target.value);patch({eventCode:event.target.value,eventName:item?.name||''})}}><option value="">请选择目标类</option>{events.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select></Field>}
-              <Field label="观察窗口 *"><div className="scope-window-control"><select value={draft.timeConfig.direction||'之前'} disabled={readonly} onChange={(event)=>patch({timeConfig:{...draft.timeConfig,direction:event.target.value}})}><option>之前</option><option>之后</option></select><input type="number" min="1" value={draft.timeConfig.windowValue} disabled={readonly} onChange={(event)=>patch({timeConfig:{...draft.timeConfig,windowValue:Number(event.target.value)}})}/><select value={draft.timeConfig.windowUnit||'天'} disabled={readonly} onChange={(event)=>patch({timeConfig:{...draft.timeConfig,windowUnit:event.target.value}})}><option>小时</option><option>天</option><option>月</option></select></div></Field>
-            </>}
-          </div>
-          <div className="scope-summary"><Icon name="graph"/><span>{usesTimeWindow?(scopeBaseline==='event'?`以“${draft.eventName||'未选择目标类'}”为基准，检查${draft.timeConfig.direction}${draft.timeConfig.windowValue||0}${draft.timeConfig.windowUnit}`:`以规则运行时间为基准，检查${draft.timeConfig.direction}${draft.timeConfig.windowValue||0}${draft.timeConfig.windowUnit}`):'按规则运行时的当前有效数据判断，不设置观察窗口'}</span></div>
+      {activeStep==='logic'&&<Panel title="2. 检测口径" subtitle="先选择适用图谱，再用自然语言描述检测规则，系统生成标准口径和可编辑表达式">
+        <div className="rule-editor-section detection-graph-section">
+          <header><div><strong>适用图谱</strong><span>只保留规则生成和表达式校验所需的图谱上下文。</span></div><em className={scopeDone?'complete':'pending'}>{scopeDone?'已确认':'待确认'}</em></header>
+          <div className="detection-graph-card"><Icon name="graph"/><div><span>适用图谱</span><strong>{selectedGraph?graphLabel(selectedGraph):(draft.graphVersion||'未选择知识图谱')}</strong><small>系统将基于该图谱校验表达式；涉及对象和目标事件由表达式自然推导，不在检测口径页单独配置。</small></div>{!readonly&&<select value={draft.graphVersion||''} onChange={(event)=>changeGraph(event.target.value)}><option value="">请选择已发布知识图谱</option>{availableEditorGraphs.map((item)=><option value={item.id} key={item.id}>{item.graphName||item.id} · {item.id}</option>)}</select>}</div>
         </div>
-        <div className="rule-editor-section detection-condition-section">
-          <header><div><strong>判定方式与条件</strong><span>{logicHelp(draft.type)}</span></div><em className={logicDone?'complete':'pending'}>{logicDone?'已完成':'待完成'}</em></header>
-          <div className="rule-type-grid">{ruleTypes.map((type,index)=><button type="button" className={draft.type===type?'selected':''} disabled={readonly} onClick={()=>changeRuleType(type)} key={type}><i>{index+1}</i><span><strong>{type}</strong><small>{ruleTypeHelp[type]}</small></span></button>)}</div>
-          {draft.type!=='高级表达式'&&<LogicSelector logic={conditionLogic} count={conditionCount} readonly={readonly} onChange={setConditionLogic}/>}
-          {(draft.type==='属性'||draft.type==='字段比对')&&<ConditionRows conditions={flatConditions} properties={properties} readonly={readonly} fieldCompare={draft.type==='字段比对'} onAdd={addCondition} onUpdate={updateCondition} onRemove={removeCondition}/>}
-          {draft.type==='关系路径'&&<div className="guided-logic">
-            <div className="logic-origin"><span>起点对象</span><strong>{draft.objectName||'规则主对象'}</strong><small>最多两跳关系</small></div>
-            {draft.pathConfig.hops.map((hop,index)=><div className="guided-hop" key={String(index)}><i>{index+1}</i><select value={relationCode(hop)} disabled={readonly} onChange={(event)=>{const relation=relations.find((item)=>item.code===event.target.value);if(!relation)return;const parts=String(relation.dataType||'').split('→').map((item)=>item.trim());const hops=[...draft.pathConfig.hops];hops[index]={from:parts[0]||draft.objectName||'',relation:relation.name,to:parts[1]||'目标对象'};patch({pathConfig:{...draft.pathConfig,hops}})}}>{relations.map((item)=><option value={item.code} key={item.code}>{item.name} · {item.dataType}</option>)}</select><div><span>{hop.from}</span><Icon name="chevron"/><strong>{hop.relation}</strong><Icon name="chevron"/><span>{hop.to}</span></div>{!readonly&&<button onClick={()=>patch({pathConfig:{...draft.pathConfig,hops:draft.pathConfig.hops.filter((_,itemIndex)=>itemIndex!==index)}})}><Icon name="close" size={14}/></button>}</div>)}
-            {!readonly&&draft.pathConfig.hops.length<2&&<div className="element-choice-grid">{relations.map((item)=><button key={item.code} onClick={()=>{const parts=String(item.dataType||'').split('→').map((value)=>value.trim());patch({pathConfig:{...draft.pathConfig,hops:[...draft.pathConfig.hops,{from:parts[0]||draft.objectName||'',relation:item.name,to:parts[1]||'目标对象'}]}})}}><Icon name="link"/><div><strong>添加到关系路径</strong><span>{item.name}</span><small>{item.dataType}</small></div></button>)}</div>}
-            {draft.pathConfig.hops.length>0&&<div className="condition-subsection"><header><div><strong>路径约束（可选）</strong><span>对路径上的对象属性增加筛选条件</span></div><b>{pathConstraints.length}/10</b></header><ConditionRows conditions={pathConstraints} properties={properties} readonly={readonly} fieldCompare={false} onAdd={addPathConstraint} onUpdate={updatePathConstraint} onRemove={removePathConstraint}/></div>}
-          </div>}
-          {draft.type==='时序'&&<TimeConditionRows conditions={timeConditions} events={events} readonly={readonly} onAdd={addTimeCondition} onUpdate={updateTimeCondition} onRemove={removeTimeCondition}/>}
-          {draft.type==='聚合'&&<AggregateMetricRows metrics={aggregateMetrics} properties={properties} readonly={readonly} onAdd={addAggregateMetric} onUpdate={updateAggregateMetric} onRemove={removeAggregateMetric}/>}
-          {draft.type==='高级表达式'&&<AdvancedExpressionEditor expression={advancedExpression} elements={elements} readonly={readonly} onChange={(value)=>patch({conditions:{...draft.conditions,expression:value,expressionLanguage:'DSL'}})}/>}
-          <div className="rule-expression-card"><header><div><Icon name="rules"/><span><strong>规则表达</strong><small>配置变化后自动生成，用于业务确认和系统执行</small></span></div></header><div><span>业务表达</span><p>{expression.business}</p></div><div><span>机器表达</span><code>{expression.machine}</code></div></div>
+        <div className="rule-editor-section detection-ai-section">
+          <header><div><strong>规则描述</strong><span>描述希望系统识别什么风险，系统会结合上方图谱生成标准检测口径和表达式。</span></div><em className={detectionInput.trim()?'complete':'pending'}>{detectionInput.trim()?'已填写':'待填写'}</em></header>
+          <Field label="规则描述 *" wide><textarea value={detectionInput} disabled={readonly} onChange={(event)=>patch({conditions:{...draft.conditions,detectionInput:event.target.value}})} placeholder="例如：同一采购项目下，不同供应商的投标文件内容高度相似，相似度超过70%，判定为疑似围标串标。"/></Field>
+          {!readonly&&<div className="detection-ai-actions"><Button variant="primary" icon="agent" disabled={generating!==''} onClick={()=>void generateDetection()}>{generating==='generate'?'正在生成…':'AI生成规则'}</Button></div>}
+        </div>
+        <div className="rule-editor-section detection-result-section">
+          <header><div><strong>标准口径与表达式</strong><span>标准检测口径用于业务展示，表达式用于系统执行；两者都可以人工修改。</span></div><em className={logicDone?'complete':'pending'}>{logicDone?'已通过':'待生成'}</em></header>
+          <div className="form-stack">
+            <Field label="标准检测口径 *" wide><textarea value={effectiveDetectionText} disabled={readonly} onChange={(event)=>patch({conditions:{...draft.conditions,detectionText:event.target.value}})} placeholder="点击 AI生成规则 后，系统会生成一段可直接展示给业务人员的检测口径。"/></Field>
+            <AdvancedExpressionEditor expression={advancedExpression} elements={elements} readonly={readonly} compact onChange={(value)=>patch({type:'高级表达式',conditions:{...draft.conditions,expression:value,expressionLanguage:'DSL'}})}/>
+          </div>
         </div>
         {!readonly&&<button className="advanced-toggle" onClick={()=>setAdvanced((value)=>!value)}>{advanced?'收起规则级例外':draft.exceptions.description?'修改规则级例外':'配置规则级例外'} <Icon name="chevron" size={14}/></button>}
         {advanced&&!readonly&&<div className="advanced-settings"><Field label="规则级例外"><textarea value={draft.exceptions.description} onChange={(event)=>patch({exceptions:{...draft.exceptions,description:event.target.value,enabled:Boolean(event.target.value)}})} placeholder="说明白名单、特殊授权或不适用情形"/></Field></div>}
@@ -419,7 +477,7 @@ export function RuleAssetEditorPage(){
       {activeStep==='governance'&&<Panel title="3. 依据与证据" subtitle="配置态统一使用“证据要求”，规则运行后才形成“实际证据”"><nav className="governance-subtabs"><button type="button" className={governanceTab==='policies'?'active':''} onClick={()=>setGovernanceTab('policies')}>制度依据 <b>{policies.length}</b></button><button type="button" className={governanceTab==='evidence'?'active':''} onClick={()=>setGovernanceTab('evidence')}>证据要求 <b>{evidenceRequirements.length}</b></button></nav>
         {governanceTab==='policies'&&<section className="governance-list"><div className="section-toolbar compact"><div><strong>制度依据</strong><span>说明规则判定所依据的制度、版本和具体条款</span></div>{!readonly&&<Button icon="plus" onClick={()=>openPolicyEditor()}>新增制度依据</Button>}</div>{policies.length?<div className="table-container"><table><thead><tr><th>制度名称</th><th>制度版本</th><th>制度条款</th><th>条款原文</th><th>操作</th></tr></thead><tbody>{policies.map((policy,index)=><tr key={policy.id||index}><td><strong>{policy.name||'未填写'}</strong></td><td>{policy.version||'—'}</td><td>{policy.clause||'未填写'}</td><td><span className="table-text-ellipsis">{policy.text||'—'}</span></td><td><div className="row-actions"><button onClick={()=>openPolicyEditor(index)}>{readonly?'查看':'编辑'}</button>{!readonly&&<button className="danger-link" onClick={()=>deletePolicy(index)}>删除</button>}</div></td></tr>)}</tbody></table></div>:<div className="governance-empty"><EmptyState title="尚未配置制度依据" description="至少添加一条制度名称和条款后才能完成规则配置。"/></div>}</section>}
         {governanceTab==='evidence'&&<section className="governance-list"><div className="section-toolbar compact"><div><strong>证据要求</strong><span>定义规则命中后系统需要固化的数据和附件要求</span></div>{!readonly&&<Button icon="plus" onClick={()=>openEvidenceEditor()}>新增证据要求</Button>}</div>{evidenceRequirements.length?<div className="table-container"><table><thead><tr><th>证据名称</th><th>数据来源</th><th>来源字段</th><th>附件要求</th><th>完整性要求</th><th>操作</th></tr></thead><tbody>{evidenceRequirements.map((item,index)=><tr key={item.id||index}><td><strong>{item.name||'未填写'}</strong></td><td>{item.source||'未填写'}</td><td>{item.sourceField||'—'}</td><td>{item.attachmentRequirement}</td><td><span className="table-text-ellipsis">{item.completeness||'未填写'}</span></td><td><div className="row-actions"><button onClick={()=>openEvidenceEditor(index)}>{readonly?'查看':'编辑'}</button>{!readonly&&<button className="danger-link" onClick={()=>deleteEvidenceRequirement(index)}>删除</button>}</div></td></tr>)}</tbody></table></div>:<div className="governance-empty"><EmptyState title="尚未配置证据要求" description="至少配置一项证据名称、数据来源和完整性要求。"/></div>}</section>}
-        <div className="next-action-card"><Icon name={allDone?'check':'clock'}/><div><strong>{allDone?'规则配置已完整':'规则仍有未完成配置'}</strong><span>{allDone?`命中输出将由系统按${draft.type}规则自动生成：${outputsForRuleType(draft.type).join('、')}`:'请根据顶部步骤状态补齐缺失信息。'}</span></div></div></Panel>}
+        <div className="next-action-card"><Icon name={allDone?'check':'clock'}/><div><strong>{allDone?'规则配置已完整':'规则仍有未完成配置'}</strong><span>{allDone?`命中输出将由系统自动生成：${outputsForRuleType(draft.type).join('、')}`:'请根据顶部步骤状态补齐缺失信息。'}</span></div></div></Panel>}
     </main>
     {!readonly&&<footer className="editor-action-bar"><div><span className={dirty?'dirty-dot':''}/><strong>{dirty?'修改尚未保存':currentStatus}</strong><small>{sceneId?'保存后返回当前风险场景':'规则独立保存，可由多个场景选择引用'}</small></div><div><Button onClick={cancel}>取消</Button>{activeIndex>0&&<Button onClick={goPrevious}>上一步</Button>}<Button onClick={()=>void save()}>保存草稿</Button>{activeIndex<editorSteps.length-1?<Button variant="primary" onClick={goNext}>下一步</Button>:<Button variant="primary" onClick={()=>void complete()}>完成规则配置</Button>}</div></footer>}
     {policyEditor&&<Drawer open title={policyEditor?.index===-1?'新增制度依据':'制度依据详情'} eyebrow="依据与证据" onClose={()=>setPolicyEditor(null)} footer={readonly?<Button onClick={()=>setPolicyEditor(null)}>关闭</Button>:<><Button onClick={()=>setPolicyEditor(null)}>取消</Button><Button variant="primary" onClick={savePolicyEditor}>保存</Button></>}>{policyEditor&&<div className="form-stack"><Field label="制度名称 *"><input value={policyEditor.value.name} disabled={readonly} onChange={(event)=>setPolicyEditor({...policyEditor,value:{...policyEditor.value,name:event.target.value}})}/></Field><Field label="制度版本"><input value={policyEditor.value.version} disabled={readonly} onChange={(event)=>setPolicyEditor({...policyEditor,value:{...policyEditor.value,version:event.target.value}})}/></Field><Field label="制度条款 *"><input value={policyEditor.value.clause} disabled={readonly} onChange={(event)=>setPolicyEditor({...policyEditor,value:{...policyEditor.value,clause:event.target.value}})} placeholder="例如：第十二条"/></Field><Field label="条款原文"><textarea value={policyEditor.value.text||''} disabled={readonly} onChange={(event)=>setPolicyEditor({...policyEditor,value:{...policyEditor.value,text:event.target.value}})}/></Field></div>}</Drawer>}
@@ -427,7 +485,7 @@ export function RuleAssetEditorPage(){
   </>
 }
 
-function logicHelp(type:RuleItem['type']){return type==='属性'?'添加一个或多个属性判断条件。':type==='字段比对'?'添加一个或多个字段之间的比较条件。':type==='关系路径'?'从主对象出发配置一至两跳关系，并可增加属性约束。':type==='时序'?'添加一个或多个类节点发生要求，共用同一观察窗口。':type==='聚合'?'添加一至三个统计指标，并设置组合方式。':'使用受控表达式组合字段、类节点、关系和白名单函数。'}
+function logicHelp(type:RuleItem['type']){return type==='属性'?'添加一个或多个属性判断条件。':type==='字段比对'?'添加一个或多个字段之间的比较条件。':type==='关系路径'?'配置一至两跳关系路径，并可增加属性约束。':type==='时序'?'添加一个或多个类节点发生要求，共用同一观察窗口。':type==='聚合'?'添加一至三个统计指标，并设置组合方式。':'使用受控表达式组合字段、类节点、关系和白名单函数。'}
 function operatorsFor(element?:OntologyElement){const type=element?.dataType||'';if(/数字|金额|日期/.test(type))return['等于','不等于','大于','大于等于','小于','小于等于','为空','不为空'];return['等于','不等于','包含','不包含','为空','不为空']}
 function ConditionRows({conditions,properties,readonly,fieldCompare,onAdd,onUpdate,onRemove}:{conditions:RuleCondition[];properties:OntologyElement[];readonly:boolean;fieldCompare:boolean;onAdd:()=>void;onUpdate:(id:string,next:Partial<RuleCondition>)=>void;onRemove:(id:string)=>void}){
   return <div className="simple-condition-list">{conditions.length>0&&<div className="simple-condition-head"><span>序号</span><span>判断属性</span><span>运算符</span><span>{fieldCompare?'对比属性':'比较值'}</span><span>操作</span></div>}{conditions.map((condition,index)=>{const element=properties.find((item)=>item.code===condition.fieldCode);const unary=['为空','不为空'].includes(condition.operator);return <div className="simple-condition" key={condition.id}><b>{index+1}</b><select value={condition.fieldCode} disabled={readonly} onChange={(event)=>{const next=properties.find((item)=>item.code===event.target.value);onUpdate(condition.id,{fieldCode:event.target.value,fieldName:next?.name||'',fieldType:next?.dataType||'',operator:'等于'})}}><option value="">选择判断属性</option>{properties.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select><select value={condition.operator} disabled={readonly} onChange={(event)=>{const operator=event.target.value;onUpdate(condition.id,{operator,value:['为空','不为空'].includes(operator)?'':condition.value})}}>{operatorsFor(element).map((item)=><option key={item}>{item}</option>)}</select>{unary?<div className="unary-value">无需比较值</div>:fieldCompare?<select value={condition.valueFieldCode||''} disabled={readonly} onChange={(event)=>{const next=properties.find((item)=>item.code===event.target.value);onUpdate(condition.id,{valueMode:'field',value:'',valueFieldCode:event.target.value,valueFieldName:next?.name||''})}}><option value="">选择对比属性</option>{properties.map((item)=><option value={item.code} key={item.code}>{item.name}</option>)}</select>:<input value={condition.value} disabled={readonly} onChange={(event)=>onUpdate(condition.id,{valueMode:'literal',value:event.target.value})} placeholder="输入比较值"/>}{!readonly&&<button onClick={()=>onRemove(condition.id)}><Icon name="close" size={14}/></button>}</div>})}{!conditions.length&&<EmptyState title="尚未配置判断条件" description={fieldCompare?'请选择两个属性进行比较。':'请选择一个属性并输入比较值。'}/>} {!readonly&&<Button icon="plus" onClick={onAdd}>添加判断条件</Button>}</div>
@@ -458,18 +516,18 @@ function AggregateMetricRows({metrics,properties,readonly,onAdd,onUpdate,onRemov
   </div>
 }
 
-function AdvancedExpressionEditor({expression,elements,readonly,onChange}:{expression:string;elements:OntologyElement[];readonly:boolean;onChange:(value:string)=>void}){
+function AdvancedExpressionEditor({expression,elements,readonly,compact=false,onChange}:{expression:string;elements:OntologyElement[];readonly:boolean;compact?:boolean;onChange:(value:string)=>void}){
   const issue=advancedExpressionIssue(expression)
   const properties=elements.filter((item)=>item.type==='property')
   const events=elements.filter((item)=>item.type==='class')
   const relations=elements.filter((item)=>item.type==='relation')
   const append=(token:string)=>onChange(`${expression}${expression.trim()?'\nAND ':''}${token}`)
-  const functionToken=(name:string)=>name==='EVENT_COUNT'?`EVENT_COUNT("", 30, "DAY", "BEFORE")`:name==='EXISTS_PATH'?`EXISTS_PATH("")`:name==='DATE_DIFF'?`DATE_DIFF("", "")`:name==='ABS'?`ABS()`:`${name}("", 30, "DAY", "BEFORE")`
-  return <div className="advanced-expression-editor">
-    <header><div><strong>高级表达式</strong><span>仅支持当前结构元素和白名单函数，不允许 SQL、JavaScript 或外部调用</span></div><b>受控 DSL</b></header>
+  const functionToken=(name:string)=>name==='AI_REVIEW'?`AI_REVIEW("风险名称", "审查要求") == true`:name==='EVENT_COUNT'?`EVENT_COUNT("", 30, "DAY", "BEFORE")`:name==='EXISTS_PATH'?`EXISTS_PATH("")`:name==='DATE_DIFF'?`DATE_DIFF("", "")`:name==='ABS'?`ABS()`:`${name}("", 30, "DAY", "BEFORE")`
+  return <div className={`advanced-expression-editor${compact?' compact':''}`}>
+    <header><div><strong>{compact?'表达式':'高级表达式'}</strong><span>{compact?'系统生成的表达式可直接修改，保存前会自动校验基础语法。':'仅支持当前结构元素和白名单函数，不允许 SQL、JavaScript 或外部调用'}</span></div><b>DSL</b></header>
     <textarea value={expression} disabled={readonly} maxLength={2000} spellCheck={false} onChange={(event)=>onChange(event.target.value)} placeholder={'例如：\nPROC.Supplier.status == "异常"\nAND EVENT_COUNT("PROC.BidConfirmed", 30, "DAY", "BEFORE") > 0'}/>
     <div className={`expression-validation ${issue?'error':'valid'}`}><Icon name={issue?'warning':'check'} size={14}/><span>{issue||'表达式基础语法检查通过'}</span><small>{expression.length}/2000</small></div>
-    {!readonly&&<div className="expression-palette">
+    {!readonly&&!compact&&<div className="expression-palette">
       <section><h4>函数</h4><div>{expressionFunctions.map((name)=><button type="button" key={name} onClick={()=>append(functionToken(name))}><strong>{name}</strong><span>{expressionFunctionLabels[name]}</span></button>)}</div></section>
       <section><h4>属性</h4><div>{properties.map((item)=><button type="button" key={item.code} onClick={()=>append(item.code)}><strong>{item.name}</strong><code>{item.code}</code></button>)}</div></section>
       <section><h4>类节点</h4><div>{events.map((item)=><button type="button" key={item.code} onClick={()=>append(`EVENT_COUNT("${item.code}", 30, "DAY", "BEFORE") > 0`)}><strong>{item.name}</strong><code>{item.code}</code></button>)}</div></section>
@@ -478,4 +536,3 @@ function AdvancedExpressionEditor({expression,elements,readonly,onChange}:{expre
     <div className="expression-help"><strong>支持内容</strong><span>AND、OR、NOT、括号、比较和算术运算；时间单位使用 HOUR、DAY、MONTH，方向使用 BEFORE、AFTER。</span></div>
   </div>
 }
-

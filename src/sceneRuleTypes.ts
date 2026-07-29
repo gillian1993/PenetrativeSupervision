@@ -12,7 +12,10 @@ export interface RuleCondition{
   id:string;fieldCode:string;fieldName:string;fieldType:string;operator:string;
   valueMode:'literal'|'field';value:string;valueFieldCode?:string;valueFieldName?:string
 }
-export interface ConditionGroup{id:string;logic:Logic;items:Array<RuleCondition|ConditionGroup>;expression?:string;expressionLanguage?:'DSL'}
+export interface ConditionGroup{
+  id:string;logic:Logic;items:Array<RuleCondition|ConditionGroup>;expression?:string;expressionLanguage?:'DSL';
+  detectionInput?:string;detectionText?:string;generationMode?:'generate'|'polish'|'batch_fill';generatedAt?:string
+}
 export const isConditionGroup=(item:RuleCondition|ConditionGroup):item is ConditionGroup=>'items'in item
 
 export interface PathHop{from:string;relation:string;to:string}
@@ -41,7 +44,7 @@ export interface RuleItem{
   policy:{name:string;version:string;clause:string};failureStrategy:string;summary:string;lockVersion:number;updatedAt:string;
   policies?:PolicyBasis[];evidenceRequirements?:EvidenceRequirement[];levelMode?:'inherit'|'override';
   domain?:string;objectCode?:string;objectName?:string;eventCode?:string;eventName?:string;
-  sceneName?:string;sceneNames?:string[];sceneIds?:string[];bindingCount?:number;sceneStatus?:SceneStatus;ontologyId?:string;graphVersion?:string;priority?:number
+  sceneName?:string;sceneNames?:string[];sceneIds?:string[];bindingCount?:number;catalogBindingCount?:number;sceneStatus?:SceneStatus;ontologyId?:string;graphVersion?:string;priority?:number
 }
 
 export interface SceneVersionSummary{id:string;version:string;status:SceneStatus;updatedBy:string;updatedAt:string;publishedAt:string;sourceVersionId:string}
