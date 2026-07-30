@@ -43,7 +43,7 @@ export interface RuleItem{
   exceptions:{enabled:boolean;description:string;whitelist:string[]};outputs:string[];evidence:string[];
   policy:{name:string;version:string;clause:string};failureStrategy:string;summary:string;lockVersion:number;updatedAt:string;
   policies?:PolicyBasis[];evidenceRequirements?:EvidenceRequirement[];levelMode?:'inherit'|'override';
-  domain?:string;objectCode?:string;objectName?:string;eventCode?:string;eventName?:string;
+  domain?:string;libraryName?:string;directoryName?:string;description?:string;objectCode?:string;objectName?:string;eventCode?:string;eventName?:string;
   sceneName?:string;sceneNames?:string[];sceneIds?:string[];bindingCount?:number;catalogBindingCount?:number;sceneStatus?:SceneStatus;ontologyId?:string;graphVersion?:string;priority?:number
 }
 

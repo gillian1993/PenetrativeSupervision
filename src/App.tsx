@@ -3,7 +3,6 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-
 import { AuditPage, DataSourceCreatePage, DataSourceDetailPage, GraphManagementPage, ModelManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
 import { ProcurementHomePage, ProcurementModulePage, ProcurementOverviewPage, SuperAgentPage } from './pages/ProcurementApplicationPages'
 import { GraphCreatePage } from './pages/GraphCreateWizard'
-import { SceneCreatePage, SceneEditorPage, SceneListPage } from './pages/SceneRulePages'
 import { RuleAssetCreatePage, RuleAssetEditorPage, RuleAssetManagementPage } from './pages/RuleAssetPages'
 import { OntologyCreatePage, OntologyEditorPage } from './pages/OntologyLocalPages'
 import { SituationPage, WorkbenchPage } from './pages/OverviewPages'
@@ -70,10 +69,8 @@ const navSections: NavSection[] = [
         { label: '统一预警', path: '/risk/warnings', permission: 'menu.supervision.risk.warnings' },
         { label: '风险事件', path: '/risk/events', permission: 'menu.supervision.risk.events' },
       ] },
-      { id: 'scene', label: '场景与规则', icon: 'rules', children: [
-        { label: '风险场景', path: '/scenes', permission: 'menu.supervision.scene.scenes' },
+      { id: 'ruleCenter', label: '规则中心', icon: 'rules', children: [
         { label: '规则管理', path: '/rules', permission: 'menu.supervision.scene.rules' },
-
       ] },
       { id: 'ontology', label: '知识图谱', icon: 'graph', children: [
         { label: '图谱结构', path: '/graphs/structures', permission: 'menu.supervision.ontology.structures' },
@@ -124,7 +121,7 @@ const permissionsForPath = (path: string): PermissionCode[] => {
   if (path === '/situation') return ['menu.supervision.situation']
   if (path.startsWith('/risk/warnings')) return ['menu.supervision.risk.warnings']
   if (path.startsWith('/risk/events')) return ['menu.supervision.risk.events']
-  if (path.startsWith('/scenes')) return ['menu.supervision.scene.scenes']
+  if (path.startsWith('/scenes')) return ['menu.supervision.scene.rules']
   if (path.startsWith('/rules')) return ['menu.supervision.scene.rules']
 
   if (path.startsWith('/graphs/sources') || path.startsWith('/data-access')) return ['menu.supervision.ontology.sources']
@@ -158,7 +155,6 @@ function AppEnhanced() {
   const todos = useAppStore((state) => state.todos)
   const warnings = useAppStore((state) => state.warnings)
   const riskEvents = useAppStore((state) => state.riskEvents)
-  const scenes = useAppStore((state) => state.scenes)
   const users = useAppStore((state) => state.users)
   const roles = useAppStore((state) => state.roles)
   const currentScope = useAppStore((state) => state.currentScope)
@@ -175,7 +171,7 @@ function AppEnhanced() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
   const [roleOpen, setRoleOpen] = useState(false)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ tender: true, contract: true, review: true, purchase: true, risk: true, scene: true, ontology: true, system: true })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ tender: true, contract: true, review: true, purchase: true, risk: true, ruleCenter: true, ontology: true, system: true })
   const [agentOpen, setAgentOpen] = useState(false)
   const [agentInput, setAgentInput] = useState('')
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([])
@@ -233,10 +229,9 @@ function AppEnhanced() {
     return [
       ...warnings.filter((item) => `${item.id}${item.title}${item.target}`.toLowerCase().includes(keyword)).map((item) => ({ id: item.id, type: '预警', title: item.title, meta: `${item.level} · ${item.status} · ${item.target}`, path: `/risk/warnings/${item.id}` })),
       ...riskEvents.filter((item) => `${item.id}${item.title}${item.target}`.toLowerCase().includes(keyword)).map((item) => ({ id: item.id, type: '风险事件', title: item.title, meta: `${item.level} · ${item.status} · ${item.owner}`, path: `/risk/events/${item.id}` })),
-      ...scenes.filter((item) => `${item.id}${item.name}${item.object}`.toLowerCase().includes(keyword)).map((item) => ({ id: item.id, type: '风险场景', title: item.name, meta: `${item.domain} · ${item.status} · ${item.version}`, path: `/scenes/${item.id}` })),
       ...users.filter((item) => `${item.id}${item.name}${item.account}`.toLowerCase().includes(keyword)).map((item) => ({ id: item.id, type: '用户', title: item.name, meta: `${item.organization} · ${item.status}`, path: '/system/users' })),
     ].filter((item) => pathAllowedByPermissions(item.path, effectivePermissions)).slice(0, 8)
-  }, [search, warnings, riskEvents, scenes, users, effectivePermissions])
+  }, [search, warnings, riskEvents, users, effectivePermissions])
 
   const agentContext = useMemo<AgentPageContext>(() => {
     const path = location.pathname
@@ -251,17 +246,16 @@ function AppEnhanced() {
     if (path === '/risk/warnings') return { page: '统一预警', guide: '这里统一查询事前、事中和事后预警，并进入证据研判与处置流程。', next: '可先使用状态和风险等级筛选，再进入预警详情查看证据或开展处置。', data: `当前加载${warnings.length}条预警，其中${warnings.filter((item) => ['重大', '高'].includes(item.level)).length}条为重大或高风险。` }
     if (path.startsWith('/risk/events/')) { const item = riskEvents.find((event) => event.id === objectId); return { page: `风险事件详情 · ${objectId}`, guide: '这里用于跟踪风险事件的责任人、整改过程、证据材料和监管复核。', next: '建议确认当前状态和完成时限，再执行派发、整改提交或监管复核。', data: item ? `该事件风险等级为${item.level}，当前状态为${item.status}，责任人为${item.owner || '待分配'}。` : '当前风险事件详情正在加载，请稍后查看处置状态。' } }
     if (path === '/risk/events') return { page: '风险事件', guide: '这里管理由预警升级形成的风险事件，并跟踪整改、复核和关闭过程。', next: '建议优先处理逾期和待复核事件，再检查核查整改中的事项。', data: `当前共有${riskEvents.length}个风险事件，其中${riskEvents.filter((item) => item.overdue && item.status !== '已关闭').length}个已逾期。` }
-    if (path.startsWith('/scenes')) return { page: '风险场景', guide: '这里维护风险场景，并组织标准规则。', next: '建议先确认场景状态和版本，再进入编辑页面维护规则或发布新版本。', data: `当前共有${scenes.length}个风险场景，其中${scenes.filter((item) => item.status === '已发布').length}个已发布。` }
-    if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里配置规则判断逻辑、风险等级、证据要求和运行策略。', next: '建议先选择所属场景，再检查判断条件、输出证据和失败策略。', data: '规则数据按所属场景和版本管理，发布前需要完成配置与校验。' }
+    if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里按规则库和规则目录维护通用规则，配置基本信息、规则表达式、制度依据和证据要求。', next: '建议先选择规则库和规则目录，再查看或新建规则；规则表达式为必填，制度依据和证据要求按需填写。', data: '规则以规则库和目录分层管理，可被不同业务流程复用。' }
 
     if (path.startsWith('/ontology')) return { page: '图谱结构', guide: '这里维护知识图谱中的类、属性和关系定义。', next: '需要表达带时间的业务记录时，为普通类配置标识、发生时间属性及关联对象关系。', data: '图谱结构版本会影响规则配置、字段映射和图谱构建，请在发布前确认影响范围。' }
     if (path.startsWith('/graphs')) return { page: '知识图谱', guide: '这里维护图谱结构、数据源、字段映射和知识图谱发布状态。', next: '建议先确认数据源和图谱结构，再检查映射模板和发布条件。', data: '知识图谱用于证据关联和风险穿透分析，发布后会被后续规则运行引用。' }
     if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
     if (path.startsWith('/system/roles')) return { page: '角色与权限', guide: '这里维护角色、数据范围、菜单权限和高危操作权限。', next: '建议先确认角色使用人数，再调整权限并检查敏感操作影响。', data: `当前共有${roles.length}个角色，权限调整会影响菜单、数据范围和可执行操作。` }
-    if (path.startsWith('/system/models') || path.startsWith('/system/vertical-models')) return { page: '模型管理', guide: '这里统一管理平台预置模型和客户自有模型接入，维护启停、能力标签、适用范围、权限边界和场景绑定。', next: '可以接入自有模型、绑定风险场景、测试模型效果，或停用暂不适用的模型。', data: '模型既可以作为采购应用通用能力，也可以绑定风险场景形成专用研判助手。' }
+    if (path.startsWith('/system/models') || path.startsWith('/system/vertical-models')) return { page: '模型管理', guide: '这里统一管理平台预置模型和客户自有模型接入，维护启停、能力标签、适用范围和权限边界。', next: '可以接入自有模型、绑定业务流程、测试模型效果，或停用暂不适用的模型。', data: '模型既可以作为采购应用通用能力，也可以绑定业务流程形成专用研判助手。' }
     if (path.startsWith('/system/audit')) return { page: '审计日志', guide: '这里查询用户操作、对象变化、执行结果和审计追踪编号。', next: '可按操作人、对象类型、风险级别或追踪编号定位具体操作记录。', data: '审计记录用于追踪关键配置和业务处置操作，历史记录不会被普通业务操作覆盖。' }
     return { page: '穿透式监管', guide: '当前页面属于穿透式监管业务平台。', next: '可以先查看页面标题和筛选条件，再选择需要处理的业务对象。', data: '当前页面数据会按照监管范围和角色权限展示。' }
-  }, [location.pathname, todos, warnings, riskEvents, scenes, users, roles, currentRole])
+  }, [location.pathname, todos, warnings, riskEvents, users, roles, currentRole])
 
   const answerAgentQuestion = (question: string) => {
     if (/当前页面|做什么|功能/.test(question)) return agentContext.guide
@@ -342,7 +336,7 @@ function AppEnhanced() {
       <button className="brand" onClick={() => navigate(firstAccessiblePath)} aria-label="返回采购管理应用"><img className="brand-logo" src={cloudLogo} alt="中国电子云"/><em/><span>采购管理应用</span></button>
       <nav className="platform-nav" aria-label="平台切换">{platformTabs.map((tab) => <button key={tab} className={tab === currentPlatformTab ? 'active' : ''} onClick={() => tab === currentPlatformTab ? navigate(firstAccessiblePath) : setToast(`${tab}暂未进入，当前选择采购管理应用`)}>{tab}</button>)}</nav>
       <div className="top-tools">
-        <div className="global-search-wrap"><label className="global-search"><Icon name="search" size={17}/><input value={search} onFocus={() => setSearchOpen(true)} onChange={(event) => { setSearch(event.target.value); setSearchOpen(true) }} onKeyDown={(event) => { if (event.key === 'Enter' && searchResults[0]) navigate(searchResults[0].path); if (event.key === 'Escape') setSearchOpen(false) }} placeholder="搜索采购任务、预警、风险事件、场景、用户"/></label>{searchOpen && search && <div className="global-search-results">{searchResults.length ? <>{searchResults.map((item) => <button key={`${item.type}-${item.id}`} onClick={() => { navigate(item.path); setSearch('') }}><span><b>{item.type}</b><strong>{item.title}</strong></span><small>{item.id} · {item.meta}</small></button>)}<div className="search-result-footer">共显示 {searchResults.length} 条最相关结果</div></> : <div className="search-empty"><Icon name="search"/><span>未找到“{search}”相关内容</span></div>}</div>}</div>
+        <div className="global-search-wrap"><label className="global-search"><Icon name="search" size={17}/><input value={search} onFocus={() => setSearchOpen(true)} onChange={(event) => { setSearch(event.target.value); setSearchOpen(true) }} onKeyDown={(event) => { if (event.key === 'Enter' && searchResults[0]) navigate(searchResults[0].path); if (event.key === 'Escape') setSearchOpen(false) }} placeholder="搜索采购任务、预警、风险事件、规则、用户"/></label>{searchOpen && search && <div className="global-search-results">{searchResults.length ? <>{searchResults.map((item) => <button key={`${item.type}-${item.id}`} onClick={() => { navigate(item.path); setSearch('') }}><span><b>{item.type}</b><strong>{item.title}</strong></span><small>{item.id} · {item.meta}</small></button>)}<div className="search-result-footer">共显示 {searchResults.length} 条最相关结果</div></> : <div className="search-empty"><Icon name="search"/><span>未找到“{search}”相关内容</span></div>}</div>}</div>
         <button className="top-icon" onClick={() => navigate(pathAllowedByPermissions('/workbench', effectivePermissions) ? '/workbench' : firstAccessiblePath)} aria-label="查看消息"><Icon name="bell"/>{unread > 0 && <b>{unread}</b>}</button>
         <div className="role-switcher" onClick={(event) => event.stopPropagation()}><button className="user-entry" onClick={() => setRoleOpen((value) => !value)}><span>尹</span><div><strong>尹晨阳</strong><small>{currentRole}</small></div><Icon name="chevron" size={14}/></button>{roleOpen && <div className="context-menu role-menu"><header><strong>切换当前角色</strong><span>菜单和高危按钮将按权限刷新</span></header>{roles.filter((item) => item.status === '启用').map((item) => <button key={item.id} className={currentRole === item.name ? 'active' : ''} onClick={() => chooseRole(item.name)}><div><strong>{item.name}</strong><small>{item.scope}</small></div>{currentRole === item.name && <Icon name="check" size={15}/>}</button>)}</div>}</div>
       </div>
@@ -370,9 +364,9 @@ function AppEnhanced() {
       <Route path="/risk/warnings/:id" element={<WarningDetailPage/>}/>
       <Route path="/risk/events" element={<RiskEventListPage/>}/>
       <Route path="/risk/events/:id" element={<RiskEventDetailPage/>}/>
-      <Route path="/scenes" element={<SceneListPage/>}/>
-      <Route path="/scenes/new" element={<SceneCreatePage/>}/>
-      <Route path="/scenes/:id" element={<SceneEditorPage key={location.key}/>}/>
+      <Route path="/scenes" element={<Navigate to="/rules" replace/>}/>
+      <Route path="/scenes/new" element={<Navigate to="/rules/new" replace/>}/>
+      <Route path="/scenes/:id" element={<Navigate to="/rules" replace/>}/>
       <Route path="/rules" element={<RuleAssetManagementPage/>}/>
       <Route path="/rules/new" element={<RuleAssetCreatePage/>}/>
       <Route path="/rules/:id" element={<RuleAssetEditorPage/>}/>
@@ -408,8 +402,3 @@ function AppEnhanced() {
 }
 
 export default AppEnhanced
-
-
-
-
-

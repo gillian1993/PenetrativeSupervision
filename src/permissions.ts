@@ -18,8 +18,7 @@ export const MENU_PERMISSION_CATALOG: PermissionCatalogItem[] = [
   { code: 'menu.supervision.situation', label: '穿透式监管 / 监管态势', group: '穿透式监管' },
   { code: 'menu.supervision.risk.warnings', label: '穿透式监管 / 风险监管 / 统一预警', group: '穿透式监管' },
   { code: 'menu.supervision.risk.events', label: '穿透式监管 / 风险监管 / 风险事件', group: '穿透式监管' },
-  { code: 'menu.supervision.scene.scenes', label: '穿透式监管 / 场景与规则 / 风险场景', group: '穿透式监管' },
-  { code: 'menu.supervision.scene.rules', label: '穿透式监管 / 场景与规则 / 规则管理', group: '穿透式监管' },
+  { code: 'menu.supervision.scene.rules', label: '穿透式监管 / 规则中心 / 规则管理', group: '穿透式监管' },
   { code: 'menu.supervision.ontology.structures', label: '穿透式监管 / 知识图谱 / 图谱结构', group: '穿透式监管' },
   { code: 'menu.supervision.ontology.sources', label: '穿透式监管 / 知识图谱 / 数据源', group: '穿透式监管' },
   { code: 'menu.system.users', label: '系统管理 / 用户与组织', group: '系统管理' },
@@ -34,7 +33,7 @@ export const ACTION_PERMISSION_CATALOG: PermissionCatalogItem[] = [
   { code: 'action.warning.release_major', label: '解除重大预警', group: '高危操作' },
   { code: 'action.warning.escalate', label: '升级风险事件', group: '高危操作' },
   { code: 'action.event.close', label: '复核关闭风险事件', group: '高危操作' },
-  { code: 'action.scene.publish', label: '发布场景规则', group: '高危操作' },
+  { code: 'action.scene.publish', label: '发布规则', group: '高危操作' },
   { code: 'action.graph.structure.publish', label: '发布图谱结构', group: '高危操作' },
   { code: 'action.graph.publish', label: '发布知识图谱', group: '高危操作' },
   { code: 'action.graph.entity_govern', label: '实例合并与拆分', group: '高危操作' },
@@ -55,9 +54,9 @@ const legacyPermissionMap: Record<string, PermissionCode[]> = {
   查看风险事件: ['menu.supervision.risk.events'],
   查看本人任务: ['menu.supervision.workbench', 'menu.supervision.risk.warnings', 'menu.supervision.risk.events'],
   查看审计日志: ['menu.system.audit'],
-  场景编辑: ['menu.supervision.scene.scenes', 'menu.supervision.scene.rules'],
-  规则试跑: ['menu.supervision.scene.scenes', 'menu.supervision.scene.rules'],
-  规则发布: ['menu.supervision.scene.scenes', 'menu.supervision.scene.rules', 'action.scene.publish'],
+  场景编辑: ['menu.supervision.scene.rules'],
+  规则试跑: ['menu.supervision.scene.rules'],
+  规则发布: ['menu.supervision.scene.rules', 'action.scene.publish'],
   图谱结构: ['menu.supervision.ontology.structures'],
   数据管理员: ['menu.supervision.ontology.sources'],
   管理用户: ['menu.system.users'],
@@ -81,7 +80,7 @@ const legacyPermissionMap: Record<string, PermissionCode[]> = {
   解除重大预警: ['action.warning.release_major'],
   升级风险事件: ['action.warning.escalate'],
   复核关闭风险事件: ['action.event.close'],
-  编辑场景规则: ['menu.supervision.scene.scenes', 'menu.supervision.scene.rules'],
+  编辑场景规则: ['menu.supervision.scene.rules'],
 }
 
 export function normalizePermissionCodes(permissions: string[] = []) {
@@ -121,7 +120,6 @@ export const ROLE_PERMISSION_PRESETS: Record<string, PermissionCode[]> = {
   ],
   规则管理员: [
     'menu.supervision.workbench',
-    'menu.supervision.scene.scenes',
     'menu.supervision.scene.rules',
     'action.scene.publish',
   ],

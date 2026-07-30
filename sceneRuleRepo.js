@@ -74,7 +74,7 @@ export function mapRuleRow(row) {
     outputs:parseJson(row.output_json,[]),evidence:evidenceRequirements.map((item)=>item.name).filter(Boolean),evidenceRequirements,
     policy:policies[0]||{name:'',version:'',clause:''},policies,failureStrategy:row.failure_strategy,
     summary:row.summary,lockVersion:Number(row.lock_version),updatedAt:row.updated_at,
-    domain:row.domain||'',objectCode:row.object_code||'',objectName:row.object_name||'',eventCode:row.event_code||'',eventName:row.event_name||'',
+    domain:row.domain||'',libraryName:row.library_name||'穿透式监管规则库',directoryName:row.directory_name||'招投标异常',description:row.description||'',objectCode:row.object_code||'',objectName:row.object_name||'',eventCode:row.event_code||'',eventName:row.event_name||'',
     sceneName:row.scene_name||sceneNames[0]||'',sceneNames,sceneIds,bindingCount:Number(row.binding_count||sceneNames.length||0),catalogBindingCount:Number(row.catalog_binding_count||0),
     sceneStatus:row.scene_status||'',ontologyId:row.ontology_id||'',graphVersion:row.graph_version||'',priority:Number(row.priority||100),
   }
@@ -185,6 +185,7 @@ export async function collectSemanticReferenceIssues(connection, reference, tab 
 }
 
 export async function collectAdvancedExpressionReferenceIssues(connection,ontologyId,value,tab='conditions'){
+  if(!String(ontologyId||'').trim())return{blockers:[],warnings:[]}
   const expression=String(value||'')
   const codes=[...new Set(expression.match(/\b[A-Z][A-Z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)+\b/g)||[])]
   if(!codes.length)return{blockers:[],warnings:[]}
@@ -201,8 +202,6 @@ export async function assertSemanticReferences(connection, reference) {
 export function validateRuleRecord(rule){
   const blockers=[];const warnings=[]
   if(!String(rule.name||'').trim())blockers.push({field:'name',tab:'basic',message:'规则名称不能为空'})
-  if(!String(rule.ontology_id||'').trim())blockers.push({field:'ontologyId',tab:'basic',message:'适用本体不能为空'})
-  if(!String(rule.graph_version||'').trim())blockers.push({field:'graphVersion',tab:'basic',message:'图谱版本不能为空'})
   const usesTimeWindow=['时序','聚合'].includes(rule.rule_type)
   const scope=normalizeTimeConfig(rule.time_json)
   if(usesTimeWindow&&scope.baseline==='event'&&!String(rule.event_code||'').trim())blockers.push({field:'eventCode',tab:'conditions',message:'以目标类节点为计算基准时，必须配置目标类'})
@@ -238,10 +237,9 @@ export function validateRuleRecord(rule){
   }
   if(!parseJson(rule.output_json,[]).length)blockers.push({field:'outputs',tab:'conditions',message:'规则缺少系统命中输出配置'})
   const evidence=normalizeEvidenceRequirements(rule.evidence_json)
-  if(!evidence.length)blockers.push({field:'evidence',tab:'output',message:'至少配置一项证据要求'})
-  else if(evidence.some((item)=>!item.name.trim()||!item.source.trim()||!item.completeness.trim()))blockers.push({field:'evidence',tab:'output',message:'证据名称、数据来源和完整性要求不能为空'})
+  if(evidence.some((item)=>Boolean(item.name.trim()||item.source.trim()||item.sourceField.trim()||item.completeness.trim())&&(!item.name.trim()||!item.source.trim()||!item.completeness.trim())))blockers.push({field:'evidence',tab:'output',message:'证据要求已开始填写时，证据名称、数据来源和完整性要求不能为空'})
   const policies=normalizePolicyList(rule.policy_json)
-  if(!policies.some((item)=>item.name.trim()&&item.clause.trim()))blockers.push({field:'policy',tab:'output',message:'至少配置一条完整制度依据'})
+  if(policies.some((item)=>Boolean(item.name.trim()||item.version.trim()||item.clause.trim()||item.text.trim())&&(!item.name.trim()||!item.clause.trim())))blockers.push({field:'policy',tab:'output',message:'制度依据已开始填写时，制度名称和条款不能为空'})
   if(!parseJson(rule.exception_json,{}).enabled)warnings.push({field:'exceptions',tab:'conditions',message:'尚未配置例外条件，请确认适用边界'})
   return {blockers,warnings}
 }

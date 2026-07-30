@@ -1,4 +1,4 @@
-﻿import { createHash, randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 
 const editableStatuses = new Set(['草稿', '待试跑', '待发布'])
 
@@ -140,6 +140,11 @@ async function audit(connection, sceneVersionId, action, summary, risk = '普通
   )
 }
 
+async function ensureColumn(pool, table, column, definition) {
+  const [rows] = await pool.query('SELECT COUNT(*) AS total FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?', [table, column])
+  if (!Number(rows[0].total)) await pool.query('ALTER TABLE `'+table+'` ADD COLUMN '+definition)
+}
+
 export async function initializeSceneRuleDatabase(pool) {
 async function migrateRuleAssets(pool) {
   await pool.query(`INSERT IGNORE INTO rule_assets (id,code,current_version_id,status,created_at)
@@ -260,6 +265,9 @@ async function migrateRuleAssets(pool) {
     version VARCHAR(24) NOT NULL,
     name VARCHAR(160) NOT NULL,
     domain VARCHAR(64) NOT NULL DEFAULT '采购',
+    library_name VARCHAR(120) NOT NULL DEFAULT '穿透式监管规则库',
+    directory_name VARCHAR(120) NOT NULL DEFAULT '招投标异常',
+    description TEXT NULL,
     object_code VARCHAR(120) NOT NULL DEFAULT '',
     object_name VARCHAR(160) NOT NULL DEFAULT '',
     event_code VARCHAR(120) NOT NULL DEFAULT '',
@@ -286,6 +294,10 @@ async function migrateRuleAssets(pool) {
     KEY idx_rule_asset_status (status,updated_at),
     CONSTRAINT fk_rule_asset_version_rule FOREIGN KEY (rule_id) REFERENCES rule_assets(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+
+  await ensureColumn(pool,'rule_asset_versions','library_name',"`library_name` VARCHAR(120) NOT NULL DEFAULT '穿透式监管规则库'")
+  await ensureColumn(pool,'rule_asset_versions','directory_name',"`directory_name` VARCHAR(120) NOT NULL DEFAULT '招投标异常'")
+  await ensureColumn(pool,'rule_asset_versions','description',"`description` TEXT NULL")
 
   await pool.query(`CREATE TABLE IF NOT EXISTS scene_rule_bindings (
     scene_version_id VARCHAR(80) NOT NULL,
