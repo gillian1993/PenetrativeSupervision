@@ -184,33 +184,32 @@ function validateSourceAccessConfig(mode: string, config: DataSourceAccessConfig
   return ''
 }
 
-function AccessConfigFields({ mode, config, onChange }: { mode: string; config: DataSourceAccessConfig; onChange: (patch: DataSourceAccessConfig) => void }) {
+function AccessConfigFields({ mode, config, onChange, readonly = false }: { mode: string; config: DataSourceAccessConfig; onChange: (patch: DataSourceAccessConfig) => void; readonly?: boolean }) {
   if (mode === '接口接入') return <Panel title="接口接入配置" subtitle="填写接口地址和认证信息；Token/密钥保存后不明文回显。">
     <div className="form-section two-column">
-      <Field label="接口地址 *"><input value={config.apiUrl || ''} onChange={(event) => onChange({ apiUrl: event.target.value })} placeholder="例如 https://api.example.com/orders"/></Field>
-      <Field label="请求方式 *"><select value={config.method || 'GET'} onChange={(event) => onChange({ method: event.target.value })}><option>GET</option><option>POST</option></select></Field>
-      <Field label="认证方式 *"><select value={config.authType || 'Token'} onChange={(event) => onChange({ authType: event.target.value })}><option>Token</option><option>API Key</option><option>Basic Auth</option><option>无认证</option></select></Field>
-      <Field label="Token/密钥"><input type="password" value={config.token || ''} onChange={(event) => onChange({ token: event.target.value })} placeholder={config.authType === '无认证' ? '无认证时可不填' : '请输入 Token 或密钥'}/></Field>
+      <Field label="接口地址 *"><input value={config.apiUrl || ''} disabled={readonly} onChange={(event) => onChange({ apiUrl: event.target.value })} placeholder="例如 https://api.example.com/orders"/></Field>
+      <Field label="请求方式 *"><select value={config.method || 'GET'} disabled={readonly} onChange={(event) => onChange({ method: event.target.value })}><option>GET</option><option>POST</option></select></Field>
+      <Field label="认证方式 *"><select value={config.authType || 'Token'} disabled={readonly} onChange={(event) => onChange({ authType: event.target.value })}><option>Token</option><option>API Key</option><option>Basic Auth</option><option>无认证</option></select></Field>
+      <Field label="Token/密钥"><input type="password" value={config.token || ''} disabled={readonly} onChange={(event) => onChange({ token: event.target.value })} placeholder={config.authType === '无认证' ? '无认证时可不填' : config.tokenConfigured ? '已配置（不明文回显）' : '请输入 Token 或密钥'}/></Field>
     </div>
   </Panel>
   if (mode === '文件导入') return <Panel title="文件导入配置" subtitle="P0 只需要上传文件，文件结构在字段映射前解析。">
     <div className="form-section two-column">
-      <Field label="上传文件 *"><input type="file" onChange={(event) => onChange({ fileName: event.target.files?.[0]?.name || '' })}/></Field>
+      <Field label="上传文件 *"><input type="file" disabled={readonly} onChange={(event) => onChange({ fileName: event.target.files?.[0]?.name || '' })}/></Field>
       <Field label="已选择文件"><input value={config.fileName || '尚未选择文件'} disabled/></Field>
     </div>
   </Panel>
   return <Panel title="数据库接入配置" subtitle="填写数据库连接信息；密码保存后不明文回显，表/视图由后续解析来源结构自动读取。">
     <div className="form-section two-column">
-      <Field label="数据库类型 *"><select value={config.databaseType || 'MySQL'} onChange={(event) => onChange({ databaseType: event.target.value, port: databaseDefaultPorts[event.target.value] || config.port })}>{Object.keys(databaseDefaultPorts).map((item) => <option key={item}>{item}</option>)}</select></Field>
-      <Field label="数据库地址/IP *"><input value={config.host || ''} onChange={(event) => onChange({ host: event.target.value })} placeholder="例如 10.10.1.12"/></Field>
-      <Field label="端口 *"><input value={config.port || ''} onChange={(event) => onChange({ port: event.target.value })} placeholder="例如 3306"/></Field>
-      <Field label="数据库名/Schema *"><input value={config.databaseName || ''} onChange={(event) => onChange({ databaseName: event.target.value })} placeholder="例如 erp_procurement"/></Field>
-      <Field label="用户名 *"><input value={config.username || ''} onChange={(event) => onChange({ username: event.target.value })} placeholder="例如 readonly_user"/></Field>
-      <Field label="密码 *"><input type="password" value={config.password || ''} onChange={(event) => onChange({ password: event.target.value })} placeholder="请输入数据库密码"/></Field>
+      <Field label="数据库类型 *"><select value={config.databaseType || 'MySQL'} disabled={readonly} onChange={(event) => onChange({ databaseType: event.target.value, port: databaseDefaultPorts[event.target.value] || config.port })}>{Object.keys(databaseDefaultPorts).map((item) => <option key={item}>{item}</option>)}</select></Field>
+      <Field label="数据库地址/IP *"><input value={config.host || ''} disabled={readonly} onChange={(event) => onChange({ host: event.target.value })} placeholder="例如 10.10.1.12"/></Field>
+      <Field label="端口 *"><input value={config.port || ''} disabled={readonly} onChange={(event) => onChange({ port: event.target.value })} placeholder="例如 3306"/></Field>
+      <Field label="数据库名/Schema *"><input value={config.databaseName || ''} disabled={readonly} onChange={(event) => onChange({ databaseName: event.target.value })} placeholder="例如 erp_procurement"/></Field>
+      <Field label="用户名 *"><input value={config.username || ''} disabled={readonly} onChange={(event) => onChange({ username: event.target.value })} placeholder="例如 readonly_user"/></Field>
+      <Field label="密码 *"><input type="password" value={config.password || ''} disabled={readonly} onChange={(event) => onChange({ password: event.target.value })} placeholder={config.passwordConfigured ? '已配置（不明文回显）' : '请输入数据库密码'}/></Field>
     </div>
   </Panel>
 }
-
 function sourceAccessConfigItems(source: DataSourceItem) {
   const config = source.accessConfig || {}
   if (source.mode === '接口接入') return [
@@ -335,7 +334,6 @@ export function DataSourceDetailPage() {
   const [mappings, setMappings] = useState<MappingItem[]>([])
   const [ontologyElements, setOntologyElements] = useState<OntologyElement[]>([])
   const [ontologies, setOntologies] = useState<OntologyRecord[]>([])
-  const [records, setRecords] = useState<SyncRecordItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const requestedTab = searchParams.get('tab') || 'basic'
@@ -366,15 +364,13 @@ export function DataSourceDetailPage() {
       setSource(current)
       setOntologyElements(ontologyRows.find((item) => item.id === ontologyId)?.elements || [])
       setOntologies(ontologyRows)
-      const [metadataResult, recordResult, mappingResult] = await Promise.allSettled([
+      const [metadataResult, mappingResult] = await Promise.allSettled([
         dataGraphApi.metadata(id),
-        dataGraphApi.syncRecords(id),
         dataGraphApi.mappings(id, undefined, ontologyId),
       ])
       setMetadata(metadataResult.status === 'fulfilled' ? metadataResult.value : [])
-      setRecords(recordResult.status === 'fulfilled' ? recordResult.value : [])
       setMappings(mappingResult.status === 'fulfilled' ? mappingResult.value : [])
-      const detailErrors = [metadataResult, recordResult, mappingResult].filter((item) => item.status === 'rejected') as PromiseRejectedResult[]
+      const detailErrors = [metadataResult, mappingResult].filter((item) => item.status === 'rejected') as PromiseRejectedResult[]
       if (detailErrors.length) setToast(detailErrors[0].reason instanceof Error ? detailErrors[0].reason.message : '数据源详情部分信息加载失败')
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : '数据源详情加载失败')
@@ -433,35 +429,40 @@ export function DataSourceDetailPage() {
 
   const targetFields = ontologyElements.filter((item) => item.type === 'property')
   const targetCodes = new Set(targetFields.map((item) => item.code))
-  const requiredTargetFields = targetFields.filter((item) => /必填|主标识/.test(item.constraint || ''))
   const fieldMappings = mappings.filter((item) => item.type === '节点实例' && targetCodes.has(item.targetCode))
   const validMappings = fieldMappings.filter((item) => item.status === '有效').length
-  const mappedRequired = requiredTargetFields.filter((field) => fieldMappings.some((item) => item.targetCode === field.code && item.sourceField)).length
   return <>
     <div className="data-source-detail-header"><div><button className="back-button" onClick={() => navigate('/graphs/sources')}>‹ 返回数据源列表</button><p className="eyebrow">知识图谱 / 数据源详情 / {source.id}</p><h1>{source.name}</h1><div className="editor-meta"><StatusTag>{source.status}</StatusTag><span>{source.mode}</span><span>适用结构：{source.ontologyNames?.join('、') || source.ontologyIds?.join('、') || currentOntologyId}</span><span>责任人：{source.owner}</span><span>最近成功：{source.lastSuccess}</span></div></div><div className="page-actions"><Button onClick={() => void test()}>测试连接</Button><Button variant={source.status === '启用' ? 'danger' : 'primary'} disabled={source.status !== '启用' && validMappings === 0} title={source.status !== '启用' && validMappings === 0 ? '请先解析元数据并完成映射校验' : undefined} onClick={() => void toggle()}>{source.status === '启用' ? '停用数据源' : '启用数据源'}</Button></div></div>
-    <section className="stats-grid four source-detail-stats"><article className="mini-stat"><span>元数据对象</span><strong>{metadata.length}</strong><small>{metadata.length ? `已解析 · ${records.length} 个同步批次` : '等待解析'}</small></article><article className="mini-stat"><span>图谱字段</span><strong>{targetFields.length}</strong><small>当前图谱结构属性字段</small></article><article className="mini-stat"><span>字段映射</span><strong>{fieldMappings.length}</strong><small>{validMappings} 条有效</small></article><article className="mini-stat"><span>必填覆盖</span><strong>{mappedRequired}/{requiredTargetFields.length}</strong><small>主标识和必填字段</small></article></section>
     <Panel className="data-source-detail-panel"><Tabs value={tab} onChange={changeTab} items={[{ key: 'basic', label: '基本配置' }, { key: 'mapping', label: '字段映射', count: fieldMappings.length }]}/>
-      {tab === 'basic' && <SourceBasicConfig source={source} metadata={metadata} onParse={() => void parse()} onMapping={() => changeTab('mapping')}/>}
+      {tab === 'basic' && <SourceBasicConfig source={source} currentOntologyId={currentOntologyId} currentOntologyName={currentOntologyName} onMapping={() => changeTab('mapping')}/>}
       {tab === 'mapping' && <div className="semantic-mapping-view"><div className="semantic-mapping-toolbar"><div><strong>字段映射</strong><span>以当前图谱结构字段为主线，匹配数据源解析出的来源字段；实例关系由系统在生成知识图谱时自动构建。</span></div><div className="semantic-mapping-controls"><div className="mapping-structure-readonly"><span>当前图谱结构</span><strong title={currentOntologyName}>{currentOntologyName}</strong><small title={currentOntologyId}>{currentOntologyId}</small></div><Button icon="refresh" onClick={() => void parse()}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button><Button onClick={() => void validate()}>校验字段映射</Button><Button onClick={() => navigate('/graphs/sources')}>取消</Button><Button variant="primary" onClick={() => void completeMapping()}>完成</Button></div></div><SourceMapping source={source} currentOntologyId={currentOntologyId} metadata={metadata} rows={mappings} ontologyElements={ontologyElements} onParse={() => void parse()} onSave={updateMapping}/></div>}
     </Panel>
   </>
 }
 
-function SourceBasicConfig({ source, metadata, onParse, onMapping }: { source: DataSourceItem; metadata: SourceMetadataItem[]; onParse: () => void; onMapping: () => void }) {
+function SourceBasicConfig({ source, currentOntologyId, currentOntologyName, onMapping }: { source: DataSourceItem; currentOntologyId: string; currentOntologyName: string; onMapping: () => void }) {
+  const structureOptions = source.ontologyIds?.length
+    ? source.ontologyIds.map((ontologyId, index) => ({ id: ontologyId, name: source.ontologyNames?.[index] || ontologyId }))
+    : [{ id: currentOntologyId, name: currentOntologyName }]
+  if (!structureOptions.some((item) => item.id === currentOntologyId)) structureOptions.unshift({ id: currentOntologyId, name: currentOntologyName })
+  const noop = () => undefined
   return <>
-    <div className="source-basic-navigation"><div><strong>下一步：维护字段映射</strong><span>{metadata.length ? '进入字段映射维护来源字段与图谱字段的对应关系。' : '也可以先进入字段映射页，在那里一键解析并生成映射建议。'}</span></div><Button variant="primary" onClick={onMapping}>进入字段映射</Button></div>
-    <div className="detail-grid source-basic-grid">
-      <Panel title="来源基本信息"><KeyValue items={[{ label: '来源名称', value: source.name }, { label: '来源编码', value: source.id }, { label: '来源方式', value: source.mode }, { label: '数据范围', value: source.range || '未填写' }, { label: '责任人', value: source.owner }, { label: '最近同步成功', value: source.lastSuccess }, { label: '当前状态', value: <StatusTag>{source.status}</StatusTag> }]}/></Panel>
-      <Panel title="接入配置" subtitle="敏感信息已脱敏展示"><KeyValue items={sourceAccessConfigItems(source)}/></Panel>
-      <Panel title="来源结构解析" subtitle="读取来源表、接口或文件结构，并生成字段映射建议" actions={<Button onClick={onParse}>{metadata.length ? '重新解析来源结构' : '解析来源结构'}</Button>}>
-        <KeyValue items={[{ label: '解析状态', value: <StatusTag>{metadata.length ? '已解析' : '待解析'}</StatusTag> }, { label: '已解析对象', value: metadata.length }]}/>
-        {metadata.length ? <div className="metadata-list">{metadata.map((item) => <button key={item.id}><span><strong>{item.displayName}</strong><small>{item.tableName} · {item.fieldCount}字段</small></span><Icon name="chevron" size={14}/></button>)}</div> : <EmptyState title="尚未解析来源结构" description="请先通过页面顶部的连接测试，再解析来源结构。"/>}
-      </Panel>
+    <div className="step-indicator"><span className="active">1 基本配置</span><span>2 字段映射</span></div>
+    <div className="source-basic-navigation"><div><strong>下一步：维护字段映射</strong><span>基本配置保存后，进入字段映射维护来源字段与图谱字段的对应关系。</span></div><Button variant="primary" onClick={onMapping}>进入字段映射</Button></div>
+    <div className="form-stack">
+      <Field label="适用图谱结构 *"><select value={currentOntologyId} disabled>{structureOptions.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></Field>
+      <div className="form-section two-column">
+        <Field label="来源系统名称 *"><input value={source.name} disabled placeholder="请输入数据源名称"/></Field>
+        <Field label="来源方式"><select value={source.mode} disabled>{sourceModeOptions.map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="责任人"><select value={source.owner} disabled>{[source.owner, '张海', '陈洁'].filter((item, index, rows) => item && rows.indexOf(item) === index).map((item) => <option key={item}>{item}</option>)}</select></Field>
+        <Field label="数据范围"><input value={source.range || ''} disabled placeholder="可选，说明对象、时间和组织范围"/></Field>
+      </div>
+      <AccessConfigFields mode={source.mode} config={source.accessConfig || defaultAccessConfig(source.mode)} readonly onChange={noop}/>
     </div>
   </>
 }
 function SourceTable({ data, onSelect, onTest, onToggle, onDelete }: { data: DataSourceItem[]; onSelect: (item: DataSourceItem) => void; onTest: (item: DataSourceItem) => void; onToggle: (item: DataSourceItem) => void; onDelete: (item: DataSourceItem) => void }) {
-  return <div className="table-container"><table><thead><tr><th>来源名称 / 编码</th><th>适用图谱结构</th><th>来源方式</th><th>数据范围</th><th>责任人</th><th>最近成功</th><th>状态</th><th>操作</th></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => onSelect(item)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.ontologyNames?.join('、') || item.ontologyIds?.join('、') || '未配置'}</td><td>{item.mode}</td><td>{item.range}</td><td>{item.owner}</td><td>{item.lastSuccess}</td><td><StatusTag>{item.status}</StatusTag></td><td><div className="row-actions"><button onClick={() => onSelect(item)}>进入详情</button><button onClick={() => onTest(item)}>测试</button><button onClick={() => onToggle(item)}>{item.status === '启用' ? '停用' : '启用'}</button>{item.status !== '启用' && <button className="danger-link" onClick={() => onDelete(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
+  return <div className="table-container"><table><thead><tr><th>来源名称 / 编码</th><th>适用图谱结构</th><th>来源方式</th><th>责任人</th><th>最近成功</th><th>状态</th><th>操作</th></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => onSelect(item)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.ontologyNames?.join('、') || item.ontologyIds?.join('、') || '未配置'}</td><td>{item.mode}</td><td>{item.owner}</td><td>{item.lastSuccess}</td><td><StatusTag>{item.status}</StatusTag></td><td><div className="row-actions"><button onClick={() => onSelect(item)}>进入详情</button><button onClick={() => onTest(item)}>测试</button><button onClick={() => onToggle(item)}>{item.status === '启用' ? '停用' : '启用'}</button>{item.status !== '启用' && <button className="danger-link" onClick={() => onDelete(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
 }
 
 function SourceMapping({ source, currentOntologyId, metadata, rows, ontologyElements, onParse, onSave }: { source: DataSourceItem; currentOntologyId: string; metadata: SourceMetadataItem[]; rows: MappingItem[]; ontologyElements: OntologyElement[]; onParse: () => void; onSave: (row: MappingItem | null, payload: { targetCode: string; sourceField: string; transform: string }) => Promise<void> }) {

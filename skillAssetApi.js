@@ -42,7 +42,7 @@ function generatedExpectedOutput(demand){
   const location=/附件|文件|合同|投标|条款|材料/.test(String(demand||''))?'原文片段和页码':'来源字段和业务记录编号'
   return`输出是否命中、风险评分、判断结论和实际证据；实际证据必须包含${location}，并说明其与审查结论的对应关系。`
 }
-function evidenceFor(expectedOutput){return[{id:'evidence-result',name:'Skill实际证据',source:'Skill自动审查结果',sourceField:'evidence',attachmentRequirement:'可选附件',completeness:String(expectedOutput||'必须包含风险结论、来源位置和Skill版本'),description:'系统根据输出结果要求自动固化实际证据'}]}
+function evidenceFor(expectedOutput){return[{id:'evidence-result',name:'Skill实际证据',source:'Skill自动审查结果',sourceField:'evidence',description:String(expectedOutput||'系统根据输出结果要求自动固化风险结论、来源位置和Skill版本')}]}
 function summarize(payload){return`审查内容：${payload.reviewContent||'未生成'}；审查要求：${payload.reviewRequirement||'未生成'}；输出结果：${payload.expectedOutput||'未生成'}`}
 function generateSkill(payload){
   const reviewDemand=String(payload.reviewDemand||'').trim()

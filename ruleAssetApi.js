@@ -1,8 +1,8 @@
-﻿import { assertSemanticReferences, collectAdvancedExpressionReferenceIssues, collectSemanticReferenceIssues, editableSceneStatuses, getCurrentSceneRow, getSceneAggregate, makeBusinessId, mapRuleRow, normalizeWarningStage, parseJson, toJson, validateRuleRecord, writeSceneAudit } from './sceneRuleRepo.js'
+import { assertSemanticReferences, collectAdvancedExpressionReferenceIssues, collectSemanticReferenceIssues, editableSceneStatuses, getCurrentSceneRow, getSceneAggregate, makeBusinessId, mapRuleRow, normalizeWarningStage, parseJson, toJson, validateRuleRecord, writeSceneAudit } from './sceneRuleRepo.js'
 
 const defaultOutputs=['主体名称与编码','命中条件及实际值','来源记录与版本','规则执行时间']
 const outputsForRuleType=(type)=>[...defaultOutputs,...(type==='关系路径'?['关系路径']:type==='时序'?['事件时间']:type==='聚合'?['聚合结果']:type==='高级表达式'?['表达式计算明细']:[])]
-const defaultEvidence=[{id:'evidence-source',name:'业务来源记录',source:'ERP/采购业务系统',sourceField:'业务单据编号',attachmentRequirement:'可选附件',completeness:'必须保存来源系统、记录编号和取数批次',description:''},{id:'evidence-subject',name:'主体信息',source:'本体主数据',sourceField:'主体编码',attachmentRequirement:'无需附件',completeness:'必须包含主体编码和来源版本',description:''},{id:'evidence-run',name:'规则运行明细',source:'规则运行服务',sourceField:'命中条件及实际值',attachmentRequirement:'无需附件',completeness:'必须保存规则版本、命中值和执行时间',description:''}]
+const defaultEvidence=[{id:'evidence-source',name:'业务来源记录',source:'ERP/采购业务系统',sourceField:'业务单据编号',description:''},{id:'evidence-subject',name:'主体信息',source:'本体主数据',sourceField:'主体编码',description:''},{id:'evidence-run',name:'规则运行明细',source:'规则运行服务',sourceField:'命中条件及实际值',description:''}]
 
 const ruleSelect=[
   'SELECT rav.*,ra.code,',

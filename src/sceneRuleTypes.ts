@@ -25,7 +25,7 @@ export interface PathConfig{hops:PathHop[];logic?:Logic;constraints?:RuleConditi
 export interface TimeConfig{baseline?:'event'|'runtime';logic?:Logic;conditions?:TimeCondition[];eventCode:string;windowValue:number;windowUnit:string;direction:string}
 export interface AggregateConfig{logic?:Logic;metrics?:AggregateMetric[];function:string;fieldCode:string;groupBy:string;operator:string;threshold:number}
 export interface PolicyBasis{id?:string;name:string;version:string;clause:string;text?:string}
-export interface EvidenceRequirement{id?:string;name:string;source:string;sourceField:string;attachmentRequirement:string;completeness:string;description:string}
+export interface EvidenceRequirement{id?:string;name:string;source:string;sourceField:string;description:string}
 export interface SkillInput{id:string;name:string;sourceType:'对象字段'|'事件数据'|'附件'|'文本';source:string;required:boolean}
 export interface SkillOutput{id:string;name:string;dataType:string;description:string}
 export interface SkillItem{
