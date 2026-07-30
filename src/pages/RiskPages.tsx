@@ -12,7 +12,7 @@ const listPageSize = 4
 
 const actionMeta: Record<Exclude<WarningAction, null>, { title: string; description: string; confirm: string; danger?: boolean }> = {
   transfer: { title: '转派预警', description: '仅变更当前处理人，不改变预警状态；工作台待办会同步转给新处理人。', confirm: '确认转派' },
-  release: { title: '解除预警', description: '必须填写解除原因并引用证据，提交后关闭对应工作台待办。', confirm: '确认解除', danger: true },
+  release: { title: '解除预警', description: '解除原因可选，提交后关闭对应工作台待办。', confirm: '确认解除', danger: true },
   escalate: { title: '升级风险事件', description: '确认风险后创建一条风险事件，并指定首位整改责任人和完成时限。', confirm: '确认升级', danger: true },
 }
 
@@ -30,16 +30,16 @@ export function WarningListPage() {
   const escalateWarning = useAppStore((state) => state.escalateWarning)
   const setToast = useAppStore((state) => state.setToast)
   const initialStatus = searchParams.get('status') === 'open' ? '待研判' : searchParams.get('status') || '待研判'
-  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, stage: searchParams.get('stage') || '全部', level: searchParams.get('level') === 'high' ? '重大、高' : searchParams.get('level') || '全部', scene: '全部', org: searchParams.get('org') || '全部', domain: searchParams.get('domain') || '全部', evidence: '全部' })
+  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, stage: searchParams.get('stage') || '全部', level: searchParams.get('level') === 'high' ? '重大、高' : searchParams.get('level') || '全部', scene: '全部', org: searchParams.get('org') || '全部', domain: searchParams.get('domain') || '全部' })
   const [filters, setFilters] = useState(draft)
   const [sort, setSort] = useState<'level' | 'time'>('level')
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [action, setAction] = useState<WarningAction>(null)
   const [target, setTarget] = useState<Warning | null>(null)
-  const [form, setForm] = useState({ owner: '', dueAt: '2026-07-24 18:00', requirement: '确认风险事实、明确影响范围并提交整改证明材料。', reason: '', evidence: '' })
+  const [form, setForm] = useState({ owner: '', dueAt: '2026-07-24 18:00', requirement: '确认风险事实、明确影响范围并提交整改证明材料。', reason: '' })
   const [columnOpen, setColumnOpen] = useState(false)
-  const [columns, setColumns] = useState(['阶段', '场景', '对象', '等级', '路径', '状态', '证据', '时间'])
+  const [columns, setColumns] = useState(['阶段', '场景', '对象', '等级', '路径', '状态', '时间'])
   const eventByWarning = useMemo(() => new Map(riskEvents.map((item) => [item.warningId, item.id])), [riskEvents])
   const sceneDomains = useMemo(() => Object.fromEntries(scenes.map((item) => [item.name, item.domain])), [scenes])
 
@@ -53,7 +53,6 @@ export function WarningListPage() {
       if (filters.scene !== '全部' && item.scene !== filters.scene) return false
       if (filters.org !== '全部' && item.organization !== filters.org) return false
       if (filters.domain !== '全部' && inferSituationDomain(sceneDomains[item.scene], `${item.scene}${item.title}${item.target}${item.path}`) !== filters.domain) return false
-      if (filters.evidence !== '全部' && item.evidenceStatus !== filters.evidence) return false
       return true
     }).sort((a, b) => sort === 'level' ? order[b.level] - order[a.level] : b.generatedAt.localeCompare(a.generatedAt))
   }, [warnings, filters, sort, sceneDomains])
@@ -68,7 +67,6 @@ export function WarningListPage() {
       dueAt: '2026-07-24 18:00',
       requirement: '确认风险事实、明确影响范围并提交整改证明材料。',
       reason: '',
-      evidence: '',
     })
   }
   const executeAction = () => {
@@ -76,7 +74,7 @@ export function WarningListPage() {
     const result = action === 'transfer'
       ? transferWarning(target.id, form.owner, form.reason)
       : action === 'release'
-        ? releaseWarning(target.id, form.reason, form.evidence)
+        ? releaseWarning(target.id, form.reason)
         : escalateWarning(target.id, form.owner, form.dueAt, form.requirement, form.reason)
     setToast(result.message)
     if (result.ok) {
@@ -96,7 +94,7 @@ export function WarningListPage() {
   return <>
     <PageHeader eyebrow="风险监管 / 统一预警" title="统一预警" description="统一查询事前、事中和事后预警，完成查看、转派、解除和风险升级。" actions={<><span className="updated-time">数据：{warningSource === 'database' ? 'MySQL证据 · 工作流可操作' : '本地演示数据'} · 当前角色：{currentRole}</span><Button icon="refresh" onClick={() => void query()}>刷新</Button></>}/>
     <div className="page-query page-query-warning">
-      <FilterGrid onReset={() => { const value = { keyword: '', status: '待研判', stage: '全部', level: '全部', scene: '全部', org: '全部', domain: '全部', evidence: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
+      <FilterGrid onReset={() => { const value = { keyword: '', status: '待研判', stage: '全部', level: '全部', scene: '全部', org: '全部', domain: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
         <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && void query()} placeholder="预警编号、标题或目标对象"/></Field>
         <Field label="预警阶段"><select value={draft.stage} onChange={(event) => setDraft({ ...draft, stage: event.target.value })}><option>全部</option><option>事前</option><option>事中</option><option>事后</option></select></Field>
         <Field label="处理状态"><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option>待研判</option><option value="全部">全部预警</option><option>已解除</option><option>已升级</option></select></Field>
@@ -104,21 +102,20 @@ export function WarningListPage() {
         <Field label="风险场景"><select value={draft.scene} onChange={(event) => setDraft({ ...draft, scene: event.target.value })}><option>全部</option><option>供应商异常关联</option><option>合同签订风险</option><option>付款执行风险</option><option>供应商资格风险</option></select></Field>
         <Field label="组织范围"><select value={draft.org} onChange={(event) => setDraft({ ...draft, org: event.target.value })}><option>全部</option><option>电子云采购中心</option><option>集团财务共享中心</option><option>集团采购中心</option></select></Field>
         <Field label="监管领域"><select value={draft.domain} onChange={(event) => setDraft({ ...draft, domain: event.target.value })}><option>全部</option>{SITUATION_DOMAINS.map((item) => <option key={item.key}>{item.key}</option>)}</select></Field>
-        <Field label="证据状态"><select value={draft.evidence} onChange={(event) => setDraft({ ...draft, evidence: event.target.value })}><option>全部</option><option>完整</option><option>部分缺失</option><option>权限受限</option><option>快照异常</option></select></Field>
       </FilterGrid>
     </div>
     <Panel title="预警列表" subtitle={`共 ${rows.length} 条，当前第 ${page}/${totalPages} 页`} actions={<><div className="segmented"><button className={sort === 'level' ? 'active' : ''} onClick={() => setSort('level')}>等级排序</button><button className={sort === 'time' ? 'active' : ''} onClick={() => setSort('time')}>时间排序</button></div><button className="column-setting" onClick={() => setColumnOpen(true)}><Icon name="system" size={15}/>列设置</button></>}>
       <div className="active-filters"><span>已生效筛选</span>{Object.entries(filters).filter(([, value]) => value && value !== '全部').map(([key, value]) => <b key={key}>{value}</b>)}</div>
-      {loading ? <div className="table-loading"><i/><span>正在查询预警数据…</span></div> : pageRows.length === 0 ? <div className="empty-state"><span><Icon name="search"/></span><strong>没有符合条件的预警</strong><p>请调整筛选条件后重新查询。</p></div> : <div className="table-container"><table className="warning-table"><thead><tr><th>预警编号 / 标题</th>{columns.includes('阶段') && <th>阶段</th>}{columns.includes('场景') && <th>风险场景</th>}{columns.includes('对象') && <th>目标对象 / 事件</th>}{columns.includes('等级') && <th>等级</th>}{columns.includes('路径') && <th>核心路径</th>}{columns.includes('状态') && <th>状态</th>}{columns.includes('证据') && <th>证据</th>}{columns.includes('时间') && <th>生成时间</th>}<th>操作</th></tr></thead><tbody>{pageRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/risk/warnings/${item.id}`)}><strong>{item.title}</strong><span>{item.id}</span></button></td>{columns.includes('阶段') && <td><StatusTag>{item.stage}</StatusTag></td>}{columns.includes('场景') && <td>{item.scene}<small className="cell-sub">{item.sceneVersion}</small></td>}{columns.includes('对象') && <td><strong>{item.evidenceStatus === '权限受限' ? '受限对象' : item.target}</strong><small className="cell-sub">{item.targetEvent}</small></td>}{columns.includes('等级') && <td><RiskTag level={item.level}/></td>}{columns.includes('路径') && <td><span className="path-summary">{item.evidenceStatus === '权限受限' ? '受限关系路径' : item.path}</span></td>}{columns.includes('状态') && <td><StatusTag>{item.status}</StatusTag></td>}{columns.includes('证据') && <td><button className="table-link" onClick={() => navigate(`/risk/warnings/${item.id}`)}><StatusTag>{item.evidenceStatus}</StatusTag></button></td>}{columns.includes('时间') && <td>{item.generatedAt.slice(5)}<small className="cell-sub">{item.leadTime}</small></td>}<td><div className="row-actions vertical"><button onClick={() => navigate(`/risk/warnings/${item.id}`)}>查看</button>{item.status === '已升级' && eventByWarning.get(item.id) && <button onClick={() => navigate(`/risk/events/${eventByWarning.get(item.id)}`)}>查看风险事件</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'transfer')}>转派</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'release')}>解除</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'escalate')}>升级</button>}</div></td></tr>)}</tbody></table></div>}
+      {loading ? <div className="table-loading"><i/><span>正在查询预警数据…</span></div> : pageRows.length === 0 ? <div className="empty-state"><span><Icon name="search"/></span><strong>没有符合条件的预警</strong><p>请调整筛选条件后重新查询。</p></div> : <div className="table-container"><table className="warning-table"><thead><tr><th>预警编号 / 标题</th>{columns.includes('阶段') && <th>阶段</th>}{columns.includes('场景') && <th>风险场景</th>}{columns.includes('对象') && <th>目标对象 / 事件</th>}{columns.includes('等级') && <th>等级</th>}{columns.includes('路径') && <th>核心路径</th>}{columns.includes('状态') && <th>状态</th>}{columns.includes('时间') && <th>生成时间</th>}<th>操作</th></tr></thead><tbody>{pageRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/risk/warnings/${item.id}`)}><strong>{item.title}</strong><span>{item.id}</span></button></td>{columns.includes('阶段') && <td><StatusTag>{item.stage}</StatusTag></td>}{columns.includes('场景') && <td>{item.scene}<small className="cell-sub">{item.sceneVersion}</small></td>}{columns.includes('对象') && <td><strong>{item.evidenceStatus === '权限受限' ? '受限对象' : item.target}</strong><small className="cell-sub">{item.targetEvent}</small></td>}{columns.includes('等级') && <td><RiskTag level={item.level}/></td>}{columns.includes('路径') && <td><span className="path-summary">{item.evidenceStatus === '权限受限' ? '受限关系路径' : item.path}</span></td>}{columns.includes('状态') && <td><StatusTag>{item.status}</StatusTag></td>}{columns.includes('时间') && <td>{item.generatedAt.slice(5)}<small className="cell-sub">{item.leadTime}</small></td>}<td><div className="row-actions vertical"><button onClick={() => navigate(`/risk/warnings/${item.id}`)}>查看</button>{item.status === '已升级' && eventByWarning.get(item.id) && <button onClick={() => navigate(`/risk/events/${eventByWarning.get(item.id)}`)}>查看风险事件</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'transfer')}>转派</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'release')}>解除</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'escalate')}>升级</button>}</div></td></tr>)}</tbody></table></div>}
       <div className="pagination"><span>共 {rows.length} 条</span><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => setPage(page + 1)}>›</button></div>
     </Panel>
     <Modal open={!!action} title={action ? actionMeta[action].title : ''} description={action ? actionMeta[action].description : ''} confirmText={action ? actionMeta[action].confirm : ''} danger={action ? actionMeta[action].danger : false} onClose={() => setAction(null)} onConfirm={executeAction}>{action && target && <WarningActionForm action={action} warning={target} form={form} onChange={setForm}/>}</Modal>
-    <Drawer open={columnOpen} title="预警列表列设置" eyebrow="显示与排序" onClose={() => setColumnOpen(false)} footer={<><Button onClick={() => setColumns(['阶段','场景','对象','等级','路径','状态','证据','时间'])}>恢复默认</Button><Button variant="primary" onClick={() => { setColumnOpen(false); setToast('列设置已保存') }}>应用设置</Button></>}><div className="check-grid vertical">{['阶段','场景','对象','等级','路径','状态','证据','时间'].map((column) => <label key={column}><input type="checkbox" checked={columns.includes(column)} onChange={() => setColumns((value) => value.includes(column) ? value.filter((item) => item !== column) : [...value, column])}/><span>{column}</span></label>)}</div></Drawer>
+    <Drawer open={columnOpen} title="预警列表列设置" eyebrow="显示与排序" onClose={() => setColumnOpen(false)} footer={<><Button onClick={() => setColumns(['阶段','场景','对象','等级','路径','状态','时间'])}>恢复默认</Button><Button variant="primary" onClick={() => { setColumnOpen(false); setToast('列设置已保存') }}>应用设置</Button></>}><div className="check-grid vertical">{['阶段','场景','对象','等级','路径','状态','时间'].map((column) => <label key={column}><input type="checkbox" checked={columns.includes(column)} onChange={() => setColumns((value) => value.includes(column) ? value.filter((item) => item !== column) : [...value, column])}/><span>{column}</span></label>)}</div></Drawer>
   </>
 }
 
-function WarningActionForm({ action, warning, form, onChange }: { action: Exclude<WarningAction, null>; warning: Warning; form: { owner: string; dueAt: string; requirement: string; reason: string; evidence: string }; onChange: (value: typeof form) => void }) {
-  return <div className="form-stack"><div className="operation-target"><RiskTag level={warning.level}/><div><strong>{warning.title}</strong><span>{warning.id} · 当前处理人：{warning.owner || '待分配'}</span></div></div>{action === 'transfer' && <><Field label="新处理人 *"><select value={form.owner} onChange={(event) => onChange({ ...form, owner: event.target.value })}><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option><option>尹晨阳</option></select></Field><Field label="转派原因"><textarea value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })} placeholder="可选，说明职责调整或转派原因"/></Field><div className="alert-box"><Icon name="user"/><span>转派只变更处理人，预警仍保持“待研判”。</span></div></>}{action === 'release' && <><Field label="解除原因 *"><select value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })}><option value="">请选择</option><option>规则误报</option><option>条件已经消失</option><option>已取得有效授权</option></select></Field><Field label="引用证据 *"><input value={form.evidence} onChange={(event) => onChange({ ...form, evidence: event.target.value })} placeholder="输入证据编号或说明"/></Field></>}{action === 'escalate' && <><div className="alert-box danger"><Icon name="warning"/><span>升级后预警状态变为“已升级”，并创建一条“待整改”风险事件。</span></div><Field label="整改责任人 *"><select value={form.owner} onChange={(event) => onChange({ ...form, owner: event.target.value })}><option value="">请选择责任人</option><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option></select></Field><Field label="完成时限 *"><input value={form.dueAt} onChange={(event) => onChange({ ...form, dueAt: event.target.value })}/></Field><Field label="整改要求 *"><textarea value={form.requirement} onChange={(event) => onChange({ ...form, requirement: event.target.value })}/></Field><Field label="风险确认说明"><textarea value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })} placeholder="可选，补充说明风险判断依据"/></Field></>}</div>
+function WarningActionForm({ action, warning, form, onChange }: { action: Exclude<WarningAction, null>; warning: Warning; form: { owner: string; dueAt: string; requirement: string; reason: string }; onChange: (value: typeof form) => void }) {
+  return <div className="form-stack"><div className="operation-target"><RiskTag level={warning.level}/><div><strong>{warning.title}</strong><span>{warning.id} · 当前处理人：{warning.owner || '待分配'}</span></div></div>{action === 'transfer' && <><Field label="新处理人 *"><select value={form.owner} onChange={(event) => onChange({ ...form, owner: event.target.value })}><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option><option>尹晨阳</option></select></Field><Field label="转派原因"><textarea value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })} placeholder="可选，说明职责调整或转派原因"/></Field><div className="alert-box"><Icon name="user"/><span>转派只变更处理人，预警仍保持“待研判”。</span></div></>}{action === 'release' && <Field label="解除原因"><input value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })} placeholder="可选，填写解除原因"/></Field>}{action === 'escalate' && <><div className="alert-box danger"><Icon name="warning"/><span>升级后预警状态变为“已升级”，并创建一条“待整改”风险事件。</span></div><Field label="整改责任人 *"><select value={form.owner} onChange={(event) => onChange({ ...form, owner: event.target.value })}><option value="">请选择责任人</option><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option></select></Field><Field label="完成时限 *"><input value={form.dueAt} onChange={(event) => onChange({ ...form, dueAt: event.target.value })}/></Field><Field label="整改要求 *"><textarea value={form.requirement} onChange={(event) => onChange({ ...form, requirement: event.target.value })}/></Field><Field label="风险确认说明"><textarea value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })} placeholder="可选，补充说明风险判断依据"/></Field></>}</div>
 }
 
 export function WarningDetailPage() {
@@ -141,7 +138,7 @@ export function WarningDetailPage() {
   const [graphViewMode, setGraphViewMode] = useState<DatabaseGraphViewMode>('风险链视图')
   const [showGraphEvents, setShowGraphEvents] = useState(false)
   const [evidenceFilter, setEvidenceFilter] = useState('全部')
-  const [form, setForm] = useState({ owner: '', dueAt: '2026-07-24 18:00', requirement: '确认风险事实、明确影响范围并提交整改证明材料。', reason: '', evidence: '' })
+  const [form, setForm] = useState({ owner: '', dueAt: '2026-07-24 18:00', requirement: '确认风险事实、明确影响范围并提交整改证明材料。', reason: '' })
   const [databaseDetail, setDatabaseDetail] = useState<DemoWarningDetail | null>(null)
   const [detailLoading, setDetailLoading] = useState(true)
   useEffect(() => {
@@ -160,14 +157,14 @@ export function WarningDetailPage() {
   if (!warning) return <EmptyState title="预警不存在或无权访问" description="请返回预警列表重新选择可访问对象。"/>
   const openAction = (next: Exclude<WarningAction, null>) => {
     setAction(next)
-    setForm({ ...form, owner: next === 'escalate' ? '' : warning.owner === '李华' ? '王宁' : '李华', reason: '', evidence: '' })
+    setForm({ ...form, owner: next === 'escalate' ? '' : warning.owner === '李华' ? '王宁' : '李华', reason: '' })
   }
   const execute = () => {
     if (!action) return
     const result = action === 'transfer'
       ? transferWarning(warning.id, form.owner, form.reason)
       : action === 'release'
-        ? releaseWarning(warning.id, form.reason, form.evidence)
+        ? releaseWarning(warning.id, form.reason)
         : escalateWarning(warning.id, form.owner, form.dueAt, form.requirement, form.reason)
     setToast(result.message)
     if (result.ok) {
@@ -188,7 +185,7 @@ export function WarningDetailPage() {
   if (databaseDetail?.tradeCycle.length) detailTabs.push({ key: 'trade', label: '循环贸易', count: databaseDetail.tradeCycle.length })
   return <div className={`warning-detail-page ${fullScreen ? 'evidence-fullscreen' : ''}`}>
     <div className="detail-topbar"><div><button className="back-button" onClick={() => navigate('/risk/warnings')}>‹ 返回预警列表</button><p>{warning.id}</p><h1>{warning.title}</h1></div><div className="detail-top-actions"><Button icon="refresh" onClick={() => setToast('已刷新预警状态、任务和权限，历史快照保持不变')}>刷新</Button><Button icon="link" onClick={() => navigator.clipboard?.writeText(warning.id).then(() => setToast('预警编号已复制'))}>复制编号</Button></div></div>
-    <section className="summary-strip"><div><span>预警阶段</span><StatusTag>{warning.stage}</StatusTag></div><div><span>处理状态</span><StatusTag>{warning.status}</StatusTag></div><div><span>风险等级</span><RiskTag level={warning.level}/></div><div><span>目标节点 / 组织</span><strong>{warning.targetEvent}</strong><small>{warning.expectedAt}</small><small>{warning.organization}</small></div><div><span>提前量</span><strong>{warning.leadTime}</strong></div><div><span>证据状态</span><StatusTag>{warning.evidenceStatus}</StatusTag></div><div><span>版本</span><strong>{databaseSourced ? `图谱结构 ONT-PROC-DEMO · 图谱 ${databaseGraphVersion || '加载中'} · 场景 ${warning.sceneVersion}` : `图谱结构 v2.2 · 图谱 0717.2 · 规则 ${warning.sceneVersion}`}</strong></div></section>
+    <section className="summary-strip warning-summary"><div><span>预警阶段</span><StatusTag>{warning.stage}</StatusTag></div><div><span>处理状态</span><StatusTag>{warning.status}</StatusTag></div><div><span>风险等级</span><RiskTag level={warning.level}/></div><div><span>生成时间</span><strong>{warning.generatedAt}</strong></div><div><span>版本</span><strong>{databaseSourced ? `图谱结构 ONT-PROC-DEMO · 图谱 ${databaseGraphVersion || '加载中'} · 场景 ${warning.sceneVersion}` : `图谱结构 v2.2 · 图谱 0717.2 · 规则 ${warning.sceneVersion}`}</strong></div></section>
     {databaseSourced && <div className="alert-box evidence-alert"><Icon name="graph"/><span>节点、关系、事件和贸易明细来自MySQL；预警状态、处理人和工作台待办由演示工作流统一维护，可正常操作。</span><StatusTag>工作流可操作</StatusTag></div>}
     {warning.status === '已升级' && linkedRiskEvent && <div className="alert-box evidence-alert"><Icon name="shield"/><span>该预警已转入风险事件 {linkedRiskEvent.id}，后续处置请在风险事件中完成。</span><Button variant="primary" onClick={() => navigate(`/risk/events/${linkedRiskEvent.id}`)}>查看风险事件</Button></div>}
     {warning.evidenceStatus === '快照异常' && <div className="alert-box danger evidence-alert"><Icon name="warning"/><span>初始证据快照生成失败，当前仅允许查看预警信息；证据补偿不作为预警处置动作展示。</span></div>}
@@ -662,12 +659,12 @@ function DatabaseTimeline({ detail, onSelect }: { detail: DemoWarningDetail; onS
 function DatabaseNodeDetail({ node, detail }: { node: DemoWarningDetail['graph']['nodes'][number]; detail: DemoWarningDetail }) {
   const classDefinition = ontologyElement(detail, 'class', node.classCode)
   const propertyRows = Object.entries(node.properties).map(([propertyKey, value]) => ({ propertyKey, value, definition: ontologyPropertyDefinition(detail, node, propertyKey) }))
-  const mappedRows = propertyRows.filter((row) => row.definition)
-  const extensionRows = propertyRows.filter((row) => !row.definition)
-  const renderRows = (rows: typeof propertyRows) => <div className="database-property-list">{rows.map((row) => <div key={row.propertyKey}><div><strong>{row.definition?.name || row.propertyKey}</strong><small>{row.definition?.code || `${node.classCode}.${row.propertyKey}`}{row.definition?.dataType ? ` · ${row.definition.dataType}` : ''}</small></div><span>{databasePropertyValue(row.value)}</span></div>)}</div>
-  return <><KeyValue items={[{ label: '实例ID', value: node.id }, { label: '实例名称', value: node.name }, { label: '所属图谱结构', value: `${detail.ontology?.name || detail.ontology?.id || '监管图谱结构'} ${detail.ontology?.version || ''}` }, { label: '类', value: `${classDefinition?.name || node.classCode}（${node.classCode}）` }, { label: '案例ID', value: node.caseId }, { label: '来源系统', value: node.sourceSystem }, { label: '来源记录', value: node.sourceRecord }, { label: '知识图谱', value: detail.graph.id }, { label: '状态', value: <StatusTag>{node.status}</StatusTag> }]}/><Panel title="类定义" className="drawer-section"><KeyValue items={[{ label: '类编码', value: node.classCode }, { label: '约束', value: classDefinition?.constraint || '—' }, { label: '业务说明', value: classDefinition?.description || '—' }]}/></Panel><Panel title={`图谱属性值 · ${mappedRows.length}项`} className="drawer-section">{mappedRows.length ? renderRows(mappedRows) : <p className="drawer-note">当前实例没有已映射的图谱属性值。</p>}</Panel>{extensionRows.length > 0 && <Panel title={`来源扩展字段 · ${extensionRows.length}项`} className="drawer-section"><div className="alert-box"><Icon name="warning"/><span>以下字段来自业务源系统，当前尚未纳入图谱属性定义。</span></div>{renderRows(extensionRows)}</Panel>}</>
+  const renderRows = (rows: typeof propertyRows) => <div className="database-property-list compact">{rows.map((row) => <div key={row.propertyKey}><div><strong>{row.definition?.name || row.propertyKey}</strong><small>{row.definition?.code || `${node.classCode}.${row.propertyKey}`}{row.definition?.dataType ? ` · ${row.definition.dataType}` : ' · 来源字段'}</small></div><span>{databasePropertyValue(row.value)}</span></div>)}</div>
+  return <>
+    <KeyValue items={[{ label: '元素类型', value: '类' }, { label: '元素编码', value: node.classCode }, { label: '中文名称', value: classDefinition?.name || node.name }, { label: '状态', value: <StatusTag>{node.status}</StatusTag> }, { label: '来源系统', value: node.sourceSystem }, { label: '来源记录', value: node.sourceRecord }]}/>
+    <Panel title={`属性信息 · ${propertyRows.length}项`} className="drawer-section compact-drawer-section">{propertyRows.length ? renderRows(propertyRows) : <p className="drawer-note">当前节点暂无属性信息。</p>}</Panel>
+  </>
 }
-
 function DatabaseRawProperties({ title, properties }: { title: string; properties: Record<string, unknown> }) {
   const rows = Object.entries(properties)
   if (!rows.length) return null
@@ -683,7 +680,7 @@ function DatabaseRelationDetail({ relation, detail }: { relation: DatabaseGraphR
   const fromClass = fromNode ? ontologyElementName(detail, 'class', fromNode.classCode) : '未知类'
   const toClass = toNode ? ontologyElementName(detail, 'class', toNode.classCode) : '未知类'
   const verificationStatus = databaseRelationVerification(detail, relation)
-  return <><KeyValue items={[{ label: '关系实例ID', value: relation.id }, { label: '图谱关系', value: `${definition?.name || relation.relationCode}（${relation.relationCode}）` }, { label: '起点实例', value: `${fromClass} / ${fromNode?.name || relation.fromId}` }, { label: '终点实例', value: `${toClass} / ${toNode?.name || relation.toId}` }, { label: '核验状态', value: <StatusTag>{verificationStatus}</StatusTag> }, { label: '证据ID', value: relation.evidenceId || '未绑定独立证据' }, { label: '来源系统', value: relation.sourceSystem }, { label: '知识图谱', value: detail.graph.id }]}/><Panel title="图谱关系定义" className="drawer-section"><KeyValue items={[{ label: '定义方向', value: `${definition?.ownerCode || fromNode?.classCode || '—'} → ${definition?.targetCode || toNode?.classCode || '—'}` }, { label: '约束', value: definition?.constraint || '—' }, { label: '业务说明', value: definition?.description || '—' }]}/></Panel>{evidence && <Panel title="关联证据" className="drawer-section"><KeyValue items={[{ label: '证据名称', value: evidence.description || evidence.fieldOrRelation }, { label: '证据类型', value: evidence.type }, { label: '证据值', value: evidenceDisplayValue(evidence) }, { label: '有效性', value: evidence.validity }, { label: '采集时间', value: evidence.collectedAt }, { label: '来源记录', value: evidence.sourceRecord }]}/></Panel>}{parallelRelations.length > 1 && <Panel title={`同方向关系实例 · ${parallelRelations.length}条`} className="drawer-section"><div className="database-relation-instance-list">{parallelRelations.map((item) => <div className={item.id === relation.id ? 'active' : ''} key={item.id}><strong>{ontologyElementName(detail, 'relation', item.relationCode)}</strong><span>{item.id} · {databaseRelationVerification(detail, item)}</span></div>)}</div></Panel>}<DatabaseRawProperties title="关系扩展属性" properties={relation.properties}/></>
+  return <><KeyValue items={[{ label: '图谱关系', value: `${definition?.name || relation.relationCode}（${relation.relationCode}）` }, { label: '起点对象', value: `${fromClass} / ${fromNode?.name || relation.fromId}` }, { label: '终点对象', value: `${toClass} / ${toNode?.name || relation.toId}` }, { label: '核验状态', value: <StatusTag>{verificationStatus}</StatusTag> }, { label: '证据ID', value: relation.evidenceId || '未绑定独立证据' }, { label: '来源系统', value: relation.sourceSystem }, { label: '知识图谱', value: detail.graph.id }]}/><Panel title="图谱关系定义" className="drawer-section"><KeyValue items={[{ label: '定义方向', value: `${definition?.ownerCode || fromNode?.classCode || '—'} → ${definition?.targetCode || toNode?.classCode || '—'}` }, { label: '约束', value: definition?.constraint || '—' }, { label: '业务说明', value: definition?.description || '—' }]}/></Panel>{evidence && <Panel title="关联证据" className="drawer-section"><KeyValue items={[{ label: '证据名称', value: evidence.description || evidence.fieldOrRelation }, { label: '证据类型', value: evidence.type }, { label: '证据值', value: evidenceDisplayValue(evidence) }, { label: '有效性', value: evidence.validity }, { label: '采集时间', value: evidence.collectedAt }, { label: '来源记录', value: evidence.sourceRecord }]}/></Panel>}{parallelRelations.length > 1 && <Panel title={`同方向关系实例 · ${parallelRelations.length}条`} className="drawer-section"><div className="database-relation-instance-list">{parallelRelations.map((item) => <div className={item.id === relation.id ? 'active' : ''} key={item.id}><strong>{ontologyElementName(detail, 'relation', item.relationCode)}</strong><span>{databaseRelationVerification(detail, item)}</span></div>)}</div></Panel>}</>
 }
 
 function DatabaseEventDetail({ event, detail }: { event: DatabaseGraphEvent; detail: DemoWarningDetail }) {
@@ -691,7 +688,7 @@ function DatabaseEventDetail({ event, detail }: { event: DatabaseGraphEvent; det
   const objectNode = detail.graph.nodes.find((item) => item.id === event.objectId)
   const actorNode = detail.graph.nodes.find((item) => item.id === event.actorId)
   const organizationNode = detail.graph.nodes.find((item) => item.id === event.organizationId)
-  return <><KeyValue items={[{ label: '节点实例ID', value: event.id }, { label: '所属类', value: `${definition?.name || event.eventCode}（${event.eventCode}）` }, { label: '节点名称', value: event.name }, { label: '发生时间', value: event.eventTime }, { label: '参与对象', value: objectNode ? `${ontologyElementName(detail, 'class', objectNode.classCode)} / ${objectNode.name}` : event.objectId }, { label: '参与主体', value: actorNode?.name || event.actorId || '—' }, { label: '所属组织', value: organizationNode?.name || event.organizationId || '—' }, { label: '涉及金额', value: event.amount === null ? '—' : `${event.amount.toLocaleString()}元` }, { label: '状态', value: <StatusTag>{event.status}</StatusTag> }, { label: '来源系统', value: event.sourceSystem }]}/><Panel title="发生信息" className="drawer-section"><KeyValue items={[{ label: '类编码', value: definition?.code || event.eventCode }, { label: '发生时间', value: event.eventTime }, { label: '关联对象所属类', value: objectNode?.classCode || '—' }, { label: '约束', value: definition?.constraint || '—' }, { label: '业务说明', value: definition?.description || '—' }]}/></Panel><DatabaseRawProperties title="节点扩展属性" properties={event.properties}/></>
+  return <><KeyValue items={[{ label: '所属类', value: `${definition?.name || event.eventCode}（${event.eventCode}）` }, { label: '节点名称', value: event.name }, { label: '发生时间', value: event.eventTime }, { label: '参与对象', value: objectNode ? `${ontologyElementName(detail, 'class', objectNode.classCode)} / ${objectNode.name}` : event.objectId }, { label: '参与主体', value: actorNode?.name || event.actorId || '—' }, { label: '所属组织', value: organizationNode?.name || event.organizationId || '—' }, { label: '涉及金额', value: event.amount === null ? '—' : `${event.amount.toLocaleString()}元` }, { label: '状态', value: <StatusTag>{event.status}</StatusTag> }, { label: '来源系统', value: event.sourceSystem }]}/><Panel title="发生信息" className="drawer-section"><KeyValue items={[{ label: '类编码', value: definition?.code || event.eventCode }, { label: '发生时间', value: event.eventTime }, { label: '关联对象所属类', value: objectNode?.classCode || '—' }, { label: '约束', value: definition?.constraint || '—' }, { label: '业务说明', value: definition?.description || '—' }]}/></Panel><DatabaseRawProperties title="节点扩展属性" properties={event.properties}/></>
 }
 
 function TradeCyclePanel({ rows }: { rows: DemoWarningDetail['tradeCycle'] }) {
@@ -699,9 +696,10 @@ function TradeCyclePanel({ rows }: { rows: DemoWarningDetail['tradeCycle'] }) {
 }
 
 function NodeDetail({ selectedNode, path }: { selectedNode: string; path: string }) {
-  return <><KeyValue items={[{ label: '详情类型', value: selectedNode === 'file' ? '附件预览' : selectedNode === 'bid' ? '事件详情' : selectedNode === 'phone' ? '关系与来源' : '节点属性' }, { label: '实体/证据ID', value: `ENTITY-${selectedNode.toUpperCase()}` }, { label: '归属组织', value: '电子云采购中心' }, { label: '业务有效时间', value: '2026-01-01 至今' }, { label: '来源系统', value: selectedNode === 'file' ? '工商司法外部数据' : '集团ERP采购视图' }, { label: '知识图谱', value: 'GRAPH-20260717.2' }, { label: '敏感等级', value: <StatusTag>{selectedNode === 'phone' ? '强敏感' : '内部'}</StatusTag> }]}/>{selectedNode === 'file' && <div className="file-preview"><Icon name="file" size={38}/><strong>工商主体查询记录.pdf</strong><span>历史快照 v20260717 · 内容哈希 8AC2…91F0</span><p>预览摘要：主体登记信息、股东及联系方式查询结果。</p></div>}<Panel title="命中作用" className="drawer-section"><p className="drawer-note">属于{path === 'path1' ? '直接命中路径' : '辅助证据路径'}，参与规则 R-PROC-ASSOC-06。</p></Panel></>
+  const typeText = selectedNode === 'file' ? '附件预览' : selectedNode === 'bid' ? '事件详情' : selectedNode === 'phone' ? '关系与来源' : '节点属性'
+  const sourceText = selectedNode === 'file' ? '工商司法外部数据' : '集团ERP采购视图'
+  return <><KeyValue items={[{ label: '详情类型', value: typeText }, { label: '来源系统', value: sourceText }, { label: '归属组织', value: '电子云采购中心' }, { label: '敏感等级', value: <StatusTag>{selectedNode === 'phone' ? '强敏感' : '内部'}</StatusTag> }]}/>{selectedNode === 'file' && <div className="file-preview compact"><Icon name="file" size={32}/><strong>工商主体查询记录.pdf</strong><span>历史快照 v20260717</span><p>预览摘要：主体登记信息、股东及联系方式查询结果。</p></div>}<Panel title="命中作用" className="drawer-section compact-drawer-section"><p className="drawer-note">属于{path === 'path1' ? '直接命中路径' : '辅助证据路径'}，参与规则 R-PROC-ASSOC-06。</p></Panel></>
 }
-
 export function RiskEventListPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -719,7 +717,7 @@ export function RiskEventListPage() {
   const [page, setPage] = useState(1)
   const [action, setAction] = useState<EventAction>(null)
   const [target, setTarget] = useState<RiskEvent | null>(null)
-  const [form, setForm] = useState({ owner: '孙凯', reason: '', rectificationResult: '已完成', measures: '', materials: [] as string[], reviewResult: '通过' as '通过' | '退回整改' | '不成立关闭', evidence: '' })
+  const [form, setForm] = useState({ owner: '孙凯', reason: '', rectificationResult: '已完成', measures: '', materials: [] as string[], reviewer: '', reviewResult: '通过' as '通过' | '退回整改' | '不成立关闭' })
   const sceneDomains = useMemo(() => Object.fromEntries(scenes.map((item) => [item.name, item.domain])), [scenes])
   const rows = events.filter((item) => {
     const domain = inferSituationDomain(sceneDomains[item.scene], `${item.scene}${item.title}${item.target}`)
@@ -742,8 +740,8 @@ export function RiskEventListPage() {
       rectificationResult: '已完成',
       measures: '',
       materials: [],
+      reviewer: '',
       reviewResult: '通过',
-      evidence: '',
     })
   }
   const execute = () => {
@@ -751,8 +749,8 @@ export function RiskEventListPage() {
     const result = action === 'transfer'
       ? transferRiskEvent(target.id, form.owner, form.reason)
       : action === 'submit'
-        ? submitRectification(target.id, form.rectificationResult, form.measures, form.materials)
-        : reviewRiskEvent(target.id, form.reviewResult, form.reason, form.evidence)
+        ? submitRectification(target.id, form.rectificationResult, form.reviewer, form.measures, form.materials)
+        : reviewRiskEvent(target.id, form.reviewResult, form.reason)
     setToast(result.message)
     if (result.ok) setAction(null)
   }
@@ -792,7 +790,7 @@ export function RiskEventDetailPage() {
   const [sourceDetail, setSourceDetail] = useState<DemoWarningDetail | null>(null)
   const [sourceLoading, setSourceLoading] = useState(Boolean(event))
   const [sourceRefresh, setSourceRefresh] = useState(0)
-  const [form, setForm] = useState({ owner: '孙凯', reason: '', rectificationResult: '已完成', measures: '', materials: [] as string[], reviewResult: '通过' as '通过' | '退回整改' | '不成立关闭', evidence: '' })
+  const [form, setForm] = useState({ owner: '孙凯', reason: '', rectificationResult: '已完成', measures: '', materials: [] as string[], reviewer: '', reviewResult: '通过' as '通过' | '退回整改' | '不成立关闭' })
 
   useEffect(() => {
     const warningId = event?.warningId
@@ -829,8 +827,8 @@ export function RiskEventDetailPage() {
       rectificationResult: '已完成',
       measures: '',
       materials: [],
+      reviewer: '',
       reviewResult: '通过',
-      evidence: '',
     })
   }
   const execute = () => {
@@ -838,8 +836,8 @@ export function RiskEventDetailPage() {
     const result = action === 'transfer'
       ? transferRiskEvent(event.id, form.owner, form.reason)
       : action === 'submit'
-        ? submitRectification(event.id, form.rectificationResult, form.measures, form.materials)
-        : reviewRiskEvent(event.id, form.reviewResult, form.reason, form.evidence)
+        ? submitRectification(event.id, form.rectificationResult, form.reviewer, form.measures, form.materials)
+        : reviewRiskEvent(event.id, form.reviewResult, form.reason)
     setToast(result.message)
     if (result.ok) setAction(null)
   }
@@ -854,24 +852,33 @@ export function RiskEventDetailPage() {
   </div>
 }
 
-function EventActionForm({ action, form, onChange }: { action: Exclude<EventAction, null>; form: { owner: string; reason: string; rectificationResult: string; measures: string; materials: string[]; reviewResult: '通过' | '退回整改' | '不成立关闭'; evidence: string }; onChange: (value: typeof form) => void }) {
+function EventActionForm({ action, form, onChange }: { action: Exclude<EventAction, null>; form: { owner: string; reason: string; rectificationResult: string; measures: string; materials: string[]; reviewer: string; reviewResult: '通过' | '退回整改' | '不成立关闭' }; onChange: (value: typeof form) => void }) {
   if (action === 'transfer') return <div className="form-stack"><Field label="新处理人 *"><select value={form.owner} onChange={(event) => onChange({ ...form, owner: event.target.value })}><option>孙凯</option><option>李华</option><option>周航</option><option>王宁</option><option>尹晨阳</option></select></Field><Field label="转派原因"><textarea value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })} placeholder="可选，说明职责调整或转派原因"/></Field><div className="alert-box"><Icon name="user"/><span>转派只变更当前任务处理人，不改变事件状态。</span></div></div>
-  if (action === 'submit') return <div className="form-stack"><Field label="整改结果 *"><select value={form.rectificationResult} onChange={(event) => onChange({ ...form, rectificationResult: event.target.value })}><option>已完成</option><option>部分完成</option><option>无法完成</option><option>无需整改</option></select></Field><Field label="整改措施"><textarea value={form.measures} onChange={(event) => onChange({ ...form, measures: event.target.value })} placeholder="可选，说明整改措施"/></Field><Field label="证明材料"><div className="upload-zone"><span>{form.materials.length ? form.materials.join('、') : '尚未添加证明材料'}</span><Button onClick={() => onChange({ ...form, materials: [...form.materials, `整改证明-${form.materials.length + 1}.pdf`] })}>模拟上传</Button></div></Field>{['已完成','部分完成'].includes(form.rectificationResult) && form.materials.length === 0 && <div className="alert-box danger"><Icon name="warning"/><span>当前整改结果至少需要一项证明材料。</span></div>}</div>
-  return <div className="form-stack"><Field label="复核结论 *"><select value={form.reviewResult} onChange={(event) => onChange({ ...form, reviewResult: event.target.value as typeof form.reviewResult })}><option>通过</option><option>退回整改</option><option>不成立关闭</option></select></Field><Field label="复核说明 *"><textarea value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })}/></Field>{form.reviewResult !== '退回整改' && <Field label="引用证据 *"><input value={form.evidence} onChange={(event) => onChange({ ...form, evidence: event.target.value })} placeholder="例如 EVI-001、整改证明-1.pdf"/></Field>}<div className="alert-box danger"><Icon name="warning"/><span>{form.reviewResult === '退回整改' ? '退回后将恢复原整改责任人待办，事件回到“待整改”。' : '关闭后事件只读，关联待办同步关闭。'}</span></div></div>
+  if (action === 'submit') return <div className="form-stack"><Field label="整改结果 *"><select value={form.rectificationResult} onChange={(event) => onChange({ ...form, rectificationResult: event.target.value })}><option>已完成</option><option>部分完成</option><option>无法完成</option><option>无需整改</option></select></Field><Field label="整改措施"><textarea value={form.measures} onChange={(event) => onChange({ ...form, measures: event.target.value })} placeholder="可选，说明整改措施"/></Field><Field label="复核人 *"><select value={form.reviewer} onChange={(event) => onChange({ ...form, reviewer: event.target.value })}><option value="">请选择复核人</option><option>尹晨阳</option><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option></select></Field><Field label="证明材料（可选）"><div className="upload-zone"><span>{form.materials.length ? form.materials.join('、') : '未上传证明材料，可直接提交'}</span><Button onClick={() => onChange({ ...form, materials: [...form.materials, `整改证明-${form.materials.length + 1}.pdf`] })}>模拟上传</Button></div></Field></div>
+  return <div className="form-stack"><Field label="复核结论 *"><select value={form.reviewResult} onChange={(event) => onChange({ ...form, reviewResult: event.target.value as typeof form.reviewResult })}><option>通过</option><option>退回整改</option><option>不成立关闭</option></select></Field><Field label="复核说明"><textarea value={form.reason} onChange={(event) => onChange({ ...form, reason: event.target.value })} placeholder="可选，填写复核意见或退回原因"/></Field><div className="alert-box danger"><Icon name="warning"/><span>{form.reviewResult === '退回整改' ? '退回后将恢复原整改责任人待办，事件回到“待整改”。' : '关闭后事件只读，关联待办同步关闭。'}</span></div></div>
 }
 
-function RiskFacts({ event, sourceDetail }: { event: RiskEvent; sourceDetail?: DemoWarningDetail | null }) { return <div className="detail-grid"><Panel title="风险事实摘要"><div className="fact-callout"><Icon name="warning" size={24}/><div><strong>{event.title}</strong><p>来源预警的初始证据快照、规则版本和图谱结构已经固化，后续材料以新增记录保存。</p></div></div><KeyValue items={[{ label: '风险场景', value: event.scene }, { label: '主对象', value: event.target }, { label: '来源预警', value: event.warningId }, { label: '图谱结构', value: sourceDetail ? `${sourceDetail.ontology?.name || sourceDetail.ontology?.id || 'ONT-PROC-DEMO'} ${sourceDetail.ontology?.version || ''}` : 'BASE v1.6 / PROC v2.2' }, { label: '知识图谱', value: sourceDetail?.graph.id || 'GRAPH-20260717.2' }, { label: '规则版本', value: sourceDetail ? `${sourceDetail.warning.sceneVersion} / ${sourceDetail.runs[0]?.ruleVersionId || '演示规则'}` : 'SCENE v2.3 / RULE v6.1' }]}/></Panel><Panel title="处置要求"><ul className="check-list"><li><Icon name="check"/>确认主体关联事实与责任边界</li><li><Icon name="check"/>落实整改措施并提交证明材料</li><li><Icon name="clock"/>在截止时间前完成当前任务</li><li><Icon name="lock"/>初始证据快照只读不可覆盖</li></ul></Panel></div> }
-
+function RiskFacts({ event, sourceDetail }: { event: RiskEvent; sourceDetail?: DemoWarningDetail | null }) {
+  const requirement = event.requirement?.trim() || `请围绕“${event.target}”核实${event.scene}相关风险事实，明确责任边界，并在整改完成后提交处理说明。`
+  return <div className="detail-grid">
+    <Panel title="风险事实摘要"><div className="fact-callout"><Icon name="warning" size={24}/><div><strong>{event.title}</strong><p>来源预警的初始证据快照、规则版本和图谱结构已经固化，后续材料以新增记录保存。</p></div></div><KeyValue items={[{ label: '风险场景', value: event.scene }, { label: '主对象', value: event.target }, { label: '来源预警', value: event.warningId }, { label: '图谱结构', value: sourceDetail ? `${sourceDetail.ontology?.name || sourceDetail.ontology?.id || 'ONT-PROC-DEMO'} ${sourceDetail.ontology?.version || ''}` : 'BASE v1.6 / PROC v2.2' }, { label: '知识图谱', value: sourceDetail?.graph.id || 'GRAPH-20260717.2' }, { label: '规则版本', value: sourceDetail ? `${sourceDetail.warning.sceneVersion} / ${sourceDetail.runs[0]?.ruleVersionId || '演示规则'}` : 'SCENE v2.3 / RULE v6.1' }]}/></Panel>
+    <Panel title="处置要求"><p className="drawer-note">{requirement}</p><ul className="check-list"><li><Icon name="clock"/>在截止时间前完成当前任务</li><li><Icon name="check"/>整改证明材料可按需上传</li><li><Icon name="lock"/>初始证据快照只读不可覆盖</li></ul></Panel>
+  </div>
+}
 function RiskTimeline({ event }: { event: RiskEvent }) {
   const rows = [
     ['预警生成', '规则命中并固化证据快照'],
     ['升级风险事件', '监管人员确认风险并指定首位整改责任人'],
     ['当前处理人', event.owner || '待分配'],
-    [event.status === '待整改' ? '等待提交整改' : '已提交整改', event.status === '待整改' ? '完成后进入待复核' : '证明材料以新增记录保存'],
+    [event.status === '待整改' ? '等待提交整改' : '已提交整改', event.status === '待整改' ? '完成后进入待复核' : event.rectificationMaterials?.length ? '证明材料以新增记录保存' : '未上传证明材料（可选）'],
     [event.status === '已关闭' ? '复核关闭' : event.status === '待复核' ? '等待监管复核' : '整改完成后进入复核', event.status],
   ]
   return <div className="timeline risk-timeline">{rows.map((item,index) => <button key={`${item[0]}-${index}`} className={index === rows.length - 1 && event.status !== '已关闭' ? 'future' : ''}><time>{index < 2 ? '历史记录' : '当前流程'}</time><i/><div><strong>{item[0]}</strong><span>{item[1]}</span></div></button>)}</div>
 }
-function RectificationView({ event }: { event: RiskEvent }) { return event.status === '待整改' ? <div className="empty-state"><span><Icon name="file"/></span><strong>尚未提交整改结果</strong><p>当前处理人提交后将在此展示整改结果、措施和证明材料。</p></div> : <div className="record-list"><article><header><div><strong>整改反馈</strong><span>{event.rectificationOwner || event.owner} · 最近提交</span></div><StatusTag>已提交</StatusTag></header><p>已确认主体关系并落实整改措施，相关材料以新增记录保存。</p><div className="attachment"><Icon name="file"/><span>整改证明-1.pdf</span><button>预览</button></div></article></div> }
+function RectificationView({ event }: { event: RiskEvent }) {
+  if (event.status === '待整改') return <div className="empty-state"><span><Icon name="file"/></span><strong>尚未提交整改结果</strong><p>当前处理人提交后将在此展示整改结果、措施和可选证明材料。</p></div>
+  const materials = event.rectificationMaterials || []
+  return <div className="record-list"><article><header><div><strong>整改反馈</strong><span>{event.rectificationOwner || event.owner} · 最近提交</span></div><StatusTag>{event.rectificationResult || '已提交'}</StatusTag></header><p>{event.rectificationMeasures || '未填写整改措施。'}</p>{materials.length ? materials.map((material) => <div className="attachment" key={material}><Icon name="file"/><span>{material}</span><button>预览</button></div>) : <div className="attachment"><Icon name="file"/><span>未上传证明材料（可选）</span></div>}</article></div>
+}
 function ReviewView({ event }: { event: RiskEvent }) { return <div className="review-card"><StatusTag>{event.status === '已关闭' ? '复核通过' : event.status === '待复核' ? '待复核' : '未进入复核'}</StatusTag><h3>监管复核记录</h3><p>{event.status === '已关闭' ? '风险事实和整改材料完整，整改措施已执行，事件已经关闭。' : event.status === '待复核' ? '等待当前处理人选择通过、退回整改或不成立关闭。' : '整改结果提交后，系统将生成复核待办并在此留痕。'}</p></div> }
 

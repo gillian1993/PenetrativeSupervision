@@ -1,4 +1,4 @@
-import type { RiskLevel } from './types'
+import type { RiskLevel, WarningStage } from './types'
 
 export type SceneStatus='草稿'|'待试跑'|'待发布'|'已发布'|'已停用'
 export type RuleType='属性'|'字段比对'|'关系路径'|'时序'|'聚合'|'高级表达式'
@@ -37,7 +37,7 @@ export interface SkillItem{
 }
 export interface RuleItem{
   id:string;versionId:string;sceneId:string;sceneVersionId:string;code:string;name:string;version:string;
-  type:RuleType;level:RiskLevel;defaultLevel?:RiskLevel;enabled:boolean;status:SceneStatus;conditions:ConditionGroup;
+  type:RuleType;stage:WarningStage;level:RiskLevel;defaultLevel?:RiskLevel;enabled:boolean;status:SceneStatus;conditions:ConditionGroup;
   pathConfig:PathConfig;timeConfig:TimeConfig;
   aggregateConfig:AggregateConfig;
   exceptions:{enabled:boolean;description:string;whitelist:string[]};outputs:string[];evidence:string[];

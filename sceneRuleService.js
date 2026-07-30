@@ -1,6 +1,21 @@
 ﻿import { createHash, randomUUID } from 'node:crypto'
 
 const editableStatuses = new Set(['草稿', '待试跑', '待发布'])
+const warningStages = new Set(['事前', '事中', '事后'])
+
+function normalizeWarningStage(value, fallback = '事中') {
+  const text = String(value || '').trim()
+  if (warningStages.has(text)) return text
+  if (text.includes('事前')) return '事前'
+  if (text.includes('事中')) return '事中'
+  if (text.includes('事后')) return '事后'
+  return fallback
+}
+
+async function ensureColumn(pool, table, column, definition) {
+  const [rows] = await pool.query('SELECT COUNT(*) AS total FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?', [table, column])
+  if (!Number(rows[0]?.total || 0)) await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN ${definition}`)
+}
 
 const parseJson = (value, fallback) => {
   if (value === null || value === undefined || value === '') return fallback
@@ -27,6 +42,7 @@ function mapRule(row) {
     name: row.name,
     version: row.version,
     type: row.rule_type,
+    stage: normalizeWarningStage(row.stage),
     level: row.risk_level,
     enabled: Boolean(row.enabled),
     status: row.status,
@@ -95,6 +111,7 @@ function ruleSnapshot(rule) {
     id: rule.id,
     name: rule.name,
     type: rule.rule_type,
+    stage: normalizeWarningStage(rule.stage),
     level: rule.risk_level,
     enabled: Boolean(rule.enabled),
     conditions: parseJson(rule.condition_json, {}),
@@ -149,8 +166,8 @@ async function migrateRuleAssets(pool) {
       rr.created_at
     FROM risk_rules rr`)
   await pool.query(`INSERT IGNORE INTO rule_asset_versions
-    (id,rule_id,version,name,domain,object_code,object_name,event_code,event_name,ontology_id,graph_version,rule_type,risk_level,status,condition_json,path_json,time_json,aggregate_json,exception_json,output_json,evidence_json,policy_json,failure_strategy,summary,lock_version,updated_at,created_at)
-    SELECT rv.id,rv.rule_id,rv.version,rv.name,sv.domain,sv.object_code,sv.object_name,sv.event_code,sv.event_name,sv.ontology_id,sv.graph_version,rv.rule_type,rv.risk_level,rv.status,rv.condition_json,rv.path_json,rv.time_json,rv.aggregate_json,rv.exception_json,rv.output_json,rv.evidence_json,rv.policy_json,rv.failure_strategy,rv.summary,rv.lock_version,rv.updated_at,rv.created_at
+    (id,rule_id,version,name,domain,object_code,object_name,event_code,event_name,ontology_id,graph_version,rule_type,risk_level,stage,status,condition_json,path_json,time_json,aggregate_json,exception_json,output_json,evidence_json,policy_json,failure_strategy,summary,lock_version,updated_at,created_at)
+    SELECT rv.id,rv.rule_id,rv.version,rv.name,sv.domain,sv.object_code,sv.object_name,sv.event_code,sv.event_name,sv.ontology_id,sv.graph_version,rv.rule_type,rv.risk_level,'事中',rv.status,rv.condition_json,rv.path_json,rv.time_json,rv.aggregate_json,rv.exception_json,rv.output_json,rv.evidence_json,rv.policy_json,rv.failure_strategy,rv.summary,rv.lock_version,rv.updated_at,rv.created_at
     FROM rule_versions rv JOIN scene_versions sv ON sv.id=rv.scene_version_id`)
   await pool.query(`INSERT IGNORE INTO scene_rule_bindings
     (scene_version_id,rule_version_id,enabled,risk_level_override,parameters_json,priority,created_at,updated_at)
@@ -268,6 +285,7 @@ async function migrateRuleAssets(pool) {
     graph_version VARCHAR(64) NOT NULL DEFAULT 'GRAPH-20260717.2',
     rule_type VARCHAR(32) NOT NULL DEFAULT '属性',
     risk_level VARCHAR(16) NOT NULL DEFAULT '高',
+    stage VARCHAR(16) NOT NULL DEFAULT '事中',
     status VARCHAR(24) NOT NULL DEFAULT '草稿',
     condition_json JSON NOT NULL,
     path_json JSON NOT NULL,
@@ -432,6 +450,9 @@ async function migrateRuleAssets(pool) {
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_scene_audit (scene_version_id, created_at)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+
+  await ensureColumn(pool, 'rule_asset_versions', 'stage', "`stage` VARCHAR(16) NOT NULL DEFAULT '事中' AFTER `risk_level`")
+  await pool.query("UPDATE rule_asset_versions SET stage='事中' WHERE stage IS NULL OR stage NOT IN ('事前','事中','事后')")
 
   const [skillRows] = await pool.query('SELECT COUNT(*) AS total FROM skill_assets')
   if (Number(skillRows[0].total) === 0) await seedSkillAssets(pool)

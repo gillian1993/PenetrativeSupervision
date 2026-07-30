@@ -1,4 +1,5 @@
 import type { RuleItem, SceneItem, SceneReferences, TrialTask, ValidationResult } from './sceneRuleTypes'
+import type { WarningStage } from './types'
 
 function normalizeRuleText(value:string){
   return value
@@ -45,8 +46,8 @@ export const sceneRuleApi={
   references:(id:string)=>request<SceneReferences>(`/api/scenes/${encodeURIComponent(id)}/references`),
   listRules:(keyword='')=>request<RuleItem[]>(`/api/rules${keyword?`?keyword=${encodeURIComponent(keyword)}`:''}`),
   getRule:(id:string)=>request<RuleItem>(`/api/rules/${encodeURIComponent(id)}`),
-  createRule:(payload:{name:string;code?:string;version?:string;type?:string;level?:string;domain?:string;objectCode?:string;objectName?:string;eventCode?:string;eventName?:string;ontologyId?:string;graphVersion?:string})=>request<RuleItem>('/api/rules',{method:'POST',body:JSON.stringify(payload)}),
-  createRuleForScene:(sceneId:string,payload:{name:string;code?:string;type?:string;level?:string})=>request<RuleItem>(`/api/scenes/${encodeURIComponent(sceneId)}/rules`,{method:'POST',body:JSON.stringify(payload)}),
+  createRule:(payload:{name:string;code?:string;version?:string;type?:string;stage?:WarningStage;level?:string;domain?:string;objectCode?:string;objectName?:string;eventCode?:string;eventName?:string;ontologyId?:string;graphVersion?:string})=>request<RuleItem>('/api/rules',{method:'POST',body:JSON.stringify(payload)}),
+  createRuleForScene:(sceneId:string,payload:{name:string;code?:string;type?:string;stage?:WarningStage;level?:string})=>request<RuleItem>(`/api/scenes/${encodeURIComponent(sceneId)}/rules`,{method:'POST',body:JSON.stringify(payload)}),
   updateRule:(id:string,payload:Omit<Partial<RuleItem>,'level'>&{level?:string;lockVersion:number})=>request<RuleItem>(`/api/rules/${encodeURIComponent(id)}`,{method:'PUT',body:JSON.stringify(payload)}),
   deleteRule:(id:string)=>request<{ok:boolean;message?:string}>(`/api/rules/${encodeURIComponent(id)}`,{method:'DELETE'}),
   unbindRule:(sceneId:string,ruleVersionId:string)=>request<SceneItem>(`/api/scenes/${encodeURIComponent(sceneId)}/rules/${encodeURIComponent(ruleVersionId)}`,{method:'DELETE'}),

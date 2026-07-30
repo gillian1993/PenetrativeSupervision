@@ -26,6 +26,14 @@ const json = (value) => JSON.stringify(value ?? null)
 const marks = (items) => items.map(() => '?').join(',')
 const ruleVersionId = (code) => `RAV-${code}-V01`
 
+function normalizeStage(value) {
+  const text = String(value || '').trim()
+  if (text.includes('事前')) return '事前'
+  if (text.includes('事中')) return '事中'
+  if (text.includes('事后')) return '事后'
+  return '事中'
+}
+
 function parseJson(value, fallback) {
   if (value === null || value === undefined || value === '') return fallback
   if (typeof value === 'object') return value
@@ -69,6 +77,7 @@ function desiredRuleFields(rule) {
     graph_version: rule.graphVersion,
     rule_type: rule.ruleType,
     risk_level: rule.level,
+    stage: normalizeStage(rule.stage),
     condition_json: rule.conditionJson,
     path_json: rule.pathJson,
     time_json: rule.timeJson,
@@ -98,6 +107,7 @@ function ruleInsertValues(rule) {
     desired.graph_version,
     desired.rule_type,
     desired.risk_level,
+    desired.stage,
     '草稿',
     json(desired.condition_json),
     json(desired.path_json),
@@ -123,6 +133,7 @@ const scalarColumns = [
   'graph_version',
   'rule_type',
   'risk_level',
+  'stage',
   'failure_strategy',
   'summary',
 ]
@@ -200,7 +211,7 @@ async function main() {
           const values = ruleInsertValues(rule)
           await pool.query("INSERT INTO rule_assets (id,code,current_version_id,status,created_by) VALUES (?,?,?,'草稿',?)", [rule.code, rule.code, ruleVersionId(rule.code), process.env.RULE_CATALOG_OPERATOR || '尹晨阳'])
           await pool.query(
-            `INSERT INTO rule_asset_versions (id,rule_id,version,name,domain,object_code,object_name,event_code,event_name,ontology_id,graph_version,rule_type,risk_level,status,condition_json,path_json,time_json,aggregate_json,exception_json,output_json,evidence_json,policy_json,failure_strategy,summary) VALUES (${values.map(() => '?').join(',')})`,
+            `INSERT INTO rule_asset_versions (id,rule_id,version,name,domain,object_code,object_name,event_code,event_name,ontology_id,graph_version,rule_type,risk_level,stage,status,condition_json,path_json,time_json,aggregate_json,exception_json,output_json,evidence_json,policy_json,failure_strategy,summary) VALUES (${values.map(() => '?').join(',')})`,
             values,
           )
           const modeCodes = modeCodesByRule.get(rule.code) || []
@@ -237,7 +248,7 @@ async function main() {
       })
       if (!apply) continue
       await pool.query(
-        `UPDATE rule_asset_versions SET name=?,domain=?,object_code=?,object_name=?,event_code=?,event_name=?,ontology_id=?,graph_version=?,rule_type=?,risk_level=?,condition_json=?,path_json=?,time_json=?,aggregate_json=?,exception_json=?,output_json=?,evidence_json=?,policy_json=?,failure_strategy=?,summary=?,lock_version=lock_version+1 WHERE id=?`,
+        `UPDATE rule_asset_versions SET name=?,domain=?,object_code=?,object_name=?,event_code=?,event_name=?,ontology_id=?,graph_version=?,rule_type=?,risk_level=?,stage=?,condition_json=?,path_json=?,time_json=?,aggregate_json=?,exception_json=?,output_json=?,evidence_json=?,policy_json=?,failure_strategy=?,summary=?,lock_version=lock_version+1 WHERE id=?`,
         [
           desired.name,
           desired.domain,
@@ -249,6 +260,7 @@ async function main() {
           desired.graph_version,
           desired.rule_type,
           desired.risk_level,
+          desired.stage,
           json(desired.condition_json),
           json(desired.path_json),
           json(desired.time_json),
