@@ -157,11 +157,6 @@ async function audit(connection, sceneVersionId, action, summary, risk = '普通
   )
 }
 
-async function ensureColumn(pool, table, column, definition) {
-  const [rows] = await pool.query('SELECT COUNT(*) AS total FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?', [table, column])
-  if (!Number(rows[0].total)) await pool.query('ALTER TABLE `'+table+'` ADD COLUMN '+definition)
-}
-
 export async function initializeSceneRuleDatabase(pool) {
 async function migrateRuleAssets(pool) {
   await pool.query(`INSERT IGNORE INTO rule_assets (id,code,current_version_id,status,created_at)
