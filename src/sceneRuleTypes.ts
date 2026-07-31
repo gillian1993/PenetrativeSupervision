@@ -1,4 +1,4 @@
-import type { RiskLevel } from './types'
+import type { RiskLevel, WarningStage } from './types'
 
 export type SceneStatus='草稿'|'待试跑'|'待发布'|'已发布'|'已停用'
 export type RuleType='属性'|'字段比对'|'关系路径'|'时序'|'聚合'|'高级表达式'
@@ -25,7 +25,7 @@ export interface PathConfig{hops:PathHop[];logic?:Logic;constraints?:RuleConditi
 export interface TimeConfig{baseline?:'event'|'runtime';logic?:Logic;conditions?:TimeCondition[];eventCode:string;windowValue:number;windowUnit:string;direction:string}
 export interface AggregateConfig{logic?:Logic;metrics?:AggregateMetric[];function:string;fieldCode:string;groupBy:string;operator:string;threshold:number}
 export interface PolicyBasis{id?:string;name:string;version:string;clause:string;text?:string}
-export interface EvidenceRequirement{id?:string;name:string;source:string;sourceField:string;attachmentRequirement:string;completeness:string;description:string}
+export interface EvidenceRequirement{id?:string;name:string;source:string;sourceField:string;attachmentRequirement?:string;completeness?:string;description:string}
 export interface SkillInput{id:string;name:string;sourceType:'对象字段'|'事件数据'|'附件'|'文本';source:string;required:boolean}
 export interface SkillOutput{id:string;name:string;dataType:string;description:string}
 export interface SkillItem{
@@ -37,7 +37,7 @@ export interface SkillItem{
 }
 export interface RuleItem{
   id:string;versionId:string;sceneId:string;sceneVersionId:string;code:string;name:string;version:string;
-  type:RuleType;level:RiskLevel;defaultLevel?:RiskLevel;enabled:boolean;status:SceneStatus;conditions:ConditionGroup;
+  type:RuleType;stage:WarningStage;level:RiskLevel;defaultLevel?:RiskLevel;enabled:boolean;status:SceneStatus;conditions:ConditionGroup;
   pathConfig:PathConfig;timeConfig:TimeConfig;
   aggregateConfig:AggregateConfig;
   exceptions:{enabled:boolean;description:string;whitelist:string[]};outputs:string[];evidence:string[];

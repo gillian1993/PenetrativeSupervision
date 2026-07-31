@@ -27,10 +27,10 @@ export const initialWarnings: Warning[] = [
 ]
 
 export const initialRiskEvents: RiskEvent[] = [
-  { id: 'RE-20260713-001', warningId: 'WA-20260713-006', title: '核心系统运维项目疑似围串标风险', level: '重大', scene: '供应商异常关联', target: '核心系统运维服务项目', organization: '集团采购中心', owner: '周航', status: '待整改', dueAt: '2026-07-20 18:00', overdue: false, updatedAt: '今天 09:40' },
-  { id: 'RE-20260711-004', warningId: 'WA-20260711-018', title: '合同付款比例偏离管理制度', level: '高', scene: '合同签订风险', target: '云安全服务框架合同', organization: '云安全事业部', owner: '尹晨阳', rectificationOwner: '刘敏', status: '待复核', dueAt: '2026-07-17 12:00', overdue: true, updatedAt: '今天 10:12' },
-  { id: 'RE-20260709-007', warningId: 'WA-20260709-022', title: '验收材料与付款申请不一致', level: '高', scene: '付款执行风险', target: '数据治理服务付款单', organization: '数据智能事业部', owner: '孙凯', status: '待整改', dueAt: '2026-07-19 18:00', overdue: false, updatedAt: '昨天 18:20' },
-  { id: 'RE-20260705-003', warningId: 'WA-20260705-015', title: '供应商准入资质缺失', level: '中', scene: '供应商资格风险', target: '华东信息技术有限公司', organization: '采购管理部', owner: '尹晨阳', status: '已关闭', dueAt: '2026-07-12 18:00', overdue: false, updatedAt: '2026-07-12' },
+  { id: 'RE-20260713-001', warningId: 'WA-20260713-006', title: '核心系统运维项目疑似围串标风险', level: '重大', scene: '供应商异常关联', target: '核心系统运维服务项目', organization: '集团采购中心', owner: '周航', requirement: '请核实核心系统运维服务项目参与主体之间的控制关系和投标独立性，明确围串标风险责任边界，并提交整改处置说明。', status: '待整改', dueAt: '2026-07-20 18:00', overdue: false, updatedAt: '今天 09:40' },
+  { id: 'RE-20260711-004', warningId: 'WA-20260711-018', title: '合同付款比例偏离管理制度', level: '高', scene: '合同签订风险', target: '云安全服务框架合同', organization: '云安全事业部', owner: '尹晨阳', rectificationOwner: '刘敏', requirement: '请核查云安全服务框架合同付款比例与集团管理制度的偏离原因，补充审批依据并完成合同付款条款整改。', rectificationResult: '已完成', rectificationMeasures: '已补充法务会签说明并完成流程整改。', rectificationMaterials: ['整改证明-1.pdf'], status: '待复核', dueAt: '2026-07-17 12:00', overdue: true, updatedAt: '今天 10:12' },
+  { id: 'RE-20260709-007', warningId: 'WA-20260709-022', title: '验收材料与付款申请不一致', level: '高', scene: '付款执行风险', target: '数据治理服务付款单', organization: '数据智能事业部', owner: '孙凯', requirement: '请核实验收材料、付款申请和合同交付物之间的不一致内容，完成材料补正并提交整改证明。', status: '待整改', dueAt: '2026-07-19 18:00', overdue: false, updatedAt: '昨天 18:20' },
+  { id: 'RE-20260705-003', warningId: 'WA-20260705-015', title: '供应商准入资质缺失', level: '中', scene: '供应商资格风险', target: '华东信息技术有限公司', organization: '采购管理部', owner: '尹晨阳', requirement: '请核实供应商准入资质缺失情况，补齐有效证明材料或说明不适用原因。', status: '已关闭', dueAt: '2026-07-12 18:00', overdue: false, updatedAt: '2026-07-12' },
 ]
 
 export const todos: TodoItem[] = [

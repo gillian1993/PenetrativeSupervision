@@ -60,11 +60,11 @@ interface AppState {
   markAllMessagesRead: () => void
   transferTodo: (id: string, owner: string, reason?: string) => OperationResult
   transferWarning: (id: string, owner: string, reason?: string) => OperationResult
-  releaseWarning: (id: string, reason: string, evidence: string) => OperationResult
+  releaseWarning: (id: string, reason?: string) => OperationResult
   escalateWarning: (id: string, owner: string, dueAt: string, requirement: string, reason?: string) => OperationResult
   transferRiskEvent: (id: string, owner: string, reason?: string) => OperationResult
-  submitRectification: (id: string, result: string, measures?: string, materials?: string[]) => OperationResult
-  reviewRiskEvent: (id: string, result: '通过' | '退回整改' | '不成立关闭', reason: string, evidence: string) => OperationResult
+  submitRectification: (id: string, result: string, reviewer: string, measures?: string, materials?: string[]) => OperationResult
+  reviewRiskEvent: (id: string, result: '通过' | '退回整改' | '不成立关闭', reason?: string) => OperationResult
   updateWarning: (id: string, status: WarningStatus, owner?: string) => void
   updateRiskEvent: (id: string, status: RiskEvent['status'], owner?: string) => void
   createScene: (payload: Pick<SceneItem, 'name' | 'domain' | 'object' | 'event' | 'level'>) => string
@@ -118,6 +118,7 @@ const normalizeTodo = (todo: LegacyTodoItem): TodoItem => {
 }
 
 
+const defaultRiskEventRequirement = (warning: Pick<Warning, 'title' | 'target' | 'scene'>) => `请围绕“${warning.target}”核实${warning.scene}相关风险事实，明确责任边界，并在整改完成后提交处理说明。`
 const createRiskEventFromWarning = (warning: Warning): RiskEvent => {
   const status = warning.riskEventStatus || '待整改'
   const dueAt = warning.riskEventDueAt || warning.expectedAt || '待确定'
@@ -132,6 +133,7 @@ const createRiskEventFromWarning = (warning: Warning): RiskEvent => {
     organization: warning.organization,
     owner,
     rectificationOwner: warning.riskEventRectificationOwner || warning.owner || owner,
+    requirement: defaultRiskEventRequirement(warning),
     status,
     dueAt,
     overdue: status !== '已关闭' && isPastDue(dueAt),
@@ -198,6 +200,7 @@ const synchronizeRiskEvents = (warnings: Warning[], existingEvents: RiskEvent[])
       organization: warning.organization,
       owner: warning.riskEventOwner || existing.owner,
       rectificationOwner: warning.riskEventRectificationOwner || existing.rectificationOwner,
+      requirement: existing.requirement || defaultRiskEventRequirement(warning),
       status,
       dueAt,
       overdue: status !== '已关闭' && isPastDue(dueAt),
@@ -345,18 +348,17 @@ export const useAppStore = create<AppState>()(
           appendAudit({ operator: '尹晨阳', organization: '集团监管部', action: '转派预警', objectType: '预警', objectId: id, summary: `${oldOwner} → ${owner}；原因：${transferReason}`, result: '成功', risk: '高危' })
           return { ok: true, message: `预警已转派给${owner}` }
         },
-        releaseWarning: (id, reason, evidence) => {
+        releaseWarning: (id, reason = '') => {
           const warning = get().warnings.find((item) => item.id === id)
           if (!warning) return { ok: false, message: '预警不存在' }
           if (warning.status !== '待研判') return { ok: false, message: '当前预警已完成处置，不能重复解除' }
           if (['重大', '高'].includes(warning.level) && get().currentRole !== '监管负责人') return { ok: false, message: '重大和高风险预警仅监管负责人可以解除' }
-          if (!reason.trim() || !evidence.trim()) return { ok: false, message: '解除原因和引用证据均为必填项' }
           set((state) => ({
             warnings: state.warnings.map((item) => item.id === id ? { ...item, status: '已解除', updatedAt: '刚刚' } : item),
             todos: state.todos.filter((todo) => !todo.route.endsWith(id)),
           }))
           notify('解除', `预警已解除：${warning.title}`, id, `/risk/warnings/${id}`)
-          appendAudit({ operator: '尹晨阳', organization: '集团监管部', action: '解除预警', objectType: '预警', objectId: id, summary: `${reason}；证据：${evidence}`, result: '成功', risk: '高危' })
+          appendAudit({ operator: '尹晨阳', organization: '集团监管部', action: '解除预警', objectType: '预警', objectId: id, summary: `原因：${reason.trim() || '未填写'}`, result: '成功', risk: '高危' })
           return { ok: true, message: '预警已解除，相关待办已关闭' }
         },
         escalateWarning: (id, owner, dueAt, requirement, reason = '') => {
@@ -368,7 +370,7 @@ export const useAppStore = create<AppState>()(
           if (!owner || !dueAt || requirement.trim().length < 8) return { ok: false, message: '请选择整改责任人，并填写完成时限和明确整改要求' }
           const riskReason = reason.trim() || '未填写'
           const eventId = `RE-${todayCode()}-${String(get().riskEvents.length + 10).padStart(3, '0')}`
-          const event: RiskEvent = { id: eventId, warningId: warning.id, title: warning.title, level: warning.level, scene: warning.scene, target: warning.target, organization: warning.organization, owner, rectificationOwner: owner, status: '待整改', dueAt, overdue: false, updatedAt: '刚刚' }
+          const event: RiskEvent = { id: eventId, warningId: warning.id, title: warning.title, level: warning.level, scene: warning.scene, target: warning.target, organization: warning.organization, owner, rectificationOwner: owner, requirement: requirement.trim(), status: '待整改', dueAt, overdue: false, updatedAt: '刚刚' }
           set((state) => ({
             warnings: state.warnings.map((item) => item.id === id ? { ...item, status: '已升级', updatedAt: '刚刚' } : item),
             riskEvents: [event, ...state.riskEvents],
@@ -393,24 +395,22 @@ export const useAppStore = create<AppState>()(
           appendAudit({ operator: '尹晨阳', organization: '集团监管部', action: '转派风险事件', objectType: '风险事件', objectId: id, summary: `${oldOwner} → ${owner}；原因：${transferReason}`, result: '成功', risk: '高危' })
           return { ok: true, message: `风险事件已转派给${owner}` }
         },
-        submitRectification: (id, result, measures = '', materials = []) => {
+        submitRectification: (id, result, reviewer, measures = '', materials = []) => {
           if (!result) return { ok: false, message: '请选择整改结果' }
+          const selectedReviewer = reviewer.trim()
+          if (!selectedReviewer) return { ok: false, message: '请选择复核人' }
           const rectificationMeasures = measures.trim() || '未填写'
-          if (['已完成', '部分完成'].includes(result) && materials.length === 0) return { ok: false, message: '整改完成或部分完成时至少需要一项证明材料' }
           const event = get().riskEvents.find((item) => item.id === id)
           if (!event || event.status !== '待整改') return { ok: false, message: '当前事件不在待整改状态' }
-          const reviewer = '尹晨阳'
           set((state) => ({
-            riskEvents: state.riskEvents.map((item) => item.id === id ? { ...item, status: '待复核', rectificationOwner: event.owner, owner: reviewer, updatedAt: '刚刚' } : item),
-            todos: [{ id: `TODO-${id}-REVIEW`, title: `复核：${event.title}`, objectType: '事件', level: event.level, status: '待复核', dueAt: '明天 18:00', owner: reviewer, timeState: '正常', route: `/risk/events/${id}` }, ...state.todos.filter((todo) => !todo.route.endsWith(id))],
+            riskEvents: state.riskEvents.map((item) => item.id === id ? { ...item, status: '待复核', rectificationOwner: event.owner, rectificationResult: result, rectificationMeasures, rectificationMaterials: materials, owner: selectedReviewer, updatedAt: '刚刚' } : item),
+            todos: [{ id: `TODO-${id}-REVIEW`, title: `复核：${event.title}`, objectType: '事件', level: event.level, status: '待复核', dueAt: '明天 18:00', owner: selectedReviewer, timeState: '正常', route: `/risk/events/${id}` }, ...state.todos.filter((todo) => !todo.route.endsWith(id))],
           }))
-          notify('整改', `${event.owner}已提交整改结果，等待${reviewer}复核`, id, `/risk/events/${id}`)
-          appendAudit({ operator: event.owner, organization: event.organization, action: '提交整改', objectType: '风险事件', objectId: id, summary: `${result}；材料${materials.length}项；措施：${rectificationMeasures}`, result: '成功', risk: '普通' })
-          return { ok: true, message: '整改结果已提交，事件进入待复核' }
+          notify('整改', `${event.owner}已提交整改结果，等待${selectedReviewer}复核`, id, `/risk/events/${id}`)
+          appendAudit({ operator: event.owner, organization: event.organization, action: '提交整改', objectType: '风险事件', objectId: id, summary: `${result}；复核人：${selectedReviewer}；材料${materials.length}项；措施：${rectificationMeasures}`, result: '成功', risk: '普通' })
+          return { ok: true, message: `整改结果已提交，已转交${selectedReviewer}复核` }
         },
-        reviewRiskEvent: (id, result, reason, evidence) => {
-          if (!reason.trim()) return { ok: false, message: '复核说明不能为空' }
-          if ((result === '通过' || result === '不成立关闭') && !evidence.trim()) return { ok: false, message: '关闭风险事件必须引用至少一项证据' }
+        reviewRiskEvent: (id, result, reason = '') => {
           const event = get().riskEvents.find((item) => item.id === id)
           if (!event || event.status !== '待复核') return { ok: false, message: '当前事件不在待复核状态' }
           const returnedOwner = event.rectificationOwner || event.owner
@@ -422,7 +422,7 @@ export const useAppStore = create<AppState>()(
               : state.todos.filter((todo) => !todo.route.endsWith(id)),
           }))
           notify(result === '退回整改' ? '退回' : '复核', result === '退回整改' ? `${event.title}已退回${returnedOwner}继续整改` : `${event.title}复核完成，事件已关闭`, id, `/risk/events/${id}`)
-          appendAudit({ operator: event.owner, organization: '集团监管部', action: result === '退回整改' ? '退回整改' : '复核关闭', objectType: '风险事件', objectId: id, summary: `${reason}；证据：${evidence || '—'}`, result: '成功', risk: '高危' })
+          appendAudit({ operator: event.owner, organization: '集团监管部', action: result === '退回整改' ? '退回整改' : '复核关闭', objectType: '风险事件', objectId: id, summary: `复核说明：${reason.trim() || '未填写'}`, result: '成功', risk: '高危' })
           return { ok: true, message: result === '退回整改' ? '已退回责任人继续整改' : '风险事件已关闭，闭环完成' }
         },
         updateWarning: (id, status, owner) => set((state) => ({ warnings: state.warnings.map((item) => item.id === id ? { ...item, status, owner: owner || item.owner, updatedAt: '刚刚' } : item) })),
@@ -568,7 +568,7 @@ export const useAppStore = create<AppState>()(
     },
     {
       name: 'penetrative-supervision-demo-v2',
-      version: 10,
+      version: 11,
       migrate: (persistedState) => {
         const state = persistedState as { warnings?: Warning[]; riskEvents?: RiskEvent[]; todos?: LegacyTodoItem[]; messages?: WorkMessage[]; roles?: RoleItem[] } & Record<string, unknown>
         const warnings = ensureWarningLevelCoverage((state.warnings || initialWarnings).map((item) => ({ ...item, status: ['已解除', '已升级'].includes(item.status) ? item.status : '待研判' as Warning['status'] })))
@@ -580,6 +580,7 @@ export const useAppStore = create<AppState>()(
             status,
             owner: missingRectificationOwner ? '尹晨阳' : item.owner,
             rectificationOwner: item.rectificationOwner || item.owner,
+            requirement: item.requirement || defaultRiskEventRequirement({ title: item.title, target: item.target, scene: item.scene }),
           }
         })
         const normalizedMessages = (state.messages || initialMessages).map((item) => {

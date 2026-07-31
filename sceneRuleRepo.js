@@ -11,12 +11,21 @@ export const makeBusinessId = (prefix) => `${prefix}-${Date.now().toString(36).t
 export const configHash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 export function normalizePolicyList(value){const parsed=parseJson(value,[]);const list=Array.isArray(parsed)?parsed:parsed&&typeof parsed==='object'?[parsed]:[];return list.map((item)=>({id:item?.id||'',name:String(item?.name||''),version:String(item?.version||''),clause:String(item?.clause||''),text:String(item?.text||'')}))}
 function evidenceSourceFor(name){return {'业务来源记录':'ERP/采购业务系统','主体信息':'本体主数据、工商司法外部数据','审批记录':'OA/ERP审批流','联系方式来源':'供应商登记、人员主数据','附件材料':'业务系统附件归档','规则运行明细':'规则运行服务'}[name]||'业务来源系统'}
-export function normalizeEvidenceRequirements(value){const parsed=parseJson(value,[]);const list=Array.isArray(parsed)?parsed:[];return list.map((item,index)=>typeof item==='string'?{id:`evidence-${index+1}`,name:item,source:evidenceSourceFor(item),sourceField:'',attachmentRequirement:item==='附件材料'?'必须有附件':'可选附件',completeness:'必须保存来源记录编号和取数批次',description:''}:{id:item?.id||`evidence-${index+1}`,name:String(item?.name||''),source:String(item?.source||''),sourceField:String(item?.sourceField||item?.source_field||''),attachmentRequirement:String(item?.attachmentRequirement||item?.attachment_requirement||'可选附件'),completeness:String(item?.completeness||''),description:String(item?.description||'')})}
+export function normalizeEvidenceRequirements(value){const parsed=parseJson(value,[]);const list=Array.isArray(parsed)?parsed:[];return list.map((item,index)=>typeof item==='string'?{id:`evidence-${index+1}`,name:item,source:evidenceSourceFor(item),sourceField:item,description:''}:{id:item?.id||`evidence-${index+1}`,name:String(item?.name||''),source:String(item?.source||''),sourceField:String(item?.sourceField||item?.source_field||item?.fieldCode||item?.field_code||''),description:String(item?.description||'')})}
 export function normalizeSkillInputs(value){const parsed=parseJson(value,[]);return(Array.isArray(parsed)?parsed:[]).map((item,index)=>({id:String(item?.id||`input-${index+1}`),name:String(item?.name||''),sourceType:['对象字段','事件数据','附件','文本'].includes(item?.sourceType)?item.sourceType:'附件',source:String(item?.source||''),required:item?.required!==false}))}
 export function normalizeSkillOutputs(value){const parsed=parseJson(value,[]);return(Array.isArray(parsed)?parsed:[]).map((item,index)=>({id:String(item?.id||`output-${index+1}`),name:String(item?.name||''),dataType:String(item?.dataType||'文本'),description:String(item?.description||'')}))}export function normalizePathConfig(value){const parsed=parseJson(value,{});return{hops:Array.isArray(parsed?.hops)?parsed.hops:[],logic:parsed?.logic==='OR'?'OR':'AND',constraints:Array.isArray(parsed?.constraints)?parsed.constraints:[]}}
 export function normalizeTimeConfig(value){const parsed=parseJson(value,{});const legacyEvent=String(parsed?.eventCode||'');const conditions=Array.isArray(parsed?.conditions)?parsed.conditions:legacyEvent?[{id:'time-legacy',eventCode:legacyEvent,eventName:String(parsed?.eventName||''),requirement:'必须发生'}]:[];return{baseline:parsed?.baseline==='runtime'?'runtime':'event',logic:parsed?.logic==='OR'?'OR':'AND',conditions:conditions.map((item,index)=>({id:item?.id||`time-${index+1}`,eventCode:String(item?.eventCode||''),eventName:String(item?.eventName||''),requirement:item?.requirement==='不得发生'?'不得发生':'必须发生'})),eventCode:legacyEvent,windowValue:Number(parsed?.windowValue??30),windowUnit:String(parsed?.windowUnit||'天'),direction:String(parsed?.direction||'之前')}}
 export function normalizeAggregateConfig(value){const parsed=parseJson(value,{});const legacyField=String(parsed?.fieldCode||'');const metrics=Array.isArray(parsed?.metrics)?parsed.metrics:legacyField?[{id:'metric-legacy',function:String(parsed?.function||'COUNT'),fieldCode:legacyField,fieldName:String(parsed?.fieldName||''),operator:String(parsed?.operator||'大于等于'),threshold:Number(parsed?.threshold||0)}]:[];return{logic:parsed?.logic==='OR'?'OR':'AND',metrics:metrics.map((item,index)=>({id:item?.id||`metric-${index+1}`,function:String(item?.function||'COUNT'),fieldCode:String(item?.fieldCode||''),fieldName:String(item?.fieldName||''),operator:String(item?.operator||'大于等于'),threshold:Number(item?.threshold||0)})),function:String(parsed?.function||metrics[0]?.function||'COUNT'),fieldCode:legacyField||String(metrics[0]?.fieldCode||''),groupBy:String(parsed?.groupBy||''),operator:String(parsed?.operator||metrics[0]?.operator||'大于等于'),threshold:Number(parsed?.threshold??metrics[0]?.threshold??0)}}
 const advancedExpressionFunctions=new Set(['SUM','AVG','MAX','MIN','COUNT','COUNT_DISTINCT','RATIO','SIMILARITY','EVENT_COUNT','EXISTS_PATH','DATE_DIFF','ABS','IN_LIST','TEXT_CLASSIFY','AI_REVIEW'])
+const warningStages=new Set(['事前','事中','事后'])
+export function normalizeWarningStage(value,fallback='事中'){
+  const text=String(value||'').trim()
+  if(warningStages.has(text))return text
+  if(text.includes('事前'))return '事前'
+  if(text.includes('事中'))return '事中'
+  if(text.includes('事后'))return '事后'
+  return fallback
+}
 export function validateAdvancedExpression(value){
   const expression=String(value||'').trim()
   if(!expression)return '请填写高级表达式'
@@ -63,7 +72,7 @@ export function mapRuleRow(row) {
   const configuredLevel=rawRiskLevel(row)
   return {
     id:row.rule_id,versionId:row.id,sceneId:row.scene_id||sceneIds[0]||'',sceneVersionId:row.scene_version_id||'',
-    code:row.code,name:row.name,version:row.version,type:row.rule_type,level:effectiveRiskLevel(row),defaultLevel:configuredLevel==='继承场景'?undefined:configuredLevel,
+    code:row.code,name:row.name,version:row.version,type:row.rule_type,stage:normalizeWarningStage(row.stage),level:effectiveRiskLevel(row),defaultLevel:configuredLevel==='继承场景'?undefined:configuredLevel,
     levelMode:configuredLevel==='继承场景'?'inherit':'override',
     enabled:row.binding_enabled===undefined?row.enabled===undefined?true:Boolean(row.enabled):Boolean(row.binding_enabled),status:row.status,
     conditions:parseJson(row.condition_json,{id:'group-root',logic:'AND',items:[]}),
@@ -202,6 +211,7 @@ export async function assertSemanticReferences(connection, reference) {
 export function validateRuleRecord(rule){
   const blockers=[];const warnings=[]
   if(!String(rule.name||'').trim())blockers.push({field:'name',tab:'basic',message:'规则名称不能为空'})
+  if(!normalizeWarningStage(rule.stage,''))blockers.push({field:'stage',tab:'basic',message:'适用阶段必须为事前、事中或事后'})
   const usesTimeWindow=['时序','聚合'].includes(rule.rule_type)
   const scope=normalizeTimeConfig(rule.time_json)
   if(usesTimeWindow&&scope.baseline==='event'&&!String(rule.event_code||'').trim())blockers.push({field:'eventCode',tab:'conditions',message:'以目标类节点为计算基准时，必须配置目标类'})
@@ -237,9 +247,9 @@ export function validateRuleRecord(rule){
   }
   if(!parseJson(rule.output_json,[]).length)blockers.push({field:'outputs',tab:'conditions',message:'规则缺少系统命中输出配置'})
   const evidence=normalizeEvidenceRequirements(rule.evidence_json)
-  if(evidence.some((item)=>Boolean(item.name.trim()||item.source.trim()||item.sourceField.trim()||item.completeness.trim())&&(!item.name.trim()||!item.source.trim()||!item.completeness.trim())))blockers.push({field:'evidence',tab:'output',message:'证据要求已开始填写时，证据名称、数据来源和完整性要求不能为空'})
+  if(evidence.some((item)=>Boolean(item.name.trim()||item.source.trim()||item.sourceField.trim()||item.description.trim())&&(!item.name.trim()||!item.source.trim()||!item.sourceField.trim())))blockers.push({field:'evidence',tab:'output',message:'证据要求已开始填写时，证据名称、数据来源和来源字段不能为空'})
   const policies=normalizePolicyList(rule.policy_json)
-  if(policies.some((item)=>Boolean(item.name.trim()||item.version.trim()||item.clause.trim()||item.text.trim())&&(!item.name.trim()||!item.clause.trim())))blockers.push({field:'policy',tab:'output',message:'制度依据已开始填写时，制度名称和条款不能为空'})
+  if(policies.some((item)=>Boolean(item.name.trim()||item.version.trim()||item.clause.trim()||item.text.trim())&&!item.name.trim()))blockers.push({field:'policy',tab:'output',message:'制度依据已开始填写时，制度名称不能为空'})
   if(!parseJson(rule.exception_json,{}).enabled)warnings.push({field:'exceptions',tab:'conditions',message:'尚未配置例外条件，请确认适用边界'})
   return {blockers,warnings}
 }
@@ -263,7 +273,7 @@ export function validateSkillRecord(skill){
 export function snapshotForHash(scene,rules,skills=[]){
   return {
     scene:{name:scene.name,domain:scene.domain,description:scene.description,level:scene.risk_level,organizations:parseJson(scene.organization_json,[]),objectScope:parseJson(scene.object_scope_json,{}),exceptions:parseJson(scene.exception_json,{}),checkTemplate:parseJson(scene.check_template_json,{})},
-    rules:rules.map((rule)=>({id:rule.id,name:rule.name,type:rule.rule_type,level:effectiveRiskLevel(rule,scene.risk_level),enabled:Boolean(rule.binding_enabled===undefined?rule.enabled:rule.binding_enabled),ontologyId:rule.ontology_id,graphVersion:rule.graph_version,objectCode:rule.object_code,eventCode:rule.event_code,conditions:parseJson(rule.condition_json,{}),path:normalizePathConfig(rule.path_json),time:normalizeTimeConfig(rule.time_json),aggregate:normalizeAggregateConfig(rule.aggregate_json),exceptions:parseJson(rule.exception_json,{}),outputs:parseJson(rule.output_json,[]),evidence:normalizeEvidenceRequirements(rule.evidence_json),policies:normalizePolicyList(rule.policy_json),failureStrategy:rule.failure_strategy})),
+    rules:rules.map((rule)=>({id:rule.id,name:rule.name,type:rule.rule_type,stage:normalizeWarningStage(rule.stage),level:effectiveRiskLevel(rule,scene.risk_level),enabled:Boolean(rule.binding_enabled===undefined?rule.enabled:rule.binding_enabled),ontologyId:rule.ontology_id,graphVersion:rule.graph_version,objectCode:rule.object_code,eventCode:rule.event_code,conditions:parseJson(rule.condition_json,{}),path:normalizePathConfig(rule.path_json),time:normalizeTimeConfig(rule.time_json),aggregate:normalizeAggregateConfig(rule.aggregate_json),exceptions:parseJson(rule.exception_json,{}),outputs:parseJson(rule.output_json,[]),evidence:normalizeEvidenceRequirements(rule.evidence_json),policies:normalizePolicyList(rule.policy_json),failureStrategy:rule.failure_strategy})),
     skills:skills.map((skill)=>({id:skill.id,name:skill.name,type:skill.skill_type,level:skill.effective_risk_level||skill.risk_level,inputs:normalizeSkillInputs(skill.input_json),config:parseJson(skill.config_json,{}),outputs:normalizeSkillOutputs(skill.output_json),evidence:normalizeEvidenceRequirements(skill.evidence_json),policies:normalizePolicyList(skill.policy_json),failureStrategy:skill.failure_strategy})),
   }
 }

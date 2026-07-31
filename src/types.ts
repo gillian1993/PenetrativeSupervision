@@ -39,6 +39,10 @@ export interface RiskEvent {
   organization: string
   owner: string
   rectificationOwner?: string
+  requirement?: string
+  rectificationResult?: string
+  rectificationMeasures?: string
+  rectificationMaterials?: string[]
   status: RiskEventStatus
   dueAt: string
   overdue: boolean
