@@ -176,7 +176,10 @@ h3 { margin-bottom: 8px; color: #1d2939; font-size: 16px; }
 .page-query .filter-grid { gap: 9px; }
 .page-query-situation .filter-grid { grid-template-columns: repeat(5,minmax(0,1fr)); }
 .page-query-warning .filter-grid { grid-template-columns: minmax(190px,1.5fr) repeat(3,minmax(120px,1fr)); }
-.page-query-events .filter-grid { grid-template-columns: minmax(180px,1.4fr) repeat(4,minmax(100px,1fr)); }
+.page-query-events .filter-panel { grid-template-columns: minmax(0,1fr) auto; gap: 10px; padding: 10px 12px; }
+.page-query-events .filter-grid { grid-template-columns: minmax(190px,1.45fr) minmax(88px,.72fr) minmax(122px,.95fr) minmax(118px,.92fr) minmax(88px,.72fr) minmax(84px,.68fr); gap: 8px; }
+.page-query.page-query-events .field input, .page-query.page-query-events .field select { min-height: 36px; padding: 0 8px; }
+.page-query.page-query-events .filter-buttons .button { min-height: 36px; padding: 0 12px; }
 .page-query .field { gap: 5px; }
 .page-query .field > span { color: #526071; font-size: 11px; letter-spacing: .01em; }
 .page-query .field input, .page-query .field select { min-height: 38px; border-color: #cdd9e7; border-radius: 7px; color: #263247; transition: border-color .16s ease, box-shadow .16s ease, background .16s ease; }
