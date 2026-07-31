@@ -11,30 +11,80 @@ export const makeBusinessId = (prefix) => `${prefix}-${Date.now().toString(36).t
 export const configHash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 export function normalizePolicyList(value){const parsed=parseJson(value,[]);const list=Array.isArray(parsed)?parsed:parsed&&typeof parsed==='object'?[parsed]:[];return list.map((item)=>({id:item?.id||'',name:String(item?.name||''),version:String(item?.version||''),clause:String(item?.clause||''),text:String(item?.text||'')}))}
 function evidenceEntityFor(name){return {'业务来源记录':'业务单据','主体信息':'业务主体','审批记录':'审批节点','联系方式来源':'业务主体','附件材料':'业务附件','规则运行明细':'规则运行结果'}[name]||'业务实体'}
+const evidenceElementTypes=new Set(['class','property','relation'])
+function normalizeEvidenceElementType(value,fallback='class'){
+  const text=String(value||'').trim()
+  if(evidenceElementTypes.has(text))return text
+  if(text==='类')return 'class'
+  if(text==='属性')return 'property'
+  if(text==='关系')return 'relation'
+  return fallback
+}
+function legacyEvidenceElementType(item){
+  if(item?.elementType||item?.element_type)return normalizeEvidenceElementType(item.elementType||item.element_type)
+  if(item?.fieldCode||item?.field_code||item?.fieldName||item?.field_name||item?.sourceField||item?.source_field)return 'property'
+  return 'class'
+}
 export function normalizeEvidenceRequirements(value){
   const parsed=parseJson(value,[])
   const list=Array.isArray(parsed)?parsed:[]
   return list.map((item,index)=>{
     if(typeof item==='string'){
       const entityName=evidenceEntityFor(item)
-      return{id:`evidence-${index+1}`,name:item,source:entityName,sourceField:item,entityCode:'',entityName,fieldCode:'',fieldName:item,attachmentRequirement:'',completeness:'',description:''}
+      return{id:`evidence-${index+1}`,name:item,graphVersion:'',ontologyId:'',elementType:'class',elementCode:'',elementName:entityName,parentCode:'',parentName:'',source:entityName,sourceField:'',entityCode:'',entityName,fieldCode:'',fieldName:'',attachmentRequirement:'',completeness:'',description:''}
     }
     const name=String(item?.name||'')
+    const graphVersion=String(item?.graphVersion||item?.graph_version||'')
+    const ontologyId=String(item?.ontologyId||item?.ontology_id||'')
     const entityCode=String(item?.entityCode||item?.entity_code||'')
-    const entityName=String(item?.entityName||item?.entity_name||evidenceEntityFor(name))
+    const legacyEntityName=String(item?.entityName||item?.entity_name||'')
+    const entityName=legacyEntityName||evidenceEntityFor(name)
     const fieldCode=String(item?.fieldCode||item?.field_code||'')
     const fieldName=String(item?.fieldName||item?.field_name||'')
-    const source=String(item?.source||entityName||'')
     const sourceField=String(item?.sourceField||item?.source_field||fieldName||fieldCode||'')
+    const source=String(item?.source||'')
+    const elementType=normalizeEvidenceElementType(item?.elementType||item?.element_type,legacyEvidenceElementType(item))
+    let elementCode=String(item?.elementCode||item?.element_code||'')
+    let elementName=String(item?.elementName||item?.element_name||'')
+    let parentCode=String(item?.parentCode||item?.parent_code||'')
+    let parentName=String(item?.parentName||item?.parent_name||'')
+    if(!elementCode&&!elementName){
+      if(elementType==='property'){
+        elementCode=fieldCode
+        elementName=fieldName||sourceField
+      }else if(elementType==='class'){
+        elementCode=entityCode
+        elementName=entityName||source
+      }else{
+        elementName=source||sourceField||name
+      }
+    }
+    if(elementType==='property'){
+      parentCode=parentCode||entityCode
+      parentName=parentName||entityName
+    }
+    const normalizedEntityCode=entityCode||(elementType==='class'?elementCode:parentCode)
+    const normalizedEntityName=legacyEntityName||(elementType==='class'?elementName:parentName)||entityName
+    const normalizedFieldCode=fieldCode||(elementType==='property'?elementCode:'')
+    const normalizedFieldName=fieldName||(elementType==='property'?elementName:'')
+    const normalizedSource=source||(elementType==='property'?parentName:elementName)||normalizedEntityName
+    const normalizedSourceField=sourceField||(elementType==='property'?elementName:'')
     return{
       id:item?.id||`evidence-${index+1}`,
       name,
-      source,
-      sourceField,
-      entityCode,
-      entityName,
-      fieldCode,
-      fieldName:fieldName||sourceField,
+      graphVersion,
+      ontologyId,
+      elementType,
+      elementCode,
+      elementName,
+      parentCode,
+      parentName,
+      source:normalizedSource,
+      sourceField:normalizedSourceField,
+      entityCode:normalizedEntityCode,
+      entityName:normalizedEntityName,
+      fieldCode:normalizedFieldCode,
+      fieldName:normalizedFieldName,
       attachmentRequirement:String(item?.attachmentRequirement||item?.attachment_requirement||''),
       completeness:String(item?.completeness||''),
       description:String(item?.description||''),
@@ -277,11 +327,12 @@ export function validateRuleRecord(rule){
   if(!parseJson(rule.output_json,[]).length)blockers.push({field:'outputs',tab:'conditions',message:'规则缺少系统命中输出配置'})
   const evidence=normalizeEvidenceRequirements(rule.evidence_json)
   if(evidence.some((item)=>{
-    const entity=String(item.entityCode||item.entityName||'').trim()
-    const field=String(item.fieldCode||item.fieldName||item.sourceField||'').trim()
-    const started=Boolean(item.name.trim()||entity||field||item.source.trim()||item.description.trim())
-    return started&&(!item.name.trim()||!entity)
-  }))blockers.push({field:'evidence',tab:'output',message:'证据要求已开始填写时，证据名称和关联实体不能为空'})
+    const type=String(item.elementType||'').trim()
+    const object=String(item.elementCode||item.elementName||'').trim()
+    const legacy=String(item.parentCode||item.parentName||item.source||item.sourceField||item.entityCode||item.entityName||item.fieldCode||item.fieldName||'').trim()
+    const started=Boolean(item.name.trim()||type||object||legacy||item.description.trim())
+    return started&&(!item.name.trim()||!type||!object)
+  }))blockers.push({field:'evidence',tab:'output',message:'证据要求已开始填写时，证据名称、证据类型和证据对象不能为空'})
   const policies=normalizePolicyList(rule.policy_json)
   if(policies.some((item)=>Boolean(item.name.trim()||item.version.trim()||item.clause.trim()||item.text.trim())&&!item.name.trim()))blockers.push({field:'policy',tab:'output',message:'制度依据已开始填写时，制度名称不能为空'})
   if(!parseJson(rule.exception_json,{}).enabled)warnings.push({field:'exceptions',tab:'conditions',message:'尚未配置例外条件，请确认适用边界'})

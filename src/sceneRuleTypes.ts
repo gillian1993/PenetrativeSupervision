@@ -25,8 +25,11 @@ export interface PathConfig{hops:PathHop[];logic?:Logic;constraints?:RuleConditi
 export interface TimeConfig{baseline?:'event'|'runtime';logic?:Logic;conditions?:TimeCondition[];eventCode:string;windowValue:number;windowUnit:string;direction:string}
 export interface AggregateConfig{logic?:Logic;metrics?:AggregateMetric[];function:string;fieldCode:string;groupBy:string;operator:string;threshold:number}
 export interface PolicyBasis{id?:string;name:string;version:string;clause:string;text?:string}
+export type EvidenceElementType='class'|'property'|'relation'
 export interface EvidenceRequirement{
-  id?:string;name:string;source:string;sourceField:string;
+  id?:string;name:string;graphVersion?:string;ontologyId?:string;
+  elementType?:EvidenceElementType;elementCode?:string;elementName?:string;parentCode?:string;parentName?:string;
+  source?:string;sourceField?:string;
   entityCode?:string;entityName?:string;fieldCode?:string;fieldName?:string;
   attachmentRequirement?:string;completeness?:string;description:string
 }

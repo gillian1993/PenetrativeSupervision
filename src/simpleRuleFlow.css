@@ -170,3 +170,11 @@
   .rule-management-hierarchy .rule-list-table{display:block!important}
   .rule-management-hierarchy .rule-list-table-body{max-height:none!important}
 }
+.rule-management-hierarchy .rule-directory-meta{display:grid;gap:8px;margin:0 0 10px;padding:9px 10px;border:1px solid #dfe8f3;border-radius:8px;background:#fbfdff}
+.rule-management-hierarchy .rule-directory-meta .key-value{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.rule-management-hierarchy .rule-directory-meta .key-value>div{min-height:44px;grid-template-columns:1fr;align-content:center;gap:3px;padding:8px;border:1px solid #edf2f8;background:#fff}
+.rule-management-hierarchy .rule-directory-meta .key-value span{font-size:10px}
+.rule-management-hierarchy .rule-directory-meta .key-value strong{text-align:left;font-size:12px}
+.rule-management-hierarchy .rule-directory-meta p{margin:0;color:#59697f;font-size:11px;line-height:1.6}
+@media(max-width:1320px){.rule-management-hierarchy .rule-directory-meta .key-value{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.rule-management-hierarchy .rule-directory-meta .key-value{grid-template-columns:1fr}}
