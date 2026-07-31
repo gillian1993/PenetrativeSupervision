@@ -10,8 +10,37 @@ export const toJson = (value) => JSON.stringify(value ?? null)
 export const makeBusinessId = (prefix) => `${prefix}-${Date.now().toString(36).toUpperCase()}-${randomUUID().slice(0, 6).toUpperCase()}`
 export const configHash = (value) => createHash('sha256').update(JSON.stringify(value)).digest('hex')
 export function normalizePolicyList(value){const parsed=parseJson(value,[]);const list=Array.isArray(parsed)?parsed:parsed&&typeof parsed==='object'?[parsed]:[];return list.map((item)=>({id:item?.id||'',name:String(item?.name||''),version:String(item?.version||''),clause:String(item?.clause||''),text:String(item?.text||'')}))}
-function evidenceSourceFor(name){return {'业务来源记录':'ERP/采购业务系统','主体信息':'本体主数据、工商司法外部数据','审批记录':'OA/ERP审批流','联系方式来源':'供应商登记、人员主数据','附件材料':'业务系统附件归档','规则运行明细':'规则运行服务'}[name]||'业务来源系统'}
-export function normalizeEvidenceRequirements(value){const parsed=parseJson(value,[]);const list=Array.isArray(parsed)?parsed:[];return list.map((item,index)=>typeof item==='string'?{id:`evidence-${index+1}`,name:item,source:evidenceSourceFor(item),sourceField:item,description:''}:{id:item?.id||`evidence-${index+1}`,name:String(item?.name||''),source:String(item?.source||''),sourceField:String(item?.sourceField||item?.source_field||item?.fieldCode||item?.field_code||''),description:String(item?.description||'')})}
+function evidenceEntityFor(name){return {'业务来源记录':'业务单据','主体信息':'业务主体','审批记录':'审批节点','联系方式来源':'业务主体','附件材料':'业务附件','规则运行明细':'规则运行结果'}[name]||'业务实体'}
+export function normalizeEvidenceRequirements(value){
+  const parsed=parseJson(value,[])
+  const list=Array.isArray(parsed)?parsed:[]
+  return list.map((item,index)=>{
+    if(typeof item==='string'){
+      const entityName=evidenceEntityFor(item)
+      return{id:`evidence-${index+1}`,name:item,source:entityName,sourceField:item,entityCode:'',entityName,fieldCode:'',fieldName:item,attachmentRequirement:'',completeness:'',description:''}
+    }
+    const name=String(item?.name||'')
+    const entityCode=String(item?.entityCode||item?.entity_code||'')
+    const entityName=String(item?.entityName||item?.entity_name||evidenceEntityFor(name))
+    const fieldCode=String(item?.fieldCode||item?.field_code||'')
+    const fieldName=String(item?.fieldName||item?.field_name||'')
+    const source=String(item?.source||entityName||'')
+    const sourceField=String(item?.sourceField||item?.source_field||fieldName||fieldCode||'')
+    return{
+      id:item?.id||`evidence-${index+1}`,
+      name,
+      source,
+      sourceField,
+      entityCode,
+      entityName,
+      fieldCode,
+      fieldName:fieldName||sourceField,
+      attachmentRequirement:String(item?.attachmentRequirement||item?.attachment_requirement||''),
+      completeness:String(item?.completeness||''),
+      description:String(item?.description||''),
+    }
+  })
+}
 export function normalizeSkillInputs(value){const parsed=parseJson(value,[]);return(Array.isArray(parsed)?parsed:[]).map((item,index)=>({id:String(item?.id||`input-${index+1}`),name:String(item?.name||''),sourceType:['对象字段','事件数据','附件','文本'].includes(item?.sourceType)?item.sourceType:'附件',source:String(item?.source||''),required:item?.required!==false}))}
 export function normalizeSkillOutputs(value){const parsed=parseJson(value,[]);return(Array.isArray(parsed)?parsed:[]).map((item,index)=>({id:String(item?.id||`output-${index+1}`),name:String(item?.name||''),dataType:String(item?.dataType||'文本'),description:String(item?.description||'')}))}export function normalizePathConfig(value){const parsed=parseJson(value,{});return{hops:Array.isArray(parsed?.hops)?parsed.hops:[],logic:parsed?.logic==='OR'?'OR':'AND',constraints:Array.isArray(parsed?.constraints)?parsed.constraints:[]}}
 export function normalizeTimeConfig(value){const parsed=parseJson(value,{});const legacyEvent=String(parsed?.eventCode||'');const conditions=Array.isArray(parsed?.conditions)?parsed.conditions:legacyEvent?[{id:'time-legacy',eventCode:legacyEvent,eventName:String(parsed?.eventName||''),requirement:'必须发生'}]:[];return{baseline:parsed?.baseline==='runtime'?'runtime':'event',logic:parsed?.logic==='OR'?'OR':'AND',conditions:conditions.map((item,index)=>({id:item?.id||`time-${index+1}`,eventCode:String(item?.eventCode||''),eventName:String(item?.eventName||''),requirement:item?.requirement==='不得发生'?'不得发生':'必须发生'})),eventCode:legacyEvent,windowValue:Number(parsed?.windowValue??30),windowUnit:String(parsed?.windowUnit||'天'),direction:String(parsed?.direction||'之前')}}
@@ -247,7 +276,12 @@ export function validateRuleRecord(rule){
   }
   if(!parseJson(rule.output_json,[]).length)blockers.push({field:'outputs',tab:'conditions',message:'规则缺少系统命中输出配置'})
   const evidence=normalizeEvidenceRequirements(rule.evidence_json)
-  if(evidence.some((item)=>Boolean(item.name.trim()||item.source.trim()||item.sourceField.trim()||item.description.trim())&&(!item.name.trim()||!item.source.trim()||!item.sourceField.trim())))blockers.push({field:'evidence',tab:'output',message:'证据要求已开始填写时，证据名称、数据来源和来源字段不能为空'})
+  if(evidence.some((item)=>{
+    const entity=String(item.entityCode||item.entityName||'').trim()
+    const field=String(item.fieldCode||item.fieldName||item.sourceField||'').trim()
+    const started=Boolean(item.name.trim()||entity||field||item.source.trim()||item.description.trim())
+    return started&&(!item.name.trim()||!entity)
+  }))blockers.push({field:'evidence',tab:'output',message:'证据要求已开始填写时，证据名称和关联实体不能为空'})
   const policies=normalizePolicyList(rule.policy_json)
   if(policies.some((item)=>Boolean(item.name.trim()||item.version.trim()||item.clause.trim()||item.text.trim())&&!item.name.trim()))blockers.push({field:'policy',tab:'output',message:'制度依据已开始填写时，制度名称不能为空'})
   if(!parseJson(rule.exception_json,{}).enabled)warnings.push({field:'exceptions',tab:'conditions',message:'尚未配置例外条件，请确认适用边界'})
