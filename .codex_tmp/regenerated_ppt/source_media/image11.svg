@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentScriptType="text/ecmascript" zoomAndPan="magnify" contentStyleType="text/css" style="stroke-opacity: 1.0;" version="1.0" width="48" fill="none" preserveAspectRatio="xMidYMid meet" viewBox="0 0 48 48" height="48" opacity="1.0">
+<path d="M24 20V4C12.9543 4 4 12.9543 4 24C4 35.0457 12.9543 44 24 44C35.0457 44 44 35.0457 44 24" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round" stroke="#FFFFFF"/>
+<path stroke-linecap="round" fill-opacity="1.0" fill="#FFFFFF" fill-rule="evenodd" stroke-linejoin="round" d="M24 28C26.2091 28 28 26.2091 28 24C28 21.7909 26.2091 20 24 20C21.7909 20 20 21.7909 20 24C20 26.2091 21.7909 28 24 28Z" stroke="#FFFFFF" clip-rule="evenodd" stroke-width="2.0"/>
+</svg>

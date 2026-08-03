@@ -69,9 +69,14 @@ const navSections: NavSection[] = [
         { label: '统一预警', path: '/risk/warnings', permission: 'menu.supervision.risk.warnings' },
         { label: '风险事件', path: '/risk/events', permission: 'menu.supervision.risk.events' },
       ] },
-      { id: 'ruleCenter', label: '规则中心', icon: 'rules', children: [
-        { label: '规则管理', path: '/rules', permission: 'menu.supervision.scene.rules' },
-      ] },
+    ],
+  },
+  {
+    id: 'ability',
+    title: '能力中心',
+    items: [
+      { id: 'abilityModels', label: '模型管理', icon: 'agent', path: '/system/models', permission: 'menu.system.models' },
+      { id: 'ruleManagement', label: '规则管理', icon: 'rules', path: '/rules', permission: 'menu.supervision.scene.rules' },
       { id: 'ontology', label: '知识图谱', icon: 'graph', children: [
         { label: '图谱结构', path: '/graphs/structures', permission: 'menu.supervision.ontology.structures' },
         { label: '数据源', path: '/graphs/sources', permission: 'menu.supervision.ontology.sources' },
@@ -84,7 +89,6 @@ const navSections: NavSection[] = [
     items: [
       { id: 'systemUsers', label: '用户与组织', icon: 'user', path: '/system/users', permission: 'menu.system.users' },
       { id: 'systemRoles', label: '角色与权限', icon: 'lock', path: '/system/roles', permission: 'menu.system.roles' },
-      { id: 'systemModels', label: '模型管理', icon: 'agent', path: '/system/models', permission: 'menu.system.models' },
       { id: 'systemAudit', label: '审计日志', icon: 'audit', path: '/system/audit', permission: 'menu.system.audit' },
     ],
   },
@@ -171,7 +175,7 @@ function AppEnhanced() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
   const [roleOpen, setRoleOpen] = useState(false)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ tender: true, contract: true, review: true, purchase: true, risk: true, ruleCenter: true, ontology: true, system: true })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ tender: true, contract: true, review: true, purchase: true, risk: true, ontology: true, system: true })
   const [agentOpen, setAgentOpen] = useState(false)
   const [agentInput, setAgentInput] = useState('')
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([])
@@ -246,13 +250,13 @@ function AppEnhanced() {
     if (path === '/risk/warnings') return { page: '统一预警', guide: '这里统一查询事前、事中和事后预警，并进入证据研判与处置流程。', next: '可先使用状态和风险等级筛选，再进入预警详情查看证据或开展处置。', data: `当前加载${warnings.length}条预警，其中${warnings.filter((item) => ['重大', '高'].includes(item.level)).length}条为重大或高风险。` }
     if (path.startsWith('/risk/events/')) { const item = riskEvents.find((event) => event.id === objectId); return { page: `风险事件详情 · ${objectId}`, guide: '这里用于跟踪风险事件的责任人、整改过程、证据材料和监管复核。', next: '建议确认当前状态和完成时限，再执行派发、整改提交或监管复核。', data: item ? `该事件风险等级为${item.level}，当前状态为${item.status}，责任人为${item.owner || '待分配'}。` : '当前风险事件详情正在加载，请稍后查看处置状态。' } }
     if (path === '/risk/events') return { page: '风险事件', guide: '这里管理由预警升级形成的风险事件，并跟踪整改、复核和关闭过程。', next: '建议优先处理逾期和待复核事件，再检查核查整改中的事项。', data: `当前共有${riskEvents.length}个风险事件，其中${riskEvents.filter((item) => item.overdue && item.status !== '已关闭').length}个已逾期。` }
-    if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里按规则库和规则目录维护通用规则，配置基本信息、规则表达式、制度依据和证据要求。', next: '建议先选择规则库和规则目录，再查看或新建规则；规则表达式为必填，制度依据和证据要求按需填写。', data: '规则以规则库和目录分层管理，可被不同业务流程复用。' }
+    if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里先按规则库维护规则目录，进入目录后再查看或配置风险规则。', next: '建议先选择规则库，再进入具体规则目录维护规则；规则表达式为必填，制度依据和证据要求按需填写。', data: '规则库承载分类，规则目录承载场景上下文，风险规则从目录继承领域等信息。' }
 
     if (path.startsWith('/ontology')) return { page: '图谱结构', guide: '这里维护知识图谱中的类、属性和关系定义。', next: '需要表达带时间的业务记录时，为普通类配置标识、发生时间属性及关联对象关系。', data: '图谱结构版本会影响规则配置、字段映射和图谱构建，请在发布前确认影响范围。' }
     if (path.startsWith('/graphs')) return { page: '知识图谱', guide: '这里维护图谱结构、数据源、字段映射和知识图谱发布状态。', next: '建议先确认数据源和图谱结构，再检查映射模板和发布条件。', data: '知识图谱用于证据关联和风险穿透分析，发布后会被后续规则运行引用。' }
     if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
     if (path.startsWith('/system/roles')) return { page: '角色与权限', guide: '这里维护角色、数据范围、菜单权限和高危操作权限。', next: '建议先确认角色使用人数，再调整权限并检查敏感操作影响。', data: `当前共有${roles.length}个角色，权限调整会影响菜单、数据范围和可执行操作。` }
-    if (path.startsWith('/system/models') || path.startsWith('/system/vertical-models')) return { page: '模型管理', guide: '这里统一管理平台预置模型和客户自有模型接入，维护启停、能力标签、适用范围和权限边界。', next: '可以接入自有模型、绑定业务流程、测试模型效果，或停用暂不适用的模型。', data: '模型既可以作为采购应用通用能力，也可以绑定业务流程形成专用研判助手。' }
+    if (path.startsWith('/system/models') || path.startsWith('/system/vertical-models')) return { page: '模型管理', guide: '这里统一管理平台预置模型和客户自有模型接入，维护启停、能力标签、适用范围和权限边界。', next: '可以接入自有模型、绑定规则场景、测试模型效果，或停用暂不适用的模型。', data: '模型可作为通用能力，也可以绑定规则场景形成专用研判助手。' }
     if (path.startsWith('/system/audit')) return { page: '审计日志', guide: '这里查询用户操作、对象变化、执行结果和审计追踪编号。', next: '可按操作人、对象类型、风险级别或追踪编号定位具体操作记录。', data: '审计记录用于追踪关键配置和业务处置操作，历史记录不会被普通业务操作覆盖。' }
     return { page: '穿透式监管', guide: '当前页面属于穿透式监管业务平台。', next: '可以先查看页面标题和筛选条件，再选择需要处理的业务对象。', data: '当前页面数据会按照监管范围和角色权限展示。' }
   }, [location.pathname, todos, warnings, riskEvents, users, roles, currentRole])

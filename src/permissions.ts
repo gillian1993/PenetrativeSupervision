@@ -3,7 +3,7 @@ export type PermissionCode = string
 export interface PermissionCatalogItem {
   code: PermissionCode
   label: string
-  group: '统一入口' | '采购应用' | '穿透式监管' | '系统管理' | '高危操作'
+  group: '统一入口' | '采购应用' | '穿透式监管' | '能力中心' | '系统管理' | '高危操作'
 }
 
 export const MENU_PERMISSION_CATALOG: PermissionCatalogItem[] = [
@@ -18,12 +18,12 @@ export const MENU_PERMISSION_CATALOG: PermissionCatalogItem[] = [
   { code: 'menu.supervision.situation', label: '穿透式监管 / 监管态势', group: '穿透式监管' },
   { code: 'menu.supervision.risk.warnings', label: '穿透式监管 / 风险监管 / 统一预警', group: '穿透式监管' },
   { code: 'menu.supervision.risk.events', label: '穿透式监管 / 风险监管 / 风险事件', group: '穿透式监管' },
-  { code: 'menu.supervision.scene.rules', label: '穿透式监管 / 规则中心 / 规则管理', group: '穿透式监管' },
-  { code: 'menu.supervision.ontology.structures', label: '穿透式监管 / 知识图谱 / 图谱结构', group: '穿透式监管' },
-  { code: 'menu.supervision.ontology.sources', label: '穿透式监管 / 知识图谱 / 数据源', group: '穿透式监管' },
+  { code: 'menu.supervision.scene.rules', label: '能力中心 / 规则管理', group: '能力中心' },
+  { code: 'menu.supervision.ontology.structures', label: '能力中心 / 知识图谱 / 图谱结构', group: '能力中心' },
+  { code: 'menu.supervision.ontology.sources', label: '能力中心 / 知识图谱 / 数据源', group: '能力中心' },
   { code: 'menu.system.users', label: '系统管理 / 用户与组织', group: '系统管理' },
   { code: 'menu.system.roles', label: '系统管理 / 角色与权限', group: '系统管理' },
-  { code: 'menu.system.models', label: '系统管理 / 模型管理', group: '系统管理' },
+  { code: 'menu.system.models', label: '能力中心 / 模型管理', group: '能力中心' },
   { code: 'menu.system.audit', label: '系统管理 / 审计日志', group: '系统管理' },
 ]
 
@@ -100,8 +100,8 @@ const procurementMenus = [
   'menu.procurement.review',
   'menu.procurement.purchase',
 ]
-const supervisionMenus = ALL_MENU_PERMISSION_CODES.filter((code) => code.startsWith('menu.supervision.'))
-const systemMenus = ALL_MENU_PERMISSION_CODES.filter((code) => code.startsWith('menu.system.'))
+const supervisionMenus = ['menu.supervision.workbench', 'menu.supervision.situation', 'menu.supervision.risk.warnings', 'menu.supervision.risk.events']
+const systemMenus = ['menu.system.users', 'menu.system.roles', 'menu.system.audit']
 
 export const ROLE_PERMISSION_PRESETS: Record<string, PermissionCode[]> = {
   监管负责人: [...ALL_MENU_PERMISSION_CODES, ...ALL_ACTION_PERMISSION_CODES],

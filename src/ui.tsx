@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import type { RiskLevel } from './types'
 import { graphEdges, graphNodes } from './data'
 
-export type IconName = 'workbench' | 'situation' | 'shield' | 'rules' | 'graph' | 'system' | 'bell' | 'agent' | 'search' | 'refresh' | 'chevron' | 'eye' | 'edit' | 'user' | 'audit' | 'clock' | 'check' | 'warning' | 'close' | 'plus' | 'link' | 'file' | 'lock' | 'menu' | 'home'
+export type IconName = 'workbench' | 'situation' | 'shield' | 'rules' | 'graph' | 'system' | 'bell' | 'agent' | 'search' | 'refresh' | 'chevron' | 'eye' | 'edit' | 'user' | 'audit' | 'clock' | 'check' | 'warning' | 'close' | 'plus' | 'link' | 'file' | 'lock' | 'menu' | 'home' | 'copy' | 'trash' | 'play' | 'pause'
 
 const iconPaths: Record<IconName, ReactNode> = {
   workbench: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
@@ -30,6 +30,10 @@ const iconPaths: Record<IconName, ReactNode> = {
   lock: <><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></>,
   menu: <path d="M4 7h16M4 12h16M4 17h16"/>,
   home: <><path d="m3 11 9-8 9 8"/><path d="M5 10v11h14V10M9 21v-7h6v7"/></>,
+  copy: <><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></>,
+  trash: <><path d="M4 7h16"/><path d="M10 11v6M14 11v6"/><path d="M6 7l1 14h10l1-14"/><path d="M9 7V4h6v3"/></>,
+  play: <path d="M8 5v14l11-7Z"/>,
+  pause: <><path d="M8 5v14"/><path d="M16 5v14"/></>,
 }
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
