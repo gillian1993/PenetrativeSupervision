@@ -383,7 +383,7 @@
 .rule-management-hierarchy .directory-node-actions button{height:24px;min-height:24px;display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:0;border:0;border-radius:5px;background:transparent;color:#667085;font-size:11px;font-weight:800;line-height:1;cursor:pointer}
 .rule-management-hierarchy .directory-node-actions button:hover{background:#eef5ff;color:#176dff}
 .rule-management-hierarchy .directory-node-actions button:focus-visible{outline:2px solid #9ec1ee;outline-offset:1px}
-.rule-management-hierarchy .directory-node-actions .directory-primary-action{width:auto;min-width:54px;padding:0 7px;color:#176dff}
+.rule-management-hierarchy .directory-node-actions .directory-primary-action{width:26px;min-width:26px;padding:0;color:#176dff}
 .rule-management-hierarchy .directory-node-actions .directory-icon-action{width:24px;min-width:24px}
 .rule-management-hierarchy .directory-node-actions .icon{flex:0 0 auto;color:inherit!important}
 .rule-management-hierarchy .directory-node-actions .danger-link{color:#c84038}
@@ -449,7 +449,7 @@
 .rule-management-hierarchy .rule-directory-card:hover .directory-node-actions,.rule-management-hierarchy .rule-directory-card:focus-within .directory-node-actions,.rule-management-hierarchy .rule-directory-table-row:hover .directory-node-actions,.rule-management-hierarchy .rule-directory-table-row:focus-within .directory-node-actions{border-color:#b7cdf8!important;background:#fff!important;box-shadow:0 10px 24px rgba(23,109,255,.13)!important}
 .rule-management-hierarchy .directory-node-actions button{height:26px!important;min-height:26px!important;display:inline-flex!important;align-items:center!important;justify-content:center!important;gap:5px!important;padding:0 9px!important;border:0!important;border-radius:999px!important;background:transparent!important;color:#176dff!important;font-size:12px!important;font-weight:800!important;line-height:1!important;cursor:pointer!important}
 .rule-management-hierarchy .directory-node-actions button:hover{background:#eaf2ff!important;color:#176dff!important;text-decoration:none!important}
-.rule-management-hierarchy .directory-node-actions .directory-primary-action{width:auto!important;min-width:58px!important}
+.rule-management-hierarchy .directory-node-actions .directory-primary-action{width:26px!important;min-width:26px!important;padding:0!important}
 .rule-management-hierarchy .directory-node-actions .directory-icon-action{width:26px!important;min-width:26px!important;padding:0!important}
 .rule-management-hierarchy .directory-node-actions .icon{flex:0 0 auto!important;color:inherit!important}
 .rule-management-hierarchy .directory-node-actions .danger-link{color:#d92d20!important}
@@ -502,3 +502,53 @@
 /* Compact inherited risk level label */
 .rule-management-hierarchy .rule-inherit-level{min-height:20px;display:inline-flex;align-items:center;justify-content:center;padding:1px 6px;border-radius:999px;background:#edf3fb;color:#526071;font-size:10px!important;font-weight:800;line-height:1;white-space:nowrap;vertical-align:middle}
 .rule-management-hierarchy .rule-list-table-row>.rule-inherit-level{justify-self:start;max-width:100%}
+
+/* Lightweight rule import/export workflow */
+.modal:has(.rule-transfer-modal){width:min(780px,calc(100vw - 36px))}
+.rule-transfer-modal{display:grid;gap:13px;min-width:0}
+.rule-document-import-form{padding-top:4px!important;gap:12px!important}
+.rule-document-import-form textarea{min-height:142px;resize:vertical}
+.rule-file-picker{min-width:0;display:flex;align-items:center;gap:9px;height:38px}
+.rule-file-picker .button{height:34px;min-height:34px;flex:0 0 auto;padding:0 11px;font-size:12px}
+.rule-file-picker>span{min-width:0;overflow:hidden;color:#667085;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.rule-import-note{display:flex;align-items:flex-start;gap:8px;padding:9px 10px;border:1px solid #f1d39b;border-radius:7px;background:#fff9eb;color:#8a5d12;font-size:12px;line-height:1.55}
+.rule-import-note .icon{flex:0 0 auto;margin-top:1px;color:#b7791f}
+.rule-transfer-advanced{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 12px;border:1px solid #dfe8f3;border-radius:8px;background:#fbfdff}
+.rule-transfer-advanced>div{min-width:0;display:grid;gap:3px}
+.rule-transfer-advanced strong,.rule-transfer-section header strong{color:#344054;font-size:13px}
+.rule-transfer-advanced span,.rule-transfer-section header span{color:#667085;font-size:11px;line-height:1.5}
+.rule-transfer-advanced .button{height:34px;min-height:34px;flex:0 0 auto;padding:0 11px;font-size:12px}
+.rule-transfer-section{display:grid;gap:9px}
+.rule-transfer-section header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.rule-transfer-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.rule-transfer-options>button{min-width:0;min-height:68px;display:flex;align-items:flex-start;gap:9px;padding:10px;border:1px solid #dfe8f3;border-radius:8px;background:#fff;color:#475467;text-align:left}
+.rule-transfer-options>button:hover{border-color:#9ec1ee;background:#f7fbff;color:#176dff}
+.rule-transfer-options>button.selected{border-color:#176dff;background:#eef6ff;box-shadow:inset 3px 0 0 #176dff;color:#176dff}
+.rule-transfer-options>button>.icon{flex:0 0 auto;margin-top:1px;color:inherit}
+.rule-transfer-options>button>span{min-width:0;display:grid;gap:3px}
+.rule-transfer-options strong{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.rule-transfer-options small{color:#667085;font-size:10px;line-height:1.45}
+.rule-export-detail-toggle{margin:0;padding:10px 12px;border:1px solid #dfe8f3;border-radius:8px;background:#fbfdff}
+@media(max-width:760px){.rule-transfer-options{grid-template-columns:1fr}.rule-transfer-advanced{align-items:stretch;flex-direction:column}.rule-file-picker{align-items:flex-start;height:auto;flex-direction:column}.rule-file-picker>span{white-space:normal}.rule-transfer-section header{align-items:flex-start;flex-direction:column}}
+.rule-management-hierarchy .rule-directory-board>.rule-library-context{margin:10px 0!important}
+.rule-management-hierarchy .rule-library-context>div:not(:first-child){justify-items:center!important;text-align:center!important;align-content:center!important}
+.rule-management-hierarchy .scene-type-cell{min-width:0;display:grid!important;gap:2px;color:#59697f;font-size:12px;line-height:1.25}
+.rule-management-hierarchy .scene-type-cell strong{overflow:hidden;color:#344054;font-size:12px;font-weight:900;text-overflow:ellipsis;white-space:nowrap}
+.rule-management-hierarchy .scene-type-cell small{overflow:hidden;color:#667085;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+.rule-management-hierarchy .rule-directory-table-head,.rule-management-hierarchy .rule-directory-table-row{grid-template-columns:minmax(220px,1fr) 84px 66px 70px 84px 94px 52px 62px 176px!important}
+@media(max-width:1320px){.rule-management-hierarchy .rule-directory-table-head,.rule-management-hierarchy .rule-directory-table-row{min-width:1020px!important}}
+@media(max-width:760px){.rule-management-hierarchy .rule-directory-table-head,.rule-management-hierarchy .rule-directory-table-row{min-width:980px!important}}
+.rule-create-inherit-summary{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.rule-create-inherit-summary strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:900px){.rule-create-inherit-summary{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:560px){.rule-create-inherit-summary{grid-template-columns:1fr!important}}
+/* Compact scene detail meta strip: avoid duplicate scene title/status rows */
+.rule-directory-detail-page .scene-overview-strip.scene-overview-compact{display:block!important;margin:-4px 0 10px!important;padding:9px 10px!important;border:1px solid #dfe7f2!important;border-radius:8px!important;background:#fff!important;box-shadow:0 6px 18px rgba(31,54,84,.05)!important}
+.rule-directory-detail-page .scene-overview-strip.scene-overview-compact .key-value{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(108px,1fr))!important;gap:6px!important}
+.rule-directory-detail-page .scene-overview-strip.scene-overview-compact .key-value>div{min-width:0!important;min-height:38px!important;display:grid!important;grid-template-columns:1fr!important;align-content:center!important;gap:3px!important;padding:7px 8px!important;border:1px solid #edf2f8!important;border-radius:6px!important;background:#fbfdff!important}
+.rule-directory-detail-page .scene-overview-strip.scene-overview-compact .key-value span{overflow:hidden;color:#667085!important;font-size:10px!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+.rule-directory-detail-page .scene-overview-strip.scene-overview-compact .key-value strong{overflow:hidden;color:#344054!important;font-size:12px!important;text-align:left!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+.rule-directory-detail-page .scene-overview-strip.scene-overview-compact .key-value .tag{justify-self:start!important;width:max-content!important;max-width:100%!important;font-size:10px!important;padding:3px 7px!important}
+.rule-directory-detail-page .scene-overview-strip.scene-overview-compact .scene-meta-empty{color:#98a2b3!important;font-size:12px!important;font-weight:800!important}
+.rule-directory-detail-page .scene-overview-strip.scene-overview-compact p{min-height:0!important;margin:8px 0 0!important;padding:8px 0 0!important;border-top:1px solid #edf2f8!important;border-left:0!important;color:#59697f!important;font-size:11px!important;line-height:1.6!important}
+@media(max-width:760px){.rule-directory-detail-page .scene-overview-strip.scene-overview-compact .key-value{grid-template-columns:repeat(2,minmax(0,1fr))!important}}

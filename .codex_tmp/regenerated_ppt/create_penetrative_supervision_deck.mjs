@@ -8,7 +8,8 @@ const MEDIA_DIR = `${OUT_DIR}/source_media`;
 const EXPORT_DIR = `${OUT_DIR}/exports`;
 const RENDER_DIR = `${OUT_DIR}/rendered`;
 const LAYOUT_DIR = `${OUT_DIR}/layouts`;
-const FINAL_PPTX = `${EXPORT_DIR}/penetrative_supervision_vector_redraw.pptx`;
+const FINAL_PPTX = `${EXPORT_DIR}/penetrative_supervision_core_refined.pptx`;
+let headerPageNo = 2;
 
 const W = 1280;
 const H = 720;
@@ -74,6 +75,7 @@ function addText(slide, text, position, style = {}) {
 }
 
 function addHeader(slide, title, section, pageNo) {
+  const displayPageNo = headerPageNo++;
   addShape(slide, "rect", { left: 0, top: 0, width: W, height: H }, C.bg, {
     style: "solid",
     fill: "none",
@@ -101,7 +103,7 @@ function addHeader(slide, title, section, pageNo) {
     color: C.deep,
     alignment: "right",
   });
-  addText(slide, String(pageNo).padStart(2, "0"), { left: 1168, top: 670, width: 48, height: 20 }, {
+  addText(slide, String(displayPageNo).padStart(2, "0"), { left: 1168, top: 670, width: 48, height: 20 }, {
     fontSize: 13,
     color: C.muted,
     alignment: "right",
@@ -478,7 +480,7 @@ function slide7(presentation) {
   const groups = [
     { title: "监管入口", color: C.blue, x: 86, items: ["监管工作台", "监管态势", "统一预警", "风险事件"] },
     { title: "配置资产", color: C.violet, x: 390, items: ["图谱结构", "数据源与字段映射", "规则资产", "模型目录"] },
-    { title: "运行闭环", color: C.green, x: 694, items: ["场景发布", "证据快照", "整改复核", "样本回流"] },
+    { title: "运行闭环", color: C.green, x: 694, items: ["规则发布", "证据快照", "整改复核", "样本回流"] },
     { title: "安全运营", color: C.deep, x: 998, items: ["真实认证", "服务端RBAC", "统一审计", "性能回滚"] },
   ];
   groups.forEach((g) => {
@@ -539,8 +541,8 @@ function slide8(presentation) {
   const slide = presentation.slides.add();
   addHeader(slide, "功能架构：六大模块与四层底座协同", "02 产品定位与总体方案", 8);
   const layers = [
-    { name: "监管业务层", color: C.blue, items: ["监管工作台", "监管态势", "统一预警", "风险事件", "场景与规则", "系统管理"] },
-    { name: "能力配置层", color: C.violet, items: ["风险场景", "规则资产", "智能生成规则", "DSL表达式", "制度依据", "证据要求", "模型目录"] },
+    { name: "监管业务层", color: C.blue, items: ["监管工作台", "监管态势", "风险管理", "规则管理", "知识图谱", "系统管理"] },
+    { name: "能力配置层", color: C.violet, items: ["规则库", "规则场景", "规则目录", "风险规则", "DSL表达式", "制度依据", "证据要求", "模型目录"] },
     { name: "知识图谱底座", color: C.green, items: ["图谱结构", "数据源", "字段映射", "知识图谱生成", "版本快照", "证据子图"] },
     { name: "来源与服务", color: C.amber, items: ["ERP/采购", "财务/司库", "OA审批", "合同文档", "人力主数据", "外部数据", "模型网关"] },
     { name: "治理支撑", color: C.deep, items: ["私有化部署", "Node.js API", "MySQL落库", "服务端RBAC", "统一审计", "性能回滚"] },
@@ -632,9 +634,9 @@ function slide10(presentation) {
   }, { fontSize: 17, bold: true, color: C.deep, alignment: "center" });
 
   const bands = [
-    { y: 214, label: "PC Web 应用", color: C.blue, items: ["工作台", "态势", "统一预警", "风险事件", "场景规则", "知识图谱", "系统管理"] },
+    { y: 214, label: "PC Web 应用", color: C.blue, items: ["工作台", "态势", "统一预警", "风险事件", "规则管理", "知识图谱", "系统管理"] },
     { y: 326, label: "业务服务", color: C.violet, items: ["待办消息", "预警研判", "风险闭环", "规则执行", "证据快照", "模型网关", "审计服务"] },
-    { y: 438, label: "监管资产", color: C.green, items: ["图谱结构", "字段映射", "知识图谱版本", "规则资产版本", "场景版本", "模型目录", "效果样本"] },
+    { y: 438, label: "监管资产", color: C.green, items: ["图谱结构", "字段映射", "知识图谱版本", "规则资产版本", "规则场景版本", "模型目录", "效果样本"] },
     { y: 550, label: "技术与安全", color: C.deep, items: ["私有化", "Node.js API", "MySQL", "RBAC", "数据权限", "事务幂等", "回滚"] },
   ];
   bands.forEach((b, bi) => {
@@ -1124,6 +1126,575 @@ function slide19(presentation) {
   addNotes(slide, "基于PRD v12.0第4.2、7.3、10.7、附录A/B章节重绘试点加固与验收架构。");
 }
 
+
+function coreSlide11(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "核心功能全景：以风险闭环组织平台能力", "03 核心功能体系", 11);
+  addText(slide, "核心功能不按菜单堆砌，而是围绕“发现风险、解释原因、推动处置、复核关闭、沉淀样本”形成一条闭环能力链。", {
+    left: 76,
+    top: 128,
+    width: 1030,
+    height: 34,
+  }, { fontSize: 23, bold: true, color: C.deep });
+
+  const modules = [
+    ["监管工作台", "角色化待办入口\n消息提醒与处置直达", C.blue],
+    ["监管态势", "规模、等级、分布、趋势\n支持权限裁剪后下钻", C.cyan],
+    ["风险管理", "统一预警负责研判\n风险事件负责整改复核", C.red],
+    ["规则管理", "规则库、规则场景、规则目录\n沉淀可执行规则资产", C.violet],
+    ["知识图谱", "结构、数据源、映射、生成\n支撑证据子图追溯", C.green],
+    ["模型管理", "模型目录、接入测试\n场景绑定与调用审计", C.amber],
+    ["系统管理", "组织、角色、权限、审计\n支撑生产可用", C.deep],
+    ["运行运营", "版本冻结、样本回流\n效果复盘持续优化", "#475569"],
+  ];
+  modules.forEach((m, i) => {
+    const x = 78 + (i % 4) * 286;
+    const y = 198 + Math.floor(i / 4) * 148;
+    addCard(slide, x, y, 246, 104, m[0], m[1], {
+      accent: m[2],
+      titleColor: m[2],
+      titleSize: 21,
+      bodySize: 15.5,
+    });
+  });
+
+  const chain = [
+    ["发现", "预警线索"],
+    ["解释", "规则 + 图谱 + 证据"],
+    ["处置", "升级事件 / 转派整改"],
+    ["复核", "责任单位举证"],
+    ["优化", "样本回流"],
+  ];
+  addShape(slide, "roundRect", { left: 92, top: 532, width: 1096, height: 72 }, C.deep, {
+    style: "solid",
+    fill: C.deep,
+    width: 0,
+  }, { borderRadius: 10 });
+  chain.forEach((item, i) => {
+    const x = 128 + i * 210;
+    addShape(slide, "ellipse", { left: x, top: 546, width: 44, height: 44 }, i === 4 ? C.green : C.blue, {
+      style: "solid",
+      fill: i === 4 ? C.green : C.blue,
+      width: 0,
+    });
+    addText(slide, String(i + 1), { left: x, top: 558, width: 44, height: 20 }, {
+      fontSize: 15,
+      bold: true,
+      color: "#FFFFFF",
+      alignment: "center",
+    });
+    addText(slide, item[0], { left: x + 54, top: 544, width: 96, height: 24 }, {
+      fontSize: 19,
+      bold: true,
+      color: "#FFFFFF",
+    });
+    addText(slide, item[1], { left: x + 54, top: 570, width: 140, height: 18 }, {
+      fontSize: 13.5,
+      color: "#DDEBFF",
+    });
+    if (i < chain.length - 1) addRule(slide, x + 172, 568, x + 202, 568, "#7FB4FF", 2);
+  });
+  addNotes(slide, "基于当前工程 App.tsx 菜单结构、PRD v12.0 规则管理大版本更新版和用户最新口径重组核心功能体系。");
+}
+
+function coreSlide12(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "核心业务闭环：从规则命中到整改复核", "03 核心功能体系", 12);
+  addText(slide, "平台的主链路不是单个页面流转，而是把规则版本、图谱版本、证据快照和责任流转绑定成同一条可追溯记录。", {
+    left: 78,
+    top: 130,
+    width: 1040,
+    height: 34,
+  }, { fontSize: 23, bold: true, color: C.deep });
+  const steps = [
+    ["规则命中", "目标业务记录\n满足检测口径", C.violet],
+    ["生成预警", "形成风险说明\n给出研判入口", C.blue],
+    ["证据冻结", "规则、图谱、来源\n形成快照", C.green],
+    ["人工研判", "解除、转派\n或升级", C.amber],
+    ["升级事件", "指定责任组织\n生成整改待办", C.red],
+    ["整改举证", "补充材料\n不覆盖初始事实", C.violet],
+    ["监管复核", "通过、退回\n或不成立关闭", C.blue],
+    ["样本回流", "有效/误报\n反哺规则模型", C.green],
+  ];
+  steps.forEach((s, i) => {
+    const x = 86 + (i % 4) * 292;
+    const y = 206 + Math.floor(i / 4) * 170;
+    addShape(slide, "ellipse", { left: x, top: y + 20, width: 54, height: 54 }, s[2], {
+      style: "solid",
+      fill: s[2],
+      width: 0,
+    });
+    addText(slide, String(i + 1).padStart(2, "0"), { left: x, top: y + 36, width: 54, height: 20 }, {
+      fontSize: 15,
+      bold: true,
+      color: "#FFFFFF",
+      alignment: "center",
+    });
+    addShape(slide, "roundRect", { left: x + 68, top: y, width: 192, height: 94 }, "#FFFFFF", {
+      style: "solid",
+      fill: s[2],
+      width: 1.8,
+    }, { borderRadius: 8 });
+    addText(slide, s[0], { left: x + 84, top: y + 16, width: 160, height: 24 }, {
+      fontSize: 19,
+      bold: true,
+      color: C.text,
+      alignment: "center",
+    });
+    addText(slide, s[1], { left: x + 84, top: y + 46, width: 160, height: 36 }, {
+      fontSize: 14.5,
+      color: C.body,
+      alignment: "center",
+      lineSpacing: 1.08,
+    });
+    if (i % 4 < 3) addRule(slide, x + 260, y + 47, x + 292, y + 47, C.line, 2);
+    if (i === 3) addRule(slide, 1100, y + 94, 1100, y + 170, C.line, 2);
+  });
+  addShape(slide, "roundRect", { left: 126, top: 570, width: 1028, height: 54 }, "#EAF7F0", {
+    style: "solid",
+    fill: "#AFE3C8",
+    width: 1,
+  }, { borderRadius: 8 });
+  addText(slide, "闭环底线：历史证据快照只追加不覆盖；已发布规则、图谱和场景版本只读保留；高危操作全部进入审计。", {
+    left: 154,
+    top: 586,
+    width: 972,
+    height: 22,
+  }, { fontSize: 18, bold: true, color: C.deep, alignment: "center" });
+  addNotes(slide, "基于 PRD v12.0 风险闭环、规则管理、知识图谱与审计要求重绘端到端业务链路。");
+}
+
+function coreSlide13(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "监管工作台：把风险监管转成角色化待办", "03 核心功能体系", 13);
+  addText(slide, "工作台的设计重点不是再做一个汇总页，而是让不同角色进入系统后马上知道“哪些事归我、哪些事最急、下一步点哪里”。", {
+    left: 78,
+    top: 130,
+    width: 1030,
+    height: 34,
+  }, { fontSize: 23, bold: true, color: C.deep });
+  const cols = [
+    ["角色视角", ["集团领导", "监管负责人", "领域专员", "业务责任人"], C.blue],
+    ["任务组织", ["待研判预警", "待整改事件", "待复核事件", "逾期催办"], C.violet],
+    ["消息触达", ["状态变化", "转派提醒", "复核退回", "关闭通知"], C.green],
+    ["处置入口", ["查看证据", "研判解除", "升级事件", "整改复核"], C.red],
+  ];
+  cols.forEach((col, i) => {
+    const x = 86 + i * 286;
+    addShape(slide, "roundRect", { left: x, top: 208, width: 236, height: 56 }, col[2], {
+      style: "solid",
+      fill: col[2],
+      width: 0,
+    }, { borderRadius: 8 });
+    addText(slide, col[0], { left: x + 16, top: 224, width: 204, height: 22 }, {
+      fontSize: 21,
+      bold: true,
+      color: "#FFFFFF",
+      alignment: "center",
+    });
+    col[1].forEach((item, j) => addPill(slide, item, x + 18, 292 + j * 52, 200, col[2], "#FFFFFF"));
+    if (i < cols.length - 1) addRule(slide, x + 236, 392, x + 286, 392, C.line, 2);
+  });
+  addShape(slide, "roundRect", { left: 132, top: 552, width: 1016, height: 58 }, "#EAF2FF", {
+    style: "solid",
+    fill: "#B7D4FF",
+    width: 1,
+  }, { borderRadius: 9 });
+  addText(slide, "设计原则：先责任后信息，先紧急后全部，先行动后统计；所有入口都能回到统一预警或风险事件详情。", {
+    left: 160,
+    top: 570,
+    width: 960,
+    height: 22,
+  }, { fontSize: 18, bold: true, color: C.deep, alignment: "center" });
+  addNotes(slide, "基于当前工程 /workbench 页面、App.tsx 角色引导文案和用户关于监管工作台拆分的确认意见。");
+}
+
+async function coreSlide14(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "监管工作台功能：待办、消息和处置入口集中承接", "03 核心功能体系", 14);
+  await addImage(slide, "image36.png", { left: 76, top: 134, width: 722, height: 410 }, {
+    alt: "监管工作台产品截图",
+    fit: "cover",
+  });
+  addCard(slide, 836, 144, 338, 90, "指标先行", "待研判、待整改、待复核、逾期事项作为进入系统后的第一判断。", { accent: C.blue, bodySize: 15.5 });
+  addCard(slide, 836, 258, 338, 90, "待办承接", "列表按角色权限聚合任务，并提供查看、转派、处理等操作入口。", { accent: C.green, bodySize: 15.5 });
+  addCard(slide, 836, 372, 338, 90, "消息联动", "业务消息同步风险状态变化，减少只看列表造成的漏办。", { accent: C.violet, bodySize: 15.5 });
+  addShape(slide, "roundRect", { left: 142, top: 586, width: 996, height: 42 }, C.deep, {
+    style: "solid",
+    fill: C.deep,
+    width: 0,
+  }, { borderRadius: 8 });
+  addText(slide, "页面讲法：先解释“工作台不是看板，而是任务入口”，再按指标、待办、消息三块说明日常使用路径。", {
+    left: 170,
+    top: 596,
+    width: 940,
+    height: 20,
+  }, { fontSize: 16, bold: true, color: "#FFFFFF", alignment: "center" });
+  addNotes(slide, "产品截图 image36.png；当前工程 /workbench 页面功能说明。");
+}
+
+async function coreSlide15(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "监管态势：从全局视角掌握风险规模与趋势", "03 核心功能体系", 15);
+  await addImage(slide, "image39.png", { left: 78, top: 136, width: 696, height: 414 }, {
+    alt: "监管态势产品截图",
+    fit: "cover",
+  });
+  addMetric(slide, 812, 144, 150, "预警总量", "41", "近30天", C.blue);
+  addMetric(slide, 984, 144, 150, "重大风险", "7", "重点关注", C.red);
+  addMetric(slide, 812, 286, 150, "在办事件", "10", "未关闭", C.violet);
+  addMetric(slide, 984, 286, 150, "闭环率", "0%", "试运行口径", C.green);
+  addBulletList(slide, [
+    "全局过滤条件驱动卡片、图表和明细同步刷新",
+    "按组织、领域、等级、处置状态进行权限内下钻",
+    "重点事项能直接跳转到统一预警或风险事件详情",
+  ], 820, 442, 360, 116, { fontSize: 16, lineH: 34 });
+  addNotes(slide, "产品截图 image39.png；当前工程 /situation 页面和监管态势交互文档。");
+}
+
+function coreSlide16(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "风险管理总览：统一预警负责研判，风险事件负责整改", "03 核心功能体系", 16);
+  addText(slide, "风险管理建议作为一组能力呈现：预警解决“线索是否成立”，事件解决“责任如何落实”。两者不是两个孤立列表，而是一条升级与关闭链路。", {
+    left: 78,
+    top: 128,
+    width: 1060,
+    height: 48,
+  }, { fontSize: 22, bold: true, color: C.deep });
+  addCard(slide, 96, 222, 402, 220, "统一预警", "集中承接规则和模型识别出的风险线索，展示风险说明、命中规则、证据子图和处置记录；研判结果可以解除、转派或升级。", {
+    accent: C.blue,
+    titleSize: 25,
+    bodySize: 17,
+  });
+  addCard(slide, 782, 222, 402, 220, "风险事件", "承接已升级预警，围绕责任组织、整改时限、举证材料、复核结论和关闭状态推进闭环。", {
+    accent: C.green,
+    titleSize: 25,
+    bodySize: 17,
+  });
+  addRule(slide, 498, 332, 782, 332, C.red, 4);
+  addText(slide, "升级", { left: 588, top: 298, width: 104, height: 28 }, {
+    fontSize: 22,
+    bold: true,
+    color: C.red,
+    alignment: "center",
+  });
+  const states = [
+    ["待研判", 150, 498, C.blue], ["已解除", 330, 498, C.muted], ["已升级", 510, 498, C.red],
+    ["待整改", 700, 498, C.amber], ["待复核", 880, 498, C.violet], ["已关闭", 1060, 498, C.green],
+  ];
+  states.forEach((s, i) => {
+    addShape(slide, "roundRect", { left: s[1] - 58, top: s[2], width: 116, height: 42 }, i === 2 || i === 5 ? s[3] : "#FFFFFF", {
+      style: "solid",
+      fill: s[3],
+      width: 1.5,
+    }, { borderRadius: 8 });
+    addText(slide, s[0], { left: s[1] - 50, top: s[2] + 12, width: 100, height: 18 }, {
+      fontSize: 16,
+      bold: true,
+      color: i === 2 || i === 5 ? "#FFFFFF" : C.text,
+      alignment: "center",
+    });
+    if (i < states.length - 1) addRule(slide, s[1] + 58, s[2] + 21, states[i + 1][1] - 58, s[2] + 21, C.line, 2);
+  });
+  addNotes(slide, "基于当前工程 /risk/warnings、/risk/events 页面和用户确认的风险管理三页拆分口径。");
+}
+
+async function coreSlide17(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "统一预警：集中发现、解释和研判风险线索", "03 核心功能体系", 17);
+  await addImage(slide, "image44.png", { left: 74, top: 132, width: 744, height: 420 }, {
+    alt: "统一预警列表截图",
+    fit: "cover",
+  });
+  addCard(slide, 852, 138, 324, 82, "统一查询", "按组织、领域、等级、状态、时间等维度筛选线索。", { accent: C.blue, bodySize: 15 });
+  addCard(slide, 852, 244, 324, 82, "风险解释", "列表保留风险描述、主对象、命中规则和证据入口。", { accent: C.green, bodySize: 15 });
+  addCard(slide, 852, 350, 324, 82, "研判动作", "进入详情后完成查看证据、解除、转派或升级事件。", { accent: C.red, bodySize: 15 });
+  addCard(slide, 852, 456, 324, 82, "留痕要求", "高危操作需原因、权限校验与审计。", { accent: C.violet, bodySize: 15 });
+  addNotes(slide, "产品截图 image44.png；当前工程 /risk/warnings 页面与风险监管交互文档。");
+}
+
+async function coreSlide18(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "风险事件：围绕责任单位推进整改和复核", "03 核心功能体系", 18);
+  await addImage(slide, "image52.png", { left: 76, top: 132, width: 752, height: 424 }, {
+    alt: "风险事件详情截图",
+    fit: "cover",
+  });
+  addCard(slide, 862, 140, 320, 88, "事实固化", "风险事实引用来源预警升级时的证据快照。", { accent: C.red, bodySize: 15.5 });
+  addCard(slide, 862, 252, 320, 88, "责任闭环", "围绕责任组织、当前处理人、截止时间推进整改。", { accent: C.amber, bodySize: 15.5 });
+  addCard(slide, 862, 364, 320, 88, "复核关闭", "监管侧可通过、退回整改或判定不成立关闭。", { accent: C.green, bodySize: 15.5 });
+  addCard(slide, 862, 476, 320, 88, "证据追加", "整改材料作为新增证据保存，不覆盖初始风险事实。", { accent: C.violet, bodySize: 15.5 });
+  addNotes(slide, "产品截图 image52.png；当前工程 /risk/events 详情页和风险监管交互文档。");
+}
+
+function coreSlide19(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "规则管理：把监管制度转化为可执行规则资产", "03 核心功能体系", 19);
+  addText(slide, "规则管理的设计理念是“制度条款不直接等于系统规则”：需要先形成业务口径，再落成可校验、可试跑、可发布、可复用的规则资产。", {
+    left: 78,
+    top: 128,
+    width: 1050,
+    height: 46,
+  }, { fontSize: 22, bold: true, color: C.deep });
+  const steps = [
+    ["制度条款", "监管依据、管理办法\n检查要点", C.deep],
+    ["业务口径", "主对象、触发时点\n例外边界", C.blue],
+    ["规则表达", "条件组、字段值\n阈值和比较关系", C.violet],
+    ["试跑校验", "样本命中、误报\n证据完整性", C.amber],
+    ["发布复用", "规则版本、引用关系\n审计留痕", C.green],
+  ];
+  steps.forEach((s, i) => {
+    const x = 92 + i * 224;
+    addShape(slide, "ellipse", { left: x + 52, top: 220, width: 78, height: 78 }, s[2], {
+      style: "solid",
+      fill: s[2],
+      width: 0,
+    });
+    addText(slide, String(i + 1), { left: x + 52, top: 246, width: 78, height: 24 }, {
+      fontSize: 20,
+      bold: true,
+      color: "#FFFFFF",
+      alignment: "center",
+    });
+    addCard(slide, x, 336, 184, 126, s[0], s[1], { accent: s[2], titleSize: 20, bodySize: 15.5 });
+    if (i < steps.length - 1) addRule(slide, x + 184, 258, x + 224, 258, C.line, 2);
+  });
+  addShape(slide, "roundRect", { left: 142, top: 548, width: 996, height: 58 }, "#FFF7EA", {
+    style: "solid",
+    fill: "#FFD9A5",
+    width: 1,
+  }, { borderRadius: 9 });
+  addText(slide, "核心口径：规则管理是能力中心模块；内部再用规则库、规则场景、规则目录组织资产，不再把“场景与规则”作为独立模块名称。", {
+    left: 170,
+    top: 564,
+    width: 940,
+    height: 26,
+  }, { fontSize: 17.5, bold: true, color: C.deep, alignment: "center" });
+  addNotes(slide, "基于 PRD v12.0 规则管理大版本更新版、规则管理交互文档_重构版和用户最新口径。");
+}
+
+function coreSlide20(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "规则管理功能：规则库、规则场景和规则目录分层组织", "03 核心功能体系", 20);
+  addText(slide, "规则管理页建议先讲组织方式，再讲配置细节：规则库负责分类，规则场景承载业务上下文，规则目录定位具体风险主题，风险规则沉淀可执行逻辑。", {
+    left: 78,
+    top: 126,
+    width: 1056,
+    height: 48,
+  }, { fontSize: 22, bold: true, color: C.deep });
+
+  addShape(slide, "roundRect", { left: 88, top: 214, width: 250, height: 310 }, "#F4F8FF", {
+    style: "solid",
+    fill: "#B7D4FF",
+    width: 1,
+  }, { borderRadius: 10 });
+  addText(slide, "规则库", { left: 114, top: 238, width: 198, height: 28 }, { fontSize: 24, bold: true, color: C.blue, alignment: "center" });
+  ["采购监管规则库", "合同监管规则库", "财务资金规则库", "投资合规规则库"].forEach((item, i) => addPill(slide, item, 116, 302 + i * 48, 194, C.blue, "#FFFFFF"));
+
+  addShape(slide, "roundRect", { left: 514, top: 214, width: 250, height: 310 }, "#F7F2FF", {
+    style: "solid",
+    fill: "#D6CCFF",
+    width: 1,
+  }, { borderRadius: 10 });
+  addText(slide, "规则场景", { left: 540, top: 238, width: 198, height: 28 }, { fontSize: 24, bold: true, color: C.violet, alignment: "center" });
+  ["供应商异常关联", "合同付款不一致", "投资决策合规", "账户异常使用"].forEach((item, i) => addPill(slide, item, 542, 302 + i * 48, 194, C.violet, "#FFFFFF"));
+
+  addShape(slide, "roundRect", { left: 894, top: 214, width: 250, height: 310 }, "#EAF7F0", {
+    style: "solid",
+    fill: "#AFE3C8",
+    width: 1,
+  }, { borderRadius: 10 });
+  addText(slide, "规则目录 / 风险规则", { left: 914, top: 238, width: 210, height: 28 }, { fontSize: 23, bold: true, color: C.green, alignment: "center" });
+  ["关联关系识别", "异常阈值判断", "制度依据绑定", "证据要求配置"].forEach((item, i) => addPill(slide, item, 922, 302 + i * 48, 194, C.green, "#FFFFFF"));
+
+  addRule(slide, 338, 370, 514, 370, C.line, 3);
+  addRule(slide, 764, 370, 894, 370, C.line, 3);
+  addText(slide, "选择分类", { left: 360, top: 338, width: 120, height: 22 }, { fontSize: 16, bold: true, color: C.muted, alignment: "center" });
+  addText(slide, "进入目录", { left: 780, top: 338, width: 100, height: 22 }, { fontSize: 16, bold: true, color: C.muted, alignment: "center" });
+  addShape(slide, "roundRect", { left: 150, top: 584, width: 980, height: 40 }, C.deep, {
+    style: "solid",
+    fill: C.deep,
+    width: 0,
+  }, { borderRadius: 8 });
+  addText(slide, "页面讲法：先从左侧树讲清“为什么分层”，再进入具体目录说明风险规则的配置、发布和引用。", {
+    left: 178,
+    top: 594,
+    width: 924,
+    height: 18,
+  }, { fontSize: 16, bold: true, color: "#FFFFFF", alignment: "center" });
+  addNotes(slide, "基于当前工程 /rules 页面、RuleAssetPages.tsx 和规则管理交互文档_重构版。");
+}
+
+function coreSlide21(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "风险规则配置：让检测口径、表达式和证据同源", "03 核心功能体系", 21);
+  addText(slide, "单条风险规则要同时回答业务人员和系统两个问题：业务上为什么算风险，系统上如何稳定执行，并且命中后需要保存哪些证据。", {
+    left: 78,
+    top: 126,
+    width: 1050,
+    height: 44,
+  }, { fontSize: 22, bold: true, color: C.deep });
+
+  addShape(slide, "roundRect", { left: 78, top: 196, width: 250, height: 360 }, "#F4F8FF", {
+    style: "solid",
+    fill: "#B7D4FF",
+    width: 1,
+  }, { borderRadius: 10 });
+  addText(slide, "图谱字段面板", { left: 104, top: 218, width: 198, height: 28 }, { fontSize: 22, bold: true, color: C.blue, alignment: "center" });
+  ["供应商.credit_code", "供应商.phone", "评审人员.phone", "合同.change_rate", "中标确认.occurred_at"].forEach((item, i) => addPill(slide, item, 108, 274 + i * 48, 190, C.blue, "#FFFFFF"));
+
+  addShape(slide, "roundRect", { left: 374, top: 196, width: 474, height: 360 }, "#FFFFFF", {
+    style: "solid",
+    fill: C.line,
+    width: 1,
+  }, { borderRadius: 10 });
+  addText(slide, "规则主体", { left: 408, top: 218, width: 160, height: 28 }, { fontSize: 22, bold: true, color: C.deep });
+  addCard(slide, 408, 268, 188, 82, "检测口径", "供应商与评审人员联系方式一致", { accent: C.violet, titleSize: 18, bodySize: 14.5 });
+  addCard(slide, 624, 268, 188, 82, "表达式", "AND：字段相等 + 时间有效", { accent: C.violet, titleSize: 18, bodySize: 14.5 });
+  addCard(slide, 408, 384, 188, 82, "命中输出", "等级、说明模板、目标对象", { accent: C.red, titleSize: 18, bodySize: 14.5 });
+  addCard(slide, 624, 384, 188, 82, "试跑校验", "样本、命中、误报原因", { accent: C.amber, titleSize: 18, bodySize: 14.5 });
+
+  addShape(slide, "roundRect", { left: 894, top: 196, width: 300, height: 360 }, "#EAF7F0", {
+    style: "solid",
+    fill: "#AFE3C8",
+    width: 1,
+  }, { borderRadius: 10 });
+  addText(slide, "依据与证据", { left: 926, top: 218, width: 236, height: 28 }, { fontSize: 22, bold: true, color: C.green, alignment: "center" });
+  ["制度依据：条款、文件、有效期", "证据要求：来源记录、字段值", "例外范围：白名单、不适用", "发布校验：权限、原因、审计"].forEach((item, i) => addPill(slide, item, 930, 286 + i * 56, 228, C.green, "#FFFFFF"));
+  addRule(slide, 328, 374, 374, 374, C.line, 2);
+  addRule(slide, 848, 374, 894, 374, C.line, 2);
+  addNotes(slide, "基于当前工程 RuleAssetPages.tsx 风险规则编辑器、PRD v12.0 规则管理章节和规则管理交互文档_重构版。");
+}
+
+function coreSlide22(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "知识图谱一：图谱结构与数据源构成穿透底座", "03 核心功能体系", 22);
+  addText(slide, "知识图谱不是单张关系图，而是由图谱结构、数据源、字段映射和校验结果共同构成的语义底座。先定义结构，再让来源字段稳定落到结构上。", {
+    left: 78,
+    top: 126,
+    width: 1056,
+    height: 48,
+  }, { fontSize: 22, bold: true, color: C.deep });
+  addCard(slide, 82, 210, 320, 254, "图谱结构版本", "定义类、属性、关系和事件，区分平台基础图谱与领域扩展图谱；已发布版本只读，变更需要复制新版本。", { accent: C.blue, titleSize: 24, bodySize: 17 });
+  const structItems = [["类", "组织/人员/供应商"], ["属性", "主标识/发生时间"], ["关系", "控制/任职/交易"], ["事件", "采购立项/中标确认"]];
+  structItems.forEach((it, i) => addPill(slide, it[0] + "：" + it[1], 118, 340 + i * 42, 248, C.blue, "#FFFFFF"));
+
+  addCard(slide, 478, 210, 320, 254, "数据源与字段映射", "登记来源系统、连接方式、数据范围和同步方式；字段映射把来源字段落到目标图谱属性，并形成可校验映射版本。", { accent: C.amber, titleSize: 24, bodySize: 17 });
+  ["来源登记", "结构解析", "字段映射", "校验启用"].forEach((item, i) => addPill(slide, item, 536 + (i % 2) * 126, 372 + Math.floor(i / 2) * 54, 108, C.amber, "#FFFFFF"));
+
+  addCard(slide, 874, 210, 320, 254, "规则与证据引用", "规则配置选择图谱字段；预警生成后证据子图冻结结构版本、映射快照和来源记录。", { accent: C.green, titleSize: 24, bodySize: 17 });
+  ["规则字段", "证据子图", "版本快照", "来源追溯"].forEach((item, i) => addPill(slide, item, 932 + (i % 2) * 126, 372 + Math.floor(i / 2) * 54, 108, C.green, "#FFFFFF"));
+  addRule(slide, 402, 336, 478, 336, C.line, 2);
+  addRule(slide, 798, 336, 874, 336, C.line, 2);
+  addShape(slide, "roundRect", { left: 160, top: 568, width: 960, height: 48 }, "#EAF2FF", {
+    style: "solid",
+    fill: "#B7D4FF",
+    width: 1,
+  }, { borderRadius: 8 });
+  addText(slide, "讲解重点：图谱结构决定“能表达什么”，数据源和映射决定“事实从哪里来”，证据引用决定“风险能否回溯”。", {
+    left: 188,
+    top: 582,
+    width: 904,
+    height: 20,
+  }, { fontSize: 17, bold: true, color: C.deep, alignment: "center" });
+  addNotes(slide, "基于当前工程 /graphs/structures、/graphs/sources、dataGraphApi.js 和知识图谱交互文档_完善版。");
+}
+
+function coreSlide23(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "知识图谱二：生成、发布与证据引用保证可追溯", "03 核心功能体系", 23);
+  addText(slide, "生成和发布阶段要固化三类快照：结构版本、来源映射、构建结果。预警引用的是当时的图谱版本，后续图谱更新不能覆盖历史证据。", {
+    left: 78,
+    top: 126,
+    width: 1060,
+    height: 48,
+  }, { fontSize: 22, bold: true, color: C.deep });
+  addProcess(slide, [
+    { title: "选择结构", body: "已发布图谱结构" },
+    { title: "选择数据源", body: "启用且映射有效" },
+    { title: "依赖检查", body: "必填字段与质量门禁" },
+    { title: "构建生成", body: "节点、关系、事件实例" },
+    { title: "发布归档", body: "图谱版本只读引用" },
+    { title: "证据引用", body: "预警生成时冻结" },
+  ], 84, 188, 1112);
+
+  const nodes = [
+    ["供应商", 398, 470, C.blue], ["联系人", 548, 424, C.violet], ["评审人员", 710, 470, C.red], ["采购项目", 548, 532, C.green], ["证据记录", 710, 562, C.amber],
+  ];
+  addText(slide, "证据子图引用示意", { left: 132, top: 452, width: 210, height: 28 }, { fontSize: 22, bold: true, color: C.deep });
+  addText(slide, "只截取本次风险相关的有限事实、关系路径、来源记录和版本快照。", { left: 132, top: 488, width: 210, height: 56 }, { fontSize: 16, color: C.body, lineSpacing: 1.1 });
+  addRule(slide, 474, 508, 548, 462, C.line, 2);
+  addRule(slide, 624, 462, 710, 508, C.red, 2);
+  addRule(slide, 474, 508, 548, 570, C.line, 2);
+  addRule(slide, 624, 570, 710, 594, C.line, 2);
+  nodes.forEach((n) => {
+    addShape(slide, "ellipse", { left: n[1], top: n[2], width: 76, height: 76 }, "#FFFFFF", {
+      style: "solid",
+      fill: n[3],
+      width: 2,
+    });
+    addText(slide, n[0], { left: n[1] + 8, top: n[2] + 26, width: 60, height: 20 }, {
+      fontSize: 14.5,
+      bold: true,
+      color: C.text,
+      alignment: "center",
+    });
+  });
+  addShape(slide, "roundRect", { left: 884, top: 450, width: 270, height: 110 }, "#FFF7EA", {
+    style: "solid",
+    fill: "#FFD9A5",
+    width: 1,
+  }, { borderRadius: 8 });
+  addText(slide, "发布约束", { left: 914, top: 472, width: 210, height: 26 }, { fontSize: 22, bold: true, color: C.amber, alignment: "center" });
+  addText(slide, "版本不可原地修改；被预警、规则或事件引用后只能复制新版本。", { left: 914, top: 506, width: 210, height: 36 }, { fontSize: 15.5, color: C.deep, alignment: "center", lineSpacing: 1.1 });
+  addNotes(slide, "基于当前工程 GraphCreateWizard.tsx、OntologyLocalPages.tsx、dataGraphApi.js 和知识图谱交互文档_完善版。");
+}
+
+function coreSlide25(presentation) {
+  const slide = presentation.slides.add();
+  addHeader(slide, "系统管理：权限、组织和审计支撑生产可用", "03 核心功能体系", 25);
+  addText(slide, "系统管理不是后台附属功能，而是平台进入试点和生产的治理底座：谁能看、谁能改、谁来负责、每次高危操作如何追溯，都在这里落地。", {
+    left: 78,
+    top: 126,
+    width: 1060,
+    height: 48,
+  }, { fontSize: 22, bold: true, color: C.deep });
+  const blocks = [
+    ["用户与组织", "账号状态、所属组织、角色分配、待办转派", C.blue],
+    ["角色与权限", "菜单权限、数据范围、字段关系与高危操作", C.violet],
+    ["审计日志", "操作人、对象类型、结果、风险级别、追踪编号", C.green],
+    ["运行安全", "认证、服务端 RBAC、幂等、备份恢复", C.red],
+  ];
+  blocks.forEach((b, i) => {
+    const x = 94 + i * 286;
+    addCard(slide, x, 228, 236, 180, b[0], b[1], { accent: b[2], titleColor: b[2], titleSize: 23, bodySize: 17 });
+    addShape(slide, "ellipse", { left: x + 78, top: 452, width: 80, height: 80 }, b[2], {
+      style: "solid",
+      fill: b[2],
+      width: 0,
+    });
+    addText(slide, String(i + 1).padStart(2, "0"), { left: x + 78, top: 478, width: 80, height: 24 }, {
+      fontSize: 20,
+      bold: true,
+      color: "#FFFFFF",
+      alignment: "center",
+    });
+    if (i < blocks.length - 1) addRule(slide, x + 236, 318, x + 286, 318, C.line, 2);
+  });
+  addShape(slide, "roundRect", { left: 132, top: 584, width: 1016, height: 44 }, C.deep, {
+    style: "solid",
+    fill: C.deep,
+    width: 0,
+  }, { borderRadius: 8 });
+  addText(slide, "生产口径：权限在服务端裁剪，审计记录不可被普通业务操作覆盖，高危动作需要原因、确认和可追溯编号。", {
+    left: 162,
+    top: 596,
+    width: 956,
+    height: 20,
+  }, { fontSize: 17, bold: true, color: "#FFFFFF", alignment: "center" });
+  addNotes(slide, "基于当前工程 /system/users、/system/roles、/system/audit 页面和 PRD v12.0 上线验收、权限审计要求。");
+}
+
 function slide20(presentation) {
   const slide = presentation.slides.add();
   addHeader(slide, "五类场景共享同一套图谱与闭环底座", "04 典型应用场景", 20);
@@ -1279,7 +1850,7 @@ function slide22(presentation) {
     { title: "升级事件", body: "" },
     { title: "补充材料 / 纠正付款", body: "" },
     { title: "复核关闭", body: "" },
-  ], 214, 522, 852, { line: "#BDD4F5" });
+  ], 214, 500, 852, { line: "#BDD4F5" });
   addNotes(slide, "用户提供原始PPT第49页合同履约与付款不一致场景。");
 }
 
@@ -1496,11 +2067,66 @@ function slide28(presentation) {
   addNotes(slide, "用户提供原始PPT第53-55页关于应用价值、推进阶段和启动建议的内容。");
 }
 
+
+const TALK_TRACKS = {
+  "1": "开场先说明这套材料的定位：不是单纯展示界面，而是说明穿透式监管平台如何把多系统事实转成可解释预警、证据链和整改闭环。建议用一句话点出平台价值：让监管从“看见问题”进一步走到“解释问题、推动处置、沉淀能力”。",
+  "2": "这一页先给领导或评审一个总判断：平台价值来自穿透、解释、闭环和复用四件事。讲的时候不要逐字念卡片，而是说明它们分别解决“看不全、说不清、闭不住、难复制”的问题。",
+  "3": "目录页用来建立听众预期：先讲为什么要建，再讲平台怎么组织能力，最后讲典型应用和试点路径。这里可以提醒后续核心功能章节会按当前工程实现重新展开。",
+  "4": "这一页讲监管要求的变化：从事后抽查走向在线、智能和全程监管。重点强调平台不是替代监管人员，而是把事前识别、事中监测、事后复核的链路系统化。",
+  "5": "这一页把建设目标落到“四全贯通、五通融合”。讲法上可以先讲覆盖范围，再讲数据、层级、业务、监管和处置如何贯通，最后收束到可穿透、可解释、可运营。",
+  "6": "痛点页要讲得直接：现在的问题不是缺少页面，而是数据、链路、证据和闭环分散。最后一句要引出平台设计思路：从展示结果前移到组织事实、解释风险和驱动处置。",
+  "7": "产品定位页要强调边界。平台做的是跨系统事实映射、规则和模型识别、证据快照和整改闭环；不做源系统替代、不自动定责，也不把模型输出当最终监管结论。",
+  "8": "这一页讲总体功能架构，按监管业务、能力配置、知识图谱、来源服务和治理支撑五层解释。新版口径里核心模块是规则管理，不再把“场景与规则”作为独立模块名称。",
+  "9": "闭环页要让听众理解平台的运行方式：数据接入后形成图谱事实，规则命中形成预警，人工研判后进入整改复核，最后样本回流优化规则和模型。强调每条风险都有事实、责任和结果。",
+  "10": "技术架构页从角色入口、PC Web 应用、业务服务、监管资产和安全治理五层讲。这里要突出工程边界：配置类优先落库，风险闭环、权限、模型调用审计是试点前的加固重点。",
+  "11": "核心功能从这一页开始。先不要进入单页细节，先说明所有功能都围绕风险闭环组织：工作台解决入口，态势解决总览，风险管理解决处置，规则和图谱提供解释底座，模型和系统管理提供生产支撑。",
+  "12": "这一页讲核心业务闭环。重点不是流程节点多，而是每个节点都会固化对应版本和证据：规则命中、预警生成、证据冻结、人工研判、升级事件、整改举证、复核关闭和样本回流。",
+  "13": "监管工作台先讲设计理念。工作台不是另一个统计页，而是不同角色进入系统后的任务入口，要回答“哪些事归我、哪些事最急、下一步点哪里”。",
+  "14": "这一页结合截图讲工作台功能。可以按三块讲：顶部指标帮助判断压力，待办列表承接具体任务，右侧消息提醒状态变化，所有入口最终回到统一预警或风险事件详情。",
+  "15": "监管态势页讲全局视角。先说明它服务于管理层和监管负责人快速掌握风险规模、等级结构、领域分布和趋势，再说明图表和重点事项可以下钻到具体风险对象。",
+  "16": "风险管理总览页要先划清边界：统一预警负责线索发现和人工研判，风险事件负责责任落实、整改举证和复核关闭。两者通过“升级”动作连接成一条闭环。",
+  "17": "统一预警页结合列表讲功能。先讲筛选和查询，再讲风险等级、主对象、命中规则和证据入口，最后讲研判动作：解除、转派或升级为风险事件，所有高危动作都要留痕。",
+  "18": "风险事件页讲责任闭环。重点说明事件承接来源预警的初始证据快照，后续整改材料只做追加；监管侧通过复核决定通过、退回整改或关闭。",
+  "19": "规则管理先讲理念：制度条款不能直接变成系统规则，要经过业务口径、规则表达、试跑校验和发布复用。这里要明确新版口径：规则管理是能力中心模块。",
+  "20": "这一页讲规则管理的组织方式。规则库负责分类，规则场景承载监管主题和业务上下文，规则目录定位具体风险主题，最终进入风险规则配置。",
+  "21": "风险规则配置页讲一条规则如何可运行。左侧来自图谱字段，中间配置检测口径和表达式，右侧绑定制度依据、证据要求和例外范围；这样命中后才能解释和追溯。",
+  "22": "知识图谱第一页面向配置底座。先讲图谱结构定义“能表达什么”，再讲数据源和字段映射决定“事实从哪里来”，最后讲规则和证据如何引用这些结构。",
+  "23": "知识图谱第二页讲生成与发布。重点说明生成前要检查结构、数据源和映射，发布后形成只读图谱版本；预警引用的是当时版本，后续更新不能覆盖历史证据。",
+  "24": "模型管理页讲边界：本期重点是统一模型目录、接入、测试、场景绑定、启停和调用审计。模型可以辅助研判，但不自动形成监管结论，也不替代人工责任判断。",
+  "25": "系统管理页讲生产可用的治理底座。用户组织、角色权限、审计日志和运行安全共同回答“谁能看、谁能改、谁负责、怎么追溯”。",
+  "26": "典型应用场景总览页说明五类场景共享同一套图谱和闭环底座。讲的时候不要展开所有细节，只说明采购、合同、财务、投资、人事都能复用事实、证据和处置机制。",
+  "27": "供应商异常关联场景重点讲“先解释关系，再判断风险”。通过股权、任职、共址、联系人、历史项目等关系路径解释供应商之间或供应商与人员之间的异常关联。",
+  "28": "合同履约与付款不一致场景重点讲证据链。合同、验收、发票和付款不是孤立记录，平台把它们串起来识别无验收付款、超约定付款或主体不一致等问题。",
+  "29": "投资决策合规场景重点讲授权边界和过程材料。平台通过立项、论证、审批和执行链路校验越权审批、材料缺失、记录不一致和非主业投资等风险。",
+  "30": "这一页回到复用逻辑。不同场景看似业务不同，但运行链路一致：数据接入、图谱关联、规则命中、预警研判、整改复核、样本回流。",
+  "31": "实施路径页讲试点如何推进。先做基础加固，再和业务方共创场景，随后用真实或脱敏数据试运行，最后沉淀规则、图谱和运营机制复制到更多单位。",
+  "32": "试点启动边界页用于把项目落到可执行范围。要提前锁定试点单位、重点场景、数据来源、规则证据、技术边界和启动建议，避免一开始范围过大。",
+  "33": "应用价值页不要只讲技术先进，而要讲监管模式变化：从报表抽查到在线穿透，从分散系统到云数智一体，从单点检查到四全贯通，从事后处置到持续优化。",
+  "34": "收束页给出下一步行动建议：先用一个试点单位和一到三个高价值场景跑通闭环，再固化本体、映射、规则、证据要求和运营复盘机制，形成可复制方案。"
+};
+
+function prependTalkTrackNotes(presentation) {
+  for (let i = 0; i < presentation.slides.items.length; i += 1) {
+    const slide = presentation.slides.getItem(i);
+    const slideNumber = i + 1;
+    const track = TALK_TRACKS[slideNumber];
+    if (!track) continue;
+    const existing = String(slide.speakerNotes.text || "").trim();
+    if (existing.includes("[讲解话术]")) continue;
+    const nextNotes = existing
+      ? "[讲解话术]\n" + track + "\n\n" + existing
+      : "[讲解话术]\n" + track;
+    slide.speakerNotes.textFrame.setText(nextNotes);
+    slide.speakerNotes.setVisible(true);
+  }
+}
+
 async function main() {
   await fs.mkdir(EXPORT_DIR, { recursive: true });
   await fs.mkdir(RENDER_DIR, { recursive: true });
   await fs.mkdir(LAYOUT_DIR, { recursive: true });
 
+  headerPageNo = 2;
   const presentation = Presentation.create({ slideSize: { width: W, height: H } });
 
   titleSlide(presentation);
@@ -1513,15 +2139,21 @@ async function main() {
   slide8(presentation);
   slide9(presentation);
   slide10(presentation);
-  slide11(presentation);
-  await slide12(presentation);
-  await slide13(presentation);
-  slide14(presentation);
-  await slide15(presentation);
-  slide16(presentation);
-  await slide17(presentation);
+  coreSlide11(presentation);
+  coreSlide12(presentation);
+  coreSlide13(presentation);
+  await coreSlide14(presentation);
+  await coreSlide15(presentation);
+  coreSlide16(presentation);
+  await coreSlide17(presentation);
+  await coreSlide18(presentation);
+  coreSlide19(presentation);
+  coreSlide20(presentation);
+  coreSlide21(presentation);
+  coreSlide22(presentation);
+  coreSlide23(presentation);
   slide18(presentation);
-  slide19(presentation);
+  coreSlide25(presentation);
   slide20(presentation);
   slide21(presentation);
   slide22(presentation);
@@ -1531,6 +2163,8 @@ async function main() {
   slide26(presentation);
   slide27(presentation);
   slide28(presentation);
+
+  prependTalkTrackNotes(presentation);
 
   for (const [index, slide] of presentation.slides.items.entries()) {
     const stem = `slide-${String(index + 1).padStart(2, "0")}`;
