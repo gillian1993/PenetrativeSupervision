@@ -13,6 +13,7 @@ import { useOntologyStore } from './ontologyMysqlStore'
 import { Button, EmptyState, Icon, Modal, type IconName } from './ui'
 import cloudLogo from './assets/logo-cloud.svg'
 import { resolveRolePermissionCodes, type PermissionCode } from './permissions'
+import { createReturnState, locationPath } from './navigation'
 
 interface NavChild { label: string; path: string; permission: PermissionCode }
 interface NavItem { id: string; label: string; icon: IconName; permission?: PermissionCode; path?: string; children?: NavChild[] }
@@ -273,6 +274,12 @@ function AppEnhanced() {
     setAgentMessages((items) => [...items, { role: 'user', text: question }, { role: 'assistant', text: answerAgentQuestion(question) }])
     setAgentInput('')
   }
+  const openSearchResult = (path: string) => {
+    const isRiskDetail = /^\/risk\/(?:warnings|events)\/[^/]+$/.test(path)
+    const returnState = createReturnState(locationPath(location), `返回${agentContext.page}`)
+    navigate(path, isRiskDetail ? { state: returnState } : undefined)
+    setSearch('')
+  }
   const openAgent = () => {
     if (agentMessages.length === 0) setAgentMessages([{ role: 'assistant', text: `你好，我是智能助理。当前位于“${agentContext.page}”，你可以询问页面功能、下一步操作或当前数据。` }])
     setAgentOpen(true)
@@ -340,7 +347,7 @@ function AppEnhanced() {
       <button className="brand" onClick={() => navigate(firstAccessiblePath)} aria-label="返回采购管理应用"><img className="brand-logo" src={cloudLogo} alt="中国电子云"/><em/><span>采购管理应用</span></button>
       <nav className="platform-nav" aria-label="平台切换">{platformTabs.map((tab) => <button key={tab} className={tab === currentPlatformTab ? 'active' : ''} onClick={() => tab === currentPlatformTab ? navigate(firstAccessiblePath) : setToast(`${tab}暂未进入，当前选择采购管理应用`)}>{tab}</button>)}</nav>
       <div className="top-tools">
-        <div className="global-search-wrap"><label className="global-search"><Icon name="search" size={17}/><input value={search} onFocus={() => setSearchOpen(true)} onChange={(event) => { setSearch(event.target.value); setSearchOpen(true) }} onKeyDown={(event) => { if (event.key === 'Enter' && searchResults[0]) navigate(searchResults[0].path); if (event.key === 'Escape') setSearchOpen(false) }} placeholder="搜索采购任务、预警、风险事件、规则、用户"/></label>{searchOpen && search && <div className="global-search-results">{searchResults.length ? <>{searchResults.map((item) => <button key={`${item.type}-${item.id}`} onClick={() => { navigate(item.path); setSearch('') }}><span><b>{item.type}</b><strong>{item.title}</strong></span><small>{item.id} · {item.meta}</small></button>)}<div className="search-result-footer">共显示 {searchResults.length} 条最相关结果</div></> : <div className="search-empty"><Icon name="search"/><span>未找到“{search}”相关内容</span></div>}</div>}</div>
+        <div className="global-search-wrap"><label className="global-search"><Icon name="search" size={17}/><input value={search} onFocus={() => setSearchOpen(true)} onChange={(event) => { setSearch(event.target.value); setSearchOpen(true) }} onKeyDown={(event) => { if (event.key === 'Enter' && searchResults[0]) openSearchResult(searchResults[0].path); if (event.key === 'Escape') setSearchOpen(false) }} placeholder="搜索采购任务、预警、风险事件、规则、用户"/></label>{searchOpen && search && <div className="global-search-results">{searchResults.length ? <>{searchResults.map((item) => <button key={`${item.type}-${item.id}`} onClick={() => openSearchResult(item.path)}><span><b>{item.type}</b><strong>{item.title}</strong></span><small>{item.id} · {item.meta}</small></button>)}<div className="search-result-footer">共显示 {searchResults.length} 条最相关结果</div></> : <div className="search-empty"><Icon name="search"/><span>未找到“{search}”相关内容</span></div>}</div>}</div>
         <button className="top-icon" onClick={() => navigate(pathAllowedByPermissions('/workbench', effectivePermissions) ? '/workbench' : firstAccessiblePath)} aria-label="查看消息"><Icon name="bell"/>{unread > 0 && <b>{unread}</b>}</button>
         <div className="role-switcher" onClick={(event) => event.stopPropagation()}><button className="user-entry" onClick={() => setRoleOpen((value) => !value)}><span>尹</span><div><strong>尹晨阳</strong><small>{currentRole}</small></div><Icon name="chevron" size={14}/></button>{roleOpen && <div className="context-menu role-menu"><header><strong>切换当前角色</strong><span>菜单和高危按钮将按权限刷新</span></header>{roles.filter((item) => item.status === '启用').map((item) => <button key={item.id} className={currentRole === item.name ? 'active' : ''} onClick={() => chooseRole(item.name)}><div><strong>{item.name}</strong><small>{item.scope}</small></div>{currentRole === item.name && <Icon name="check" size={15}/>}</button>)}</div>}</div>
       </div>

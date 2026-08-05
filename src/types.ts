@@ -11,6 +11,7 @@ export interface Warning {
   level: RiskLevel
   scene: string
   sceneVersion: string
+  ruleLibrary?: string
   target: string
   targetEvent: string
   organization: string
@@ -29,6 +30,20 @@ export interface Warning {
 
 export type RiskEventStatus = '待整改' | '待复核' | '已关闭'
 
+export type RiskEventDispositionType = '预警生成' | '升级风险事件' | '转派' | '提交整改' | '复核'
+
+export interface RiskEventDispositionRecord {
+  id: string
+  type: RiskEventDispositionType
+  operator: string
+  time: string
+  summary: string
+  status?: string
+  fromOwner?: string
+  toOwner?: string
+  materials?: string[]
+}
+
 export interface RiskEvent {
   id: string
   warningId: string
@@ -43,6 +58,7 @@ export interface RiskEvent {
   rectificationResult?: string
   rectificationMeasures?: string
   rectificationMaterials?: string[]
+  dispositionRecords?: RiskEventDispositionRecord[]
   status: RiskEventStatus
   dueAt: string
   overdue: boolean

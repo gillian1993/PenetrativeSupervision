@@ -7,3 +7,5 @@ vite.config.d.ts
 .DS_Store
 .env.local
 outputs/
+.codex_ppt_build/
+.codex_tmp/

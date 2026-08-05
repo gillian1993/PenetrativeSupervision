@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useAppStore } from '../store'
 import { demoDataApi, type DemoEvidence, type DemoWarningDetail } from '../demoDataApi'
 import { inferSituationDomain, SITUATION_DOMAINS } from '../situationDomains'
-import type { RiskEvent, Warning } from '../types'
+import type { RiskEvent, RiskEventDispositionRecord, Warning } from '../types'
+import { createReturnState, locationPath, resolveReturnTarget } from '../navigation'
 import { Button, Drawer, EmptyState, EvidenceGraph, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, RiskTag, StatusTag, Tabs } from '../ui'
 
 type WarningAction = 'transfer' | 'release' | 'escalate' | null
 type EventAction = 'transfer' | 'submit' | 'review' | null
-const listPageSize = 4
+const pageSizeOptions = [5, 10, 15, 30, 100]
+
+function ListPagination({ total, page, totalPages, pageSize, onPageChange, onPageSizeChange }: { total: number; page: number; totalPages: number; pageSize: number; onPageChange: (value: number) => void; onPageSizeChange: (value: number) => void }) {
+  return <div className="pagination"><span>共 {total} 条</span><label className="page-size-selector"><span>每页</span><select aria-label="每页显示条数" value={pageSize} onChange={(event) => onPageSizeChange(Number(event.target.value))}>{pageSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select><span>条</span></label><button disabled={page === 1} onClick={() => onPageChange(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => onPageChange(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => onPageChange(page + 1)}>›</button></div>
+}
 const riskLevelFilterOptions = ['全部', '低', '中', '高', '重大']
 const normalizeRiskLevelFilter = (value: string | null) => value === 'high' ? '高' : value && riskLevelFilterOptions.includes(value) ? value : '全部'
 
@@ -20,6 +25,7 @@ const actionMeta: Record<Exclude<WarningAction, null>, { title: string; descript
 
 export function WarningListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const warnings = useAppStore((state) => state.warnings)
   const scenes = useAppStore((state) => state.scenes)
@@ -32,34 +38,30 @@ export function WarningListPage() {
   const escalateWarning = useAppStore((state) => state.escalateWarning)
   const setToast = useAppStore((state) => state.setToast)
   const initialStatus = searchParams.get('status') === 'open' ? '待研判' : searchParams.get('status') || '待研判'
-  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, stage: searchParams.get('stage') || '全部', level: normalizeRiskLevelFilter(searchParams.get('level')), scene: '全部', org: searchParams.get('org') || '全部', domain: searchParams.get('domain') || '全部' })
+  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, stage: searchParams.get('stage') || '全部', level: normalizeRiskLevelFilter(searchParams.get('level')), domain: searchParams.get('domain') || '全部' })
   const [filters, setFilters] = useState(draft)
-  const [sort, setSort] = useState<'level' | 'time'>('level')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [loading, setLoading] = useState(false)
   const [action, setAction] = useState<WarningAction>(null)
   const [target, setTarget] = useState<Warning | null>(null)
   const [form, setForm] = useState({ owner: '', dueAt: '2026-07-24 18:00', requirement: '确认风险事实、明确影响范围并提交整改证明材料。', reason: '' })
-  const [columnOpen, setColumnOpen] = useState(false)
-  const [columns, setColumns] = useState(['阶段', '场景', '对象', '等级', '路径', '状态', '时间'])
   const eventByWarning = useMemo(() => new Map(riskEvents.map((item) => [item.warningId, item.id])), [riskEvents])
   const sceneDomains = useMemo(() => Object.fromEntries(scenes.map((item) => [item.name, item.domain])), [scenes])
+  const warningListReturnState = createReturnState(locationPath(location), '返回预警列表')
 
   const rows = useMemo(() => {
-    const order = { 重大: 4, 高: 3, 中: 2, 低: 1 }
     return warnings.filter((item) => {
       if (filters.keyword && !`${item.id}${item.title}${item.target}`.toLowerCase().includes(filters.keyword.toLowerCase())) return false
       if (filters.status !== '全部' && item.status !== filters.status) return false
       if (filters.stage !== '全部' && item.stage !== filters.stage) return false
       if (filters.level !== '全部' && filters.level !== item.level) return false
-      if (filters.scene !== '全部' && item.scene !== filters.scene) return false
-      if (filters.org !== '全部' && item.organization !== filters.org) return false
       if (filters.domain !== '全部' && inferSituationDomain(sceneDomains[item.scene], `${item.scene}${item.title}${item.target}${item.path}`) !== filters.domain) return false
       return true
-    }).sort((a, b) => sort === 'level' ? order[b.level] - order[a.level] : b.generatedAt.localeCompare(a.generatedAt))
-  }, [warnings, filters, sort, sceneDomains])
-  const totalPages = Math.max(1, Math.ceil(rows.length / listPageSize))
-  const pageRows = rows.slice((page - 1) * listPageSize, page * listPageSize)
+    })
+  }, [warnings, filters, sceneDomains])
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const pageRows = rows.slice((page - 1) * pageSize, page * pageSize)
 
   const openAction = (item: Warning, next: Exclude<WarningAction, null>) => {
     setTarget(item)
@@ -96,23 +98,20 @@ export function WarningListPage() {
   return <>
     <PageHeader eyebrow="风险监管 / 统一预警" title="统一预警" description="统一查询事前、事中和事后预警，完成查看、转派、解除和风险升级。" actions={<><span className="updated-time">数据：{warningSource === 'database' ? 'MySQL证据 · 工作流可操作' : '本地演示数据'} · 当前角色：{currentRole}</span><Button icon="refresh" onClick={() => void query()}>刷新</Button></>}/>
     <div className="page-query page-query-warning">
-      <FilterGrid onReset={() => { const value = { keyword: '', status: '待研判', stage: '全部', level: '全部', scene: '全部', org: '全部', domain: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
+      <FilterGrid onReset={() => { const value = { keyword: '', status: '待研判', stage: '全部', level: '全部', domain: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
         <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && void query()} placeholder="预警编号、标题或目标对象"/></Field>
         <Field label="预警阶段"><select value={draft.stage} onChange={(event) => setDraft({ ...draft, stage: event.target.value })}><option>全部</option><option>事前</option><option>事中</option><option>事后</option></select></Field>
         <Field label="处理状态"><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option>待研判</option><option value="全部">全部预警</option><option>已解除</option><option>已升级</option></select></Field>
         <Field label="风险等级"><select value={draft.level} onChange={(event) => setDraft({ ...draft, level: event.target.value })}>{riskLevelFilterOptions.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="风险场景"><select value={draft.scene} onChange={(event) => setDraft({ ...draft, scene: event.target.value })}><option>全部</option><option>供应商异常关联</option><option>合同签订风险</option><option>付款执行风险</option><option>供应商资格风险</option></select></Field>
-        <Field label="组织范围"><select value={draft.org} onChange={(event) => setDraft({ ...draft, org: event.target.value })}><option>全部</option><option>电子云采购中心</option><option>集团财务共享中心</option><option>集团采购中心</option></select></Field>
         <Field label="监管领域"><select value={draft.domain} onChange={(event) => setDraft({ ...draft, domain: event.target.value })}><option>全部</option>{SITUATION_DOMAINS.map((item) => <option key={item.key}>{item.key}</option>)}</select></Field>
       </FilterGrid>
     </div>
-    <Panel title="预警列表" subtitle={`共 ${rows.length} 条，当前第 ${page}/${totalPages} 页`} actions={<><div className="segmented"><button className={sort === 'level' ? 'active' : ''} onClick={() => setSort('level')}>等级排序</button><button className={sort === 'time' ? 'active' : ''} onClick={() => setSort('time')}>时间排序</button></div><button className="column-setting" onClick={() => setColumnOpen(true)}><Icon name="system" size={15}/>列设置</button></>}>
+    <Panel title="预警列表">
       <div className="active-filters"><span>已生效筛选</span>{Object.entries(filters).filter(([, value]) => value && value !== '全部').map(([key, value]) => <b key={key}>{value}</b>)}</div>
-      {loading ? <div className="table-loading"><i/><span>正在查询预警数据…</span></div> : pageRows.length === 0 ? <div className="empty-state"><span><Icon name="search"/></span><strong>没有符合条件的预警</strong><p>请调整筛选条件后重新查询。</p></div> : <div className="table-container"><table className="warning-table"><thead><tr><th>预警编号 / 标题</th>{columns.includes('阶段') && <th>阶段</th>}{columns.includes('场景') && <th>风险场景</th>}{columns.includes('对象') && <th>目标对象 / 事件</th>}{columns.includes('等级') && <th>等级</th>}{columns.includes('路径') && <th>核心路径</th>}{columns.includes('状态') && <th>状态</th>}{columns.includes('时间') && <th>生成时间</th>}<th>操作</th></tr></thead><tbody>{pageRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/risk/warnings/${item.id}`)}><strong>{item.title}</strong><span>{item.id}</span></button></td>{columns.includes('阶段') && <td><StatusTag>{item.stage}</StatusTag></td>}{columns.includes('场景') && <td>{item.scene}<small className="cell-sub">{item.sceneVersion}</small></td>}{columns.includes('对象') && <td><strong>{item.evidenceStatus === '权限受限' ? '受限对象' : item.target}</strong><small className="cell-sub">{item.targetEvent}</small></td>}{columns.includes('等级') && <td><RiskTag level={item.level}/></td>}{columns.includes('路径') && <td><span className="path-summary">{item.evidenceStatus === '权限受限' ? '受限关系路径' : item.path}</span></td>}{columns.includes('状态') && <td><StatusTag>{item.status}</StatusTag></td>}{columns.includes('时间') && <td>{item.generatedAt.slice(5)}<small className="cell-sub">{item.leadTime}</small></td>}<td><div className="row-actions vertical"><button onClick={() => navigate(`/risk/warnings/${item.id}`)}>查看</button>{item.status === '已升级' && eventByWarning.get(item.id) && <button onClick={() => navigate(`/risk/events/${eventByWarning.get(item.id)}`)}>查看风险事件</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'transfer')}>转派</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'release')}>解除</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'escalate')}>升级</button>}</div></td></tr>)}</tbody></table></div>}
-      <div className="pagination"><span>共 {rows.length} 条</span><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => setPage(page + 1)}>›</button></div>
+      {loading ? <div className="table-loading"><i/><span>正在查询预警数据…</span></div> : pageRows.length === 0 ? <div className="empty-state"><span><Icon name="search"/></span><strong>没有符合条件的预警</strong><p>请调整筛选条件后重新查询。</p></div> : <div className="table-container"><table className="warning-table"><thead><tr><th>标题</th><th>预警编号</th><th>阶段</th><th>规则库</th><th>等级</th><th>监管领域</th><th>当前处理人</th><th>状态</th><th>生成时间</th><th>操作</th></tr></thead><tbody>{pageRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/risk/warnings/${item.id}`, { state: warningListReturnState })}><strong>{item.title}</strong></button></td><td><button className="table-link" onClick={() => navigate(`/risk/warnings/${item.id}`, { state: warningListReturnState })}>{item.id}</button></td><td><StatusTag>{item.stage}</StatusTag></td><td>{item.ruleLibrary || '穿透式监管规则库'}</td><td><RiskTag level={item.level}/></td><td>{inferSituationDomain(sceneDomains[item.scene], `${item.scene}${item.title}${item.target}${item.path}`)}</td><td>{item.owner || '待分配'}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.generatedAt.slice(5)}<small className="cell-sub">{item.leadTime}</small></td><td><div className="row-actions vertical"><button onClick={() => navigate(`/risk/warnings/${item.id}`, { state: warningListReturnState })}>查看</button>{item.status === '已升级' && eventByWarning.get(item.id) && <button onClick={() => navigate(`/risk/events/${eventByWarning.get(item.id)}`, { state: warningListReturnState })}>查看风险事件</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'transfer')}>转派</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'release')}>解除</button>}{item.status === '待研判' && <button onClick={() => openAction(item, 'escalate')}>升级</button>}</div></td></tr>)}</tbody></table></div>}
+      <ListPagination total={rows.length} page={page} totalPages={totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1) }}/>
     </Panel>
     <Modal open={!!action} title={action ? actionMeta[action].title : ''} description={action ? actionMeta[action].description : ''} confirmText={action ? actionMeta[action].confirm : ''} danger={action ? actionMeta[action].danger : false} onClose={() => setAction(null)} onConfirm={executeAction}>{action && target && <WarningActionForm action={action} warning={target} form={form} onChange={setForm}/>}</Modal>
-    <Drawer open={columnOpen} title="预警列表列设置" eyebrow="显示与排序" onClose={() => setColumnOpen(false)} footer={<><Button onClick={() => setColumns(['阶段','场景','对象','等级','路径','状态','时间'])}>恢复默认</Button><Button variant="primary" onClick={() => { setColumnOpen(false); setToast('列设置已保存') }}>应用设置</Button></>}><div className="check-grid vertical">{['阶段','场景','对象','等级','路径','状态','时间'].map((column) => <label key={column}><input type="checkbox" checked={columns.includes(column)} onChange={() => setColumns((value) => value.includes(column) ? value.filter((item) => item !== column) : [...value, column])}/><span>{column}</span></label>)}</div></Drawer>
   </>
 }
 
@@ -123,6 +122,7 @@ function WarningActionForm({ action, warning, form, onChange }: { action: Exclud
 export function WarningDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const storedWarning = useAppStore((state) => state.warnings.find((item) => item.id === id))
   const linkedRiskEvent = useAppStore((state) => state.riskEvents.find((item) => item.warningId === id))
   const currentRole = useAppStore((state) => state.currentRole)
@@ -155,6 +155,11 @@ export function WarningDetailPage() {
     : storedWarning
   const databaseBackedWarning = Boolean(storedWarning && 'databaseBacked' in storedWarning)
   const databaseSourced = databaseBackedWarning || Boolean(databaseDetail)
+  const currentPath = locationPath(location)
+  const returnTarget = resolveReturnTarget(location.state, '/risk/warnings', '返回预警列表', currentPath)
+  const returnState = createReturnState(returnTarget.returnTo, returnTarget.returnLabel)
+  const backToSource = () => navigate(returnTarget.returnTo)
+  const openLinkedRiskEvent = (eventId: string) => navigate(`/risk/events/${eventId}`, { state: returnState })
   if (!warning && detailLoading) return <div className="loading-state"><i/><span>正在从MySQL加载预警详情…</span></div>
   if (!warning) return <EmptyState title="预警不存在或无权访问" description="请返回预警列表重新选择可访问对象。"/>
   const openAction = (next: Exclude<WarningAction, null>) => {
@@ -171,7 +176,7 @@ export function WarningDetailPage() {
     setToast(result.message)
     if (result.ok) {
       setAction(null)
-      if (action === 'escalate' && result.objectId) navigate(`/risk/events/${result.objectId}`)
+      if (action === 'escalate' && result.objectId) openLinkedRiskEvent(result.objectId)
     }
   }
   const selectedDatabaseNode = databaseDetail?.graph.nodes.find((item) => item.id === selectedNode)
@@ -186,15 +191,15 @@ export function WarningDetailPage() {
   const detailTabs = [{ key: 'graph', label: '证据子图', count: databaseGraphProjection?.nodes.length ?? (databaseBackedWarning ? 0 : path === 'path1' ? 6 : 5) }, { key: 'timeline', label: '业务事件时间轴', count: databaseDetail?.graph.events.length ?? (databaseBackedWarning ? 0 : 5) }, { key: 'policies', label: '制度依据', count: 2 }, { key: 'evidence', label: '实际证据', count: databaseDetail?.evidence.length ?? (databaseBackedWarning ? 0 : 8) }]
   if (databaseDetail?.tradeCycle.length) detailTabs.push({ key: 'trade', label: '循环贸易', count: databaseDetail.tradeCycle.length })
   return <div className={`warning-detail-page ${fullScreen ? 'evidence-fullscreen' : ''}`}>
-    <div className="detail-topbar"><div><button className="back-button" onClick={() => navigate('/risk/warnings')}>‹ 返回预警列表</button><p>{warning.id}</p><h1>{warning.title}</h1></div><div className="detail-top-actions"><Button icon="refresh" onClick={() => setToast('已刷新预警状态、任务和权限，历史快照保持不变')}>刷新</Button></div></div>
+    <div className="detail-topbar"><div><button className="back-button" onClick={backToSource}>‹ {returnTarget.returnLabel}</button><p>{warning.id}</p><h1>{warning.title}</h1></div><div className="detail-top-actions"><Button icon="refresh" onClick={() => setToast('已刷新预警状态、任务和权限，历史快照保持不变')}>刷新</Button></div></div>
     <section className="summary-strip warning-summary"><div><span>预警阶段</span><StatusTag>{warning.stage}</StatusTag></div><div><span>处理状态</span><StatusTag>{warning.status}</StatusTag></div><div><span>风险等级</span><RiskTag level={warning.level}/></div><div><span>生成时间</span><strong>{warning.generatedAt}</strong></div><div><span>版本</span><strong>{databaseSourced ? `图谱结构 ONT-PROC-DEMO · 图谱 ${databaseGraphVersion || '加载中'} · 场景 ${warning.sceneVersion}` : `图谱结构 v2.2 · 图谱 0717.2 · 规则 ${warning.sceneVersion}`}</strong></div></section>
     {databaseSourced && <div className="alert-box evidence-alert"><Icon name="graph"/><span>节点、关系、事件和贸易明细来自MySQL；预警状态、处理人和工作台待办由演示工作流统一维护，可正常操作。</span><StatusTag>工作流可操作</StatusTag></div>}
-    {warning.status === '已升级' && linkedRiskEvent && <div className="alert-box evidence-alert"><Icon name="shield"/><span>该预警已转入风险事件 {linkedRiskEvent.id}，后续处置请在风险事件中完成。</span><Button variant="primary" onClick={() => navigate(`/risk/events/${linkedRiskEvent.id}`)}>查看风险事件</Button></div>}
+    {warning.status === '已升级' && linkedRiskEvent && <div className="alert-box evidence-alert"><Icon name="shield"/><span>该预警已转入风险事件 {linkedRiskEvent.id}，后续处置请在风险事件中完成。</span><Button variant="primary" onClick={() => openLinkedRiskEvent(linkedRiskEvent.id)}>查看风险事件</Button></div>}
     {warning.evidenceStatus === '快照异常' && <div className="alert-box danger evidence-alert"><Icon name="warning"/><span>初始证据快照生成失败，当前仅允许查看预警信息；证据补偿不作为预警处置动作展示。</span></div>}
 <section className="evidence-workspace"><aside className="risk-explain"><div className="explain-block"><p className="section-kicker">风险说明</p><h2>{warning.title}</h2><p>{primaryRun?.actualValueSummary || warning.path}</p></div><div className="explain-block"><p className="section-kicker">命中规则{databaseDetail?.runs.length ? ` · ${databaseDetail.runs.length}条` : ''}</p>{databaseDetail?.runs.length ? <div className="rule-hit-list">{databaseDetail.runs.map((run) => <div className="rule-hit" key={run.id}><span>{run.ruleCode}</span><strong>{run.ruleName}</strong><p>{run.actualValueSummary || `命中${warning.scene}，已固化实际证据。`}</p></div>)}</div> : <div className="rule-hit"><span>{primaryRun?.ruleCode || '演示规则'}</span><strong>{primaryRun?.ruleName || warning.scene}</strong><p>{primaryRun?.actualValueSummary || `命中${warning.scene}，已固化实际证据。`}</p></div>}</div><div className="explain-block"><p className="section-kicker">核心路径</p><button className="path-card active" onClick={() => setEvidenceFilter('全部')}><b>数据库关系路径</b><span>{relationSummary}</span><small>{databaseDetail && databaseGraphProjection ? `显示${databaseGraphProjection.relations.length}/${databaseDetail.graph.relations.length}条关系 · ${databaseGraphProjection.nodes.length}/${databaseDetail.graph.nodes.length}个节点` : '2跳 · 完整度100%'}</small></button>{!databaseDetail && <button className={path === 'path2' ? 'path-card active' : 'path-card'} onClick={() => { setPath('path2'); setEvidenceFilter('路径2') }}><b>路径 2 · 辅助证据</b><span>供应商 → 工商记录 → 关联人员</span><small>2跳 · 完整度86%</small></button>}</div><div className="explain-block"><p className="section-kicker">制度依据</p><p className="policy-line">《采购管理制度（演示）》v1.0<br/><b>正式演示前确认对应制度条款。</b></p></div><div className="explain-block"><p className="section-kicker">处理记录</p><ul className="plain-list"><li>生成预警：{warning.generatedAt}</li><li>当前处理人：{warning.owner || '待分配'}</li><li>数据来源：{databaseDetail ? '线上MySQL' : '本地演示数据'}</li></ul></div></aside>
 <main className="evidence-main"><div className="evidence-toolbar"><Tabs value={tab} onChange={(value) => { setTab(value); if (value !== 'graph') setFullScreen(false) }} items={detailTabs}/>{tab === 'graph' && <div className="graph-tools"><div className="graph-view-switch" aria-label="证据图展示方式"><button className={graphViewMode === '风险链视图' ? 'active' : ''} onClick={() => { setGraphViewMode('风险链视图'); setRelationFilter('核心证据链'); setShowGraphEvents(false) }}>风险链</button><button className={graphViewMode === '完整图谱视图' ? 'active' : ''} onClick={() => { setGraphViewMode('完整图谱视图'); setRelationFilter('全部关系') }}>完整图谱结构</button></div>{graphViewMode === '完整图谱视图' && <select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value as DatabaseGraphRelationFilter)}><option>核心证据链</option><option>仅命中关系</option><option>隐藏辅助关系</option><option>全部关系</option></select>}{databaseDetail && <button className={showGraphEvents ? 'active' : ''} onClick={() => { if (showGraphEvents && selectedDatabaseEvent) setSelectedNode(''); setShowGraphEvents(!showGraphEvents) }}><Icon name="clock" size={14}/>{showGraphEvents ? '隐藏事件实例' : '显示事件实例'}</button>}<button onClick={() => setGraphScale(Math.min(1.5, graphScale + .1))}>＋</button><button onClick={() => setGraphScale(Math.max(.7, graphScale - .1))}>－</button><button onClick={() => setGraphScale(1)}><Icon name="refresh" size={14}/>重置</button><button onClick={() => setFullScreen(!fullScreen)}><Icon name="eye" size={14}/>{fullScreen ? '退出全屏' : '全屏'}</button></div>}</div>
 {tab === 'graph' && (databaseBackedWarning && detailLoading && !databaseDetail ? <DatabaseGraphLoading/> : <div style={{ transform: `scale(${graphScale})`, transformOrigin: 'center top', transition: '.18s' }}>{databaseDetail ? <DatabaseGraphView detail={databaseDetail} filter={relationFilter} viewMode={graphViewMode} showEvents={showGraphEvents} selected={selectedNode} onSelect={setSelectedNode}/> : <EvidenceGraph selected={selectedNode} onSelect={setSelectedNode}/>}</div>)}{tab === 'timeline' && (databaseDetail ? <DatabaseTimeline detail={databaseDetail} onSelect={(key) => { setSelectedNode(key); setShowGraphEvents(true); setTab('graph') }}/> : <Timeline path={path} onSelect={(key) => { setSelectedNode(key); setTab('graph') }}/>) } {tab === 'policies' && <PolicySnapshot/>} {tab === 'evidence' && <EvidenceTable filter={evidenceFilter} onFilter={setEvidenceFilter} onSelect={setSelectedNode} rows={databaseDetail?.evidence}/>} {tab === 'trade' && databaseDetail && <TradeCyclePanel rows={databaseDetail.tradeCycle}/>} </main></section>
-<footer className="fixed-action-bar"><div><span>当前处理人</span><strong>{warning.owner || '待分配'}</strong><small>{databaseSourced ? 'MySQL证据 · 工作流可操作' : `当前角色：${currentRole}`}</small></div><div className="action-group"><Button onClick={() => navigate('/risk/warnings')}>返回</Button>{warning.status === '待研判' && <Button icon="user" onClick={() => openAction('transfer')}>转派</Button>}{canRelease && <Button variant="danger" onClick={() => openAction('release')}>解除预警</Button>}{warning.status === '待研判' && <Button variant="primary" icon="shield" onClick={() => openAction('escalate')}>升级风险事件</Button>}{warning.status === '已升级' && linkedRiskEvent && <Button variant="primary" onClick={() => navigate(`/risk/events/${linkedRiskEvent.id}`)}>查看风险事件</Button>}</div></footer>
+<footer className="fixed-action-bar"><div><span>当前处理人</span><strong>{warning.owner || '待分配'}</strong><small>{databaseSourced ? 'MySQL证据 · 工作流可操作' : `当前角色：${currentRole}`}</small></div><div className="action-group"><Button onClick={backToSource}>{returnTarget.returnLabel}</Button>{warning.status === '待研判' && <Button icon="user" onClick={() => openAction('transfer')}>转派</Button>}{canRelease && <Button variant="danger" onClick={() => openAction('release')}>解除预警</Button>}{warning.status === '待研判' && <Button variant="primary" icon="shield" onClick={() => openAction('escalate')}>升级风险事件</Button>}{warning.status === '已升级' && linkedRiskEvent && <Button variant="primary" onClick={() => openLinkedRiskEvent(linkedRiskEvent.id)}>查看风险事件</Button>}</div></footer>
 <Drawer modal={false} className="evidence-inspector" open={!!selectedNode} title={nodeTitle} eyebrow={selectedDatabaseNode ? '节点实例' : selectedDatabaseRelation ? '关系实例' : selectedDatabaseEvent ? '事件实例' : selectedNode === 'bid' ? '事件详情' : selectedNode === 'file' ? '证据详情与预览' : selectedNode === 'phone' ? '关系证据详情' : '节点详情'} onClose={() => setSelectedNode('')} footer={<><Button onClick={() => setSelectedNode('')}>关闭</Button><Button variant="primary" onClick={() => setToast('已打开数据库来源记录摘要')}>来源追溯</Button></>}>{selectedDatabaseNode ? <DatabaseNodeDetail node={selectedDatabaseNode} detail={databaseDetail!}/> : selectedDatabaseRelation ? <DatabaseRelationDetail relation={selectedDatabaseRelation} detail={databaseDetail!}/> : selectedDatabaseEvent ? <DatabaseEventDetail event={selectedDatabaseEvent} detail={databaseDetail!}/> : <NodeDetail selectedNode={selectedNode} path={path}/>}</Drawer>
     <Modal open={!!action} title={action ? actionMeta[action].title : ''} description={action ? actionMeta[action].description : ''} confirmText={action ? actionMeta[action].confirm : ''} danger={action ? actionMeta[action].danger : false} onClose={() => setAction(null)} onConfirm={execute}>{action && <WarningActionForm action={action} warning={warning} form={form} onChange={setForm}/>}</Modal>
   </div>
@@ -705,6 +710,7 @@ function NodeDetail({ selectedNode, path }: { selectedNode: string; path: string
 }
 export function RiskEventListPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const events = useAppStore((state) => state.riskEvents)
   const scenes = useAppStore((state) => state.scenes)
@@ -715,24 +721,25 @@ export function RiskEventListPage() {
   const requestedStatus = searchParams.get('status')
   const initialStatus = requestedStatus === 'open' ? '未关闭' : requestedStatus && ['未关闭', '全部', '待整改', '待复核', '已关闭'].includes(requestedStatus) ? requestedStatus : '未关闭'
   const initialDomain = searchParams.get('domain') === '全部授权领域' ? '全部' : searchParams.get('domain') || '全部'
-  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, level: normalizeRiskLevelFilter(searchParams.get('level')), org: searchParams.get('org') || '全部', domain: initialDomain, overdue: searchParams.get('overdue') || '全部' })
+  const [draft, setDraft] = useState({ keyword: '', status: initialStatus, level: normalizeRiskLevelFilter(searchParams.get('level')), domain: initialDomain, overdue: searchParams.get('overdue') || '全部' })
   const [filters, setFilters] = useState(draft)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [action, setAction] = useState<EventAction>(null)
   const [target, setTarget] = useState<RiskEvent | null>(null)
   const [form, setForm] = useState({ owner: '孙凯', reason: '', rectificationResult: '已完成', measures: '', materials: [] as string[], reviewer: '', reviewResult: '通过' as '通过' | '退回整改' | '不成立关闭' })
   const sceneDomains = useMemo(() => Object.fromEntries(scenes.map((item) => [item.name, item.domain])), [scenes])
+  const eventListReturnState = createReturnState(locationPath(location), '返回风险事件列表')
   const rows = events.filter((item) => {
     const domain = inferSituationDomain(sceneDomains[item.scene], `${item.scene}${item.title}${item.target}`)
-    return (!filters.keyword || `${item.id}${item.title}${item.target}`.toLowerCase().includes(filters.keyword.toLowerCase())) &&
+    return (!filters.keyword || `${item.id}${item.title}`.toLowerCase().includes(filters.keyword.toLowerCase())) &&
       (filters.status === '全部' || (filters.status === '未关闭' && item.status !== '已关闭') || item.status === filters.status) &&
       (filters.level === '全部' || filters.level === item.level) &&
-      (filters.org === '全部' || item.organization === filters.org) &&
       (filters.domain === '全部' || domain === filters.domain) &&
       (filters.overdue === '全部' || (filters.overdue === '是') === item.overdue)
   })
-  const totalPages = Math.max(1, Math.ceil(rows.length / listPageSize))
-  const pageRows = rows.slice((page - 1) * listPageSize, page * listPageSize)
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const pageRows = rows.slice((page - 1) * pageSize, page * pageSize)
   const query = () => { setFilters(draft); setPage(1) }
   const openAction = (item: RiskEvent, next: Exclude<EventAction, null>) => {
     setTarget(item)
@@ -760,16 +767,15 @@ export function RiskEventListPage() {
   return <>
     <PageHeader eyebrow="风险监管 / 风险事件" title="风险事件" description="承接已升级预警，完成查看、转派、整改、复核和闭环留痕。" actions={<Button icon="refresh" onClick={() => setToast('风险事件列表已刷新')}>刷新</Button>}/>
     <div className="page-query page-query-events">
-      <FilterGrid onReset={() => { const value = { keyword: '', status: '未关闭', level: '全部', org: '全部', domain: '全部', overdue: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
-        <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && query()} placeholder="事件编号、标题或主对象"/></Field>
+      <FilterGrid onReset={() => { const value = { keyword: '', status: '未关闭', level: '全部', domain: '全部', overdue: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
+        <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && query()} placeholder="事件编号或标题"/></Field>
         <Field label="风险等级"><select value={draft.level} onChange={(event) => setDraft({ ...draft, level: event.target.value })}>{riskLevelFilterOptions.map((item) => <option key={item}>{item}</option>)}</select></Field>
-        <Field label="责任组织"><select value={draft.org} onChange={(event) => setDraft({ ...draft, org: event.target.value })}><option>全部</option><option>集团采购中心</option><option>集团财务共享中心</option><option>数据智能事业部</option></select></Field>
         <Field label="监管领域"><select value={draft.domain} onChange={(event) => setDraft({ ...draft, domain: event.target.value })}><option>全部</option>{SITUATION_DOMAINS.map((item) => <option key={item.key}>{item.key}</option>)}</select></Field>
         <Field label="状态"><select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value })}><option>未关闭</option><option>全部</option><option>待整改</option><option>待复核</option><option>已关闭</option></select></Field>
         <Field label="是否逾期"><select value={draft.overdue} onChange={(event) => setDraft({ ...draft, overdue: event.target.value })}><option>全部</option><option>是</option><option>否</option></select></Field>
       </FilterGrid>
     </div>
-    <Panel title="风险事件列表" subtitle={`共 ${rows.length} 项，当前第 ${page}/${totalPages} 页`}><div className="table-container"><table><thead><tr><th>风险事件编号 / 标题</th><th>来源预警</th><th>等级 / 场景</th><th>主对象</th><th>责任组织 / 当前处理人</th><th>状态</th><th>截止时间</th><th>最近更新</th><th>操作</th></tr></thead><tbody>{pageRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/risk/events/${item.id}`)}><strong>{item.title}</strong><span>{item.id}</span></button></td><td><button className="table-link" onClick={() => navigate(`/risk/warnings/${item.warningId}`)}>{item.warningId}</button></td><td><RiskTag level={item.level}/><small className="cell-sub">{item.scene}</small></td><td>{item.target}</td><td>{item.organization}<small className="cell-sub">{item.owner || '待分配'}</small></td><td><StatusTag>{item.status}</StatusTag></td><td><span className={`deadline ${item.overdue ? 'overdue' : ''}`}>{item.dueAt}<small>{item.overdue ? '已逾期' : '正常'}</small></span></td><td>{item.updatedAt}</td><td><div className="row-actions vertical"><button onClick={() => navigate(`/risk/events/${item.id}`)}>查看</button>{item.status !== '已关闭' && <button onClick={() => openAction(item, 'transfer')}>转派</button>}{item.status === '待整改' && <button onClick={() => openAction(item, 'submit')}>整改</button>}{item.status === '待复核' && <button onClick={() => openAction(item, 'review')}>复核</button>}</div></td></tr>)}</tbody></table></div><div className="pagination"><span>共 {rows.length} 条</span><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => setPage(page + 1)}>›</button></div></Panel>
+    <Panel title="风险事件列表"><div className="table-container"><table><thead><tr><th>标题</th><th>事件编号</th><th>来源预警</th><th>等级</th><th>监管领域</th><th>当前处理人</th><th>状态</th><th>截止时间</th><th>最近更新</th><th>操作</th></tr></thead><tbody>{pageRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/risk/events/${item.id}`, { state: eventListReturnState })}><strong>{item.title}</strong></button></td><td><button className="table-link" onClick={() => navigate(`/risk/events/${item.id}`, { state: eventListReturnState })}>{item.id}</button></td><td><button className="table-link" onClick={() => navigate(`/risk/warnings/${item.warningId}`, { state: eventListReturnState })}>{item.warningId}</button></td><td><RiskTag level={item.level}/></td><td>{inferSituationDomain(sceneDomains[item.scene], `${item.scene}${item.title}${item.target}`)}</td><td>{item.owner || '待分配'}</td><td><StatusTag>{item.status}</StatusTag></td><td><span className={`deadline ${item.overdue ? 'overdue' : ''}`}>{item.dueAt}</span></td><td>{item.updatedAt}</td><td><div className="row-actions vertical"><button onClick={() => navigate(`/risk/events/${item.id}`, { state: eventListReturnState })}>查看</button>{item.status !== '已关闭' && <button onClick={() => openAction(item, 'transfer')}>转派</button>}{item.status === '待整改' && <button onClick={() => openAction(item, 'submit')}>整改</button>}{item.status === '待复核' && <button onClick={() => openAction(item, 'review')}>复核</button>}</div></td></tr>)}</tbody></table></div><ListPagination total={rows.length} page={page} totalPages={totalPages} pageSize={pageSize} onPageChange={setPage} onPageSizeChange={(value) => { setPageSize(value); setPage(1) }}/></Panel>
     <Modal open={!!action} title={action === 'transfer' ? '转派风险事件' : action === 'submit' ? '提交整改结果' : '监管复核风险事件'} description={target ? `${target.id} · ${target.title}` : ''} confirmText={action === 'transfer' ? '确认转派' : action === 'review' ? '确认复核' : '提交整改'} danger={action === 'review'} onClose={() => setAction(null)} onConfirm={execute}>{action && <EventActionForm action={action} form={form} onChange={setForm}/>}</Modal>
   </>
 }
@@ -777,6 +783,7 @@ export function RiskEventListPage() {
 export function RiskEventDetailPage() {
   const { id = '' } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const event = useAppStore((state) => state.riskEvents.find((item) => item.id === id))
   const transferRiskEvent = useAppStore((state) => state.transferRiskEvent)
   const submitRectification = useAppStore((state) => state.submitRectification)
@@ -814,6 +821,11 @@ export function RiskEventDetailPage() {
   }, [event?.warningId, sourceRefresh])
 
   if (!event) return <EmptyState title="风险事件不存在或无权访问" description="请从风险事件列表重新进入。"/>
+  const currentPath = locationPath(location)
+  const returnTarget = resolveReturnTarget(location.state, '/risk/events', '返回风险事件列表', currentPath)
+  const returnState = createReturnState(returnTarget.returnTo, returnTarget.returnLabel)
+  const backToSource = () => navigate(returnTarget.returnTo)
+  const openSourceWarning = (warningId: string) => navigate(`/risk/warnings/${warningId}`, { state: returnState })
   const selectedSourceNode = sourceDetail?.graph.nodes.find((item) => item.id === selectedNode)
   const selectedSourceRelation = sourceDetail?.graph.relations.find((item) => item.id === selectedNode)
   const selectedSourceEvent = sourceDetail?.graph.events.find((item) => item.id === selectedNode)
@@ -823,6 +835,8 @@ export function RiskEventDetailPage() {
   const graphNodeCount = sourceGraphProjection?.nodes.length ?? 6
   const graphRelationCount = sourceGraphProjection?.relations.length ?? 5
   const evidenceCount = sourceDetail?.evidence.length ?? 8
+  const dispositionRecords = buildRiskEventDispositionRecords(event, sourceDetail)
+  const dispositionCount = dispositionRecords.length + (event.status === '已关闭' ? 0 : 1)
   const openAction = (next: Exclude<EventAction, null>) => {
     setAction(next)
     setForm({
@@ -846,11 +860,11 @@ export function RiskEventDetailPage() {
     if (result.ok) setAction(null)
   }
   return <div className={`risk-event-detail-page ${graphFullScreen ? 'graph-fullscreen' : ''}`}>
-    <div className="detail-topbar"><div><button className="back-button" onClick={() => navigate('/risk/events')}>‹ 返回风险事件列表</button><p>{event.id}</p><h1>{event.title}</h1></div><div className="detail-top-actions"><Button icon="refresh" onClick={() => { setSourceRefresh((value) => value + 1); setToast('风险事件状态、待办和来源预警证据已刷新') }}>刷新</Button></div></div>
-    <section className="summary-strip risk-summary"><div><span>风险等级</span><RiskTag level={event.level}/></div><div><span>当前状态</span><StatusTag>{event.status}</StatusTag></div><div><span>来源预警</span><button className="table-link" onClick={() => navigate(`/risk/warnings/${event.warningId}`)}>{event.warningId}</button></div><div><span>主对象</span><strong>{event.target}</strong></div><div><span>责任组织 / 当前处理人</span><strong>{event.organization}</strong><small>{event.owner || '待分配'}</small></div><div><span>截止时间</span><strong className={event.overdue ? 'danger-text' : ''}>{event.dueAt}</strong><small>{event.overdue ? '已逾期' : '正常'}</small></div></section>
+    <div className="detail-topbar"><div><button className="back-button" onClick={backToSource}>‹ {returnTarget.returnLabel}</button><p>{event.id}</p><h1>{event.title}</h1></div><div className="detail-top-actions"><Button icon="refresh" onClick={() => { setSourceRefresh((value) => value + 1); setToast('风险事件状态、待办和来源预警证据已刷新') }}>刷新</Button></div></div>
+    <section className="summary-strip risk-summary"><div><span>风险等级</span><RiskTag level={event.level}/></div><div><span>当前状态</span><StatusTag>{event.status}</StatusTag></div><div><span>来源预警</span><button className="table-link" onClick={() => openSourceWarning(event.warningId)}>{event.warningId}</button></div><div><span>主对象</span><strong>{event.target}</strong></div><div><span>责任组织 / 当前处理人</span><strong>{event.organization}</strong><small>{event.owner || '待分配'}</small></div><div><span>截止时间</span><strong className={event.overdue ? 'danger-text' : ''}>{event.dueAt}</strong><small>{event.overdue ? '已逾期' : '正常'}</small></div></section>
     {event.overdue && event.status !== '已关闭' && <div className="alert-box danger evidence-alert"><Icon name="clock"/><span>当前风险事件已逾期，请优先完成转派、整改或复核。</span></div>}
-    <Panel className="risk-event-detail"><Tabs value={tab} onChange={(value) => { setTab(value); if (value !== 'graph') setGraphFullScreen(false) }} items={[{ key: 'facts', label: '风险事实' }, { key: 'graph', label: '证据子图', count: graphNodeCount }, { key: 'businessTimeline', label: '业务事件时间轴', count: sourceDetail?.graph.events.length ?? 5 }, { key: 'policies', label: '制度依据', count: 2 }, { key: 'evidence', label: '实际证据', count: evidenceCount }, { key: 'timeline', label: '处理时间线', count: 5 }, { key: 'rectification', label: '整改反馈', count: event.status === '待复核' || event.status === '已关闭' ? 2 : 0 }, { key: 'review', label: '复核记录', count: event.status === '已关闭' ? 2 : event.status === '待复核' ? 1 : 0 }]}/>{tab === 'facts' && <RiskFacts event={event} sourceDetail={sourceDetail}/>} {tab === 'graph' && <div className="risk-event-evidence-view"><div className="risk-event-evidence-banner"><span><Icon name="lock" size={17}/></span><div><strong>来源预警固化证据快照</strong><small>{event.warningId} · {graphVersion} · {graphNodeCount}个节点 / {graphRelationCount}条关系</small></div><StatusTag>{sourceDetail ? 'MySQL快照' : '固化快照'}</StatusTag><Button icon="link" onClick={() => navigate(`/risk/warnings/${event.warningId}`)}>查看来源预警</Button></div><div className="risk-event-evidence-toolbar"><div><strong>证据关系画布</strong><span>与来源预警使用同一知识图谱快照和证据关系；整改材料作为补充证据单独保存</span></div><div className="graph-tools"><div className="graph-view-switch" aria-label="证据图展示方式"><button className={graphViewMode === '风险链视图' ? 'active' : ''} onClick={() => { setGraphViewMode('风险链视图'); setRelationFilter('核心证据链'); setShowGraphEvents(false) }}>风险链</button><button className={graphViewMode === '完整图谱视图' ? 'active' : ''} onClick={() => { setGraphViewMode('完整图谱视图'); setRelationFilter('全部关系') }}>完整图谱结构</button></div>{graphViewMode === '完整图谱视图' && <select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value as DatabaseGraphRelationFilter)}><option>核心证据链</option><option>仅命中关系</option><option>隐藏辅助关系</option><option>全部关系</option></select>}{sourceDetail && <button className={showGraphEvents ? 'active' : ''} onClick={() => { if (showGraphEvents && selectedSourceEvent) setSelectedNode(''); setShowGraphEvents(!showGraphEvents) }}><Icon name="clock" size={14}/>{showGraphEvents ? '隐藏事件实例' : '显示事件实例'}</button>}<button onClick={() => setGraphScale(Math.min(1.5, graphScale + .1))}>＋</button><button onClick={() => setGraphScale(Math.max(.7, graphScale - .1))}>－</button><button onClick={() => setGraphScale(1)}><Icon name="refresh" size={14}/>重置</button><button onClick={() => setGraphFullScreen(!graphFullScreen)}><Icon name="eye" size={14}/>{graphFullScreen ? '退出全屏' : '全屏'}</button></div></div><div className="risk-event-graph-stage">{sourceLoading ? <DatabaseGraphLoading/> : <div style={{ transform: `scale(${graphScale})`, transformOrigin: 'center top', transition: '.18s' }}>{sourceDetail ? <DatabaseGraphView detail={sourceDetail} filter={relationFilter} viewMode={graphViewMode} showEvents={showGraphEvents} selected={selectedNode} onSelect={setSelectedNode}/> : <EvidenceGraph selected={selectedNode} onSelect={setSelectedNode}/>}</div>}</div><div className="risk-event-evidence-footnote"><Icon name="lock" size={14}/><span>风险事件只读复用来源预警升级时对应的证据图谱；后续整改证明不会覆盖初始风险事实。</span></div></div>} {tab === 'businessTimeline' && (sourceDetail ? <DatabaseTimeline detail={sourceDetail} onSelect={(key) => { setSelectedNode(key); setShowGraphEvents(true); setTab('graph') }}/> : <Timeline path="path1" onSelect={(key) => { setSelectedNode(key); setTab('graph') }}/>) } {tab === 'policies' && <PolicySnapshot/>} {tab === 'evidence' && <EvidenceTable filter={evidenceFilter} onFilter={setEvidenceFilter} onSelect={setSelectedNode} rows={sourceDetail?.evidence}/>} {tab === 'timeline' && <RiskTimeline event={event}/>} {tab === 'rectification' && <RectificationView event={event}/>} {tab === 'review' && <ReviewView event={event}/>}</Panel>
-    <footer className="fixed-action-bar"><div><span>当前任务</span><strong>{event.status === '待整改' ? '提交整改结果' : event.status === '待复核' ? '完成监管复核' : '事件已闭环'}</strong><small>当前处理人：{event.owner || '待分配'} · 最近更新：{event.updatedAt}</small></div><div className="action-group"><Button onClick={() => navigate('/risk/events')}>返回</Button>{event.status !== '已关闭' && <Button onClick={() => openAction('transfer')}>转派</Button>}{event.status === '待整改' && <Button variant="primary" onClick={() => openAction('submit')}>整改</Button>}{event.status === '待复核' && <Button variant="primary" icon="check" onClick={() => openAction('review')}>复核</Button>}</div></footer>
+    <Panel className="risk-event-detail"><Tabs value={tab} onChange={(value) => { setTab(value); if (value !== 'graph') setGraphFullScreen(false) }} items={[{ key: 'facts', label: '风险事实' }, { key: 'graph', label: '证据子图', count: graphNodeCount }, { key: 'businessTimeline', label: '业务事件时间轴', count: sourceDetail?.graph.events.length ?? 5 }, { key: 'policies', label: '制度依据', count: 2 }, { key: 'evidence', label: '实际证据', count: evidenceCount }, { key: 'disposition', label: '处置记录', count: dispositionCount }]}/>{tab === 'facts' && <RiskFacts event={event} sourceDetail={sourceDetail}/>} {tab === 'graph' && <div className="risk-event-evidence-view"><div className="risk-event-evidence-banner"><span><Icon name="lock" size={17}/></span><div><strong>来源预警固化证据快照</strong><small>{event.warningId} · {graphVersion} · {graphNodeCount}个节点 / {graphRelationCount}条关系</small></div><StatusTag>{sourceDetail ? 'MySQL快照' : '固化快照'}</StatusTag><Button icon="link" onClick={() => openSourceWarning(event.warningId)}>查看来源预警</Button></div><div className="risk-event-evidence-toolbar"><div><strong>证据关系画布</strong><span>与来源预警使用同一知识图谱快照和证据关系；整改材料作为补充证据单独保存</span></div><div className="graph-tools"><div className="graph-view-switch" aria-label="证据图展示方式"><button className={graphViewMode === '风险链视图' ? 'active' : ''} onClick={() => { setGraphViewMode('风险链视图'); setRelationFilter('核心证据链'); setShowGraphEvents(false) }}>风险链</button><button className={graphViewMode === '完整图谱视图' ? 'active' : ''} onClick={() => { setGraphViewMode('完整图谱视图'); setRelationFilter('全部关系') }}>完整图谱结构</button></div>{graphViewMode === '完整图谱视图' && <select value={relationFilter} onChange={(event) => setRelationFilter(event.target.value as DatabaseGraphRelationFilter)}><option>核心证据链</option><option>仅命中关系</option><option>隐藏辅助关系</option><option>全部关系</option></select>}{sourceDetail && <button className={showGraphEvents ? 'active' : ''} onClick={() => { if (showGraphEvents && selectedSourceEvent) setSelectedNode(''); setShowGraphEvents(!showGraphEvents) }}><Icon name="clock" size={14}/>{showGraphEvents ? '隐藏事件实例' : '显示事件实例'}</button>}<button onClick={() => setGraphScale(Math.min(1.5, graphScale + .1))}>＋</button><button onClick={() => setGraphScale(Math.max(.7, graphScale - .1))}>－</button><button onClick={() => setGraphScale(1)}><Icon name="refresh" size={14}/>重置</button><button onClick={() => setGraphFullScreen(!graphFullScreen)}><Icon name="eye" size={14}/>{graphFullScreen ? '退出全屏' : '全屏'}</button></div></div><div className="risk-event-graph-stage">{sourceLoading ? <DatabaseGraphLoading/> : <div style={{ transform: `scale(${graphScale})`, transformOrigin: 'center top', transition: '.18s' }}>{sourceDetail ? <DatabaseGraphView detail={sourceDetail} filter={relationFilter} viewMode={graphViewMode} showEvents={showGraphEvents} selected={selectedNode} onSelect={setSelectedNode}/> : <EvidenceGraph selected={selectedNode} onSelect={setSelectedNode}/>}</div>}</div><div className="risk-event-evidence-footnote"><Icon name="lock" size={14}/><span>风险事件只读复用来源预警升级时对应的证据图谱；后续整改证明不会覆盖初始风险事实。</span></div></div>} {tab === 'businessTimeline' && (sourceDetail ? <DatabaseTimeline detail={sourceDetail} onSelect={(key) => { setSelectedNode(key); setShowGraphEvents(true); setTab('graph') }}/> : <Timeline path="path1" onSelect={(key) => { setSelectedNode(key); setTab('graph') }}/>) } {tab === 'policies' && <PolicySnapshot/>} {tab === 'evidence' && <EvidenceTable filter={evidenceFilter} onFilter={setEvidenceFilter} onSelect={setSelectedNode} rows={sourceDetail?.evidence}/>} {tab === 'disposition' && <DispositionRecordsView event={event} records={dispositionRecords}/>}</Panel>
+    <footer className="fixed-action-bar"><div><span>当前任务</span><strong>{event.status === '待整改' ? '提交整改结果' : event.status === '待复核' ? '完成监管复核' : '事件已闭环'}</strong><small>当前处理人：{event.owner || '待分配'} · 最近更新：{event.updatedAt}</small></div><div className="action-group"><Button onClick={backToSource}>{returnTarget.returnLabel}</Button>{event.status !== '已关闭' && <Button onClick={() => openAction('transfer')}>转派</Button>}{event.status === '待整改' && <Button variant="primary" onClick={() => openAction('submit')}>整改</Button>}{event.status === '待复核' && <Button variant="primary" icon="check" onClick={() => openAction('review')}>复核</Button>}</div></footer>
     <Modal open={!!action} title={action === 'transfer' ? '转派风险事件' : action === 'submit' ? '提交整改结果' : '监管复核'} description="操作成功后将同步更新风险事件、工作台待办、消息和审计日志。" confirmText={action === 'transfer' ? '确认转派' : action === 'review' ? '确认复核' : '提交整改'} danger={action === 'review'} onClose={() => setAction(null)} onConfirm={execute}>{action && <EventActionForm action={action} form={form} onChange={setForm}/>}</Modal>
     <Drawer modal={false} className="evidence-inspector" open={!!selectedNode} title={nodeTitle} eyebrow={selectedSourceNode ? '来源预警节点实例' : selectedSourceRelation ? '来源预警关系实例' : selectedSourceEvent ? '来源预警事件实例' : selectedNode === 'bid' ? '事件详情' : selectedNode === 'file' ? '证据详情与预览' : selectedNode === 'phone' ? '关系证据详情' : '节点详情'} onClose={() => setSelectedNode('')} footer={<><Button onClick={() => setSelectedNode('')}>关闭</Button><Button variant="primary" onClick={() => setToast('已按来源预警快照完成证据溯源')}>来源追溯</Button></>}><div className="alert-box"><Icon name="lock"/><span>当前查看的是风险事件升级时固化的来源预警证据快照。</span></div>{selectedSourceNode ? <DatabaseNodeDetail node={selectedSourceNode} detail={sourceDetail!}/> : selectedSourceRelation ? <DatabaseRelationDetail relation={selectedSourceRelation} detail={sourceDetail!}/> : selectedSourceEvent ? <DatabaseEventDetail event={selectedSourceEvent} detail={sourceDetail!}/> : <NodeDetail selectedNode={selectedNode} path="path1"/>}</Drawer>
   </div>
@@ -869,20 +883,29 @@ function RiskFacts({ event, sourceDetail }: { event: RiskEvent; sourceDetail?: D
     <Panel title="处置要求"><p className="drawer-note">{requirement}</p><ul className="check-list"><li><Icon name="clock"/>在截止时间前完成当前任务</li><li><Icon name="check"/>整改证明材料可按需上传</li><li><Icon name="lock"/>初始证据快照只读不可覆盖</li></ul></Panel>
   </div>
 }
-function RiskTimeline({ event }: { event: RiskEvent }) {
-  const rows = [
-    ['预警生成', '规则命中并固化证据快照'],
-    ['升级风险事件', '监管人员确认风险并指定首位整改责任人'],
-    ['当前处理人', event.owner || '待分配'],
-    [event.status === '待整改' ? '等待提交整改' : '已提交整改', event.status === '待整改' ? '完成后进入待复核' : event.rectificationMaterials?.length ? '证明材料以新增记录保存' : '未上传证明材料（可选）'],
-    [event.status === '已关闭' ? '复核关闭' : event.status === '待复核' ? '等待监管复核' : '整改完成后进入复核', event.status],
+function buildRiskEventDispositionRecords(event: RiskEvent, sourceDetail?: DemoWarningDetail | null): RiskEventDispositionRecord[] {
+  const records: RiskEventDispositionRecord[] = [
+    { id: `${event.id}-warning`, type: '预警生成', operator: '系统', time: sourceDetail?.warning.generatedAt || '历史记录', summary: '规则命中并固化来源预警的初始证据快照。', status: '已完成' },
+    { id: `${event.id}-upgrade`, type: '升级风险事件', operator: '监管人员', time: '历史记录', summary: `确认风险并指定${event.rectificationOwner || event.owner || '待分配'}为整改责任人；完成时限：${event.dueAt}；整改要求：${event.requirement || '按风险事实完成整改并提交处理说明。'}`, status: '已完成', fromOwner: '监管人员', toOwner: event.rectificationOwner || event.owner },
+    ...(event.dispositionRecords || []),
   ]
-  return <div className="timeline risk-timeline">{rows.map((item,index) => <button key={`${item[0]}-${index}`} className={index === rows.length - 1 && event.status !== '已关闭' ? 'future' : ''}><time>{index < 2 ? '历史记录' : '当前流程'}</time><i/><div><strong>{item[0]}</strong><span>{item[1]}</span></div></button>)}</div>
+  if (event.status !== '待整改' && !records.some((record) => record.type === '提交整改')) {
+    records.push({ id: `${event.id}-rectification`, type: '提交整改', operator: event.rectificationOwner || '整改责任人', time: event.updatedAt || '历史记录', summary: `整改结果：${event.rectificationResult || '已提交'}；整改措施：${event.rectificationMeasures || '未填写'}`, status: event.rectificationResult || '已提交', fromOwner: event.rectificationOwner || '整改责任人', toOwner: event.owner, materials: event.rectificationMaterials || [] })
+  }
+  if (event.status === '已关闭' && !records.some((record) => record.type === '复核')) {
+    records.push({ id: `${event.id}-review`, type: '复核', operator: event.owner || '复核人', time: event.updatedAt || '历史记录', summary: '复核完成，风险事件已关闭。', status: '已关闭' })
+  }
+  return records
 }
-function RectificationView({ event }: { event: RiskEvent }) {
-  if (event.status === '待整改') return <div className="empty-state"><span><Icon name="file"/></span><strong>尚未提交整改结果</strong><p>当前处理人提交后将在此展示整改结果、措施和可选证明材料。</p></div>
-  const materials = event.rectificationMaterials || []
-  return <div className="record-list"><article><header><div><strong>整改反馈</strong><span>{event.rectificationOwner || event.owner} · 最近提交</span></div><StatusTag>{event.rectificationResult || '已提交'}</StatusTag></header><p>{event.rectificationMeasures || '未填写整改措施。'}</p>{materials.length ? materials.map((material) => <div className="attachment" key={material}><Icon name="file"/><span>{material}</span><button>预览</button></div>) : <div className="attachment"><Icon name="file"/><span>未上传证明材料（可选）</span></div>}</article></div>
+
+function DispositionRecordsView({ event, records }: { event: RiskEvent; records: RiskEventDispositionRecord[] }) {
+  const pendingTitle = event.status === '待整改' ? `等待${event.owner || '当前处理人'}提交整改` : event.status === '待复核' ? `等待${event.owner || '当前处理人'}完成复核` : ''
+  const pendingSummary = event.status === '待整改' ? `请在${event.dueAt}前完成整改；证明材料可按需上传，提交时需指定复核人。` : `整改结果已提交，当前复核人为${event.owner || '待分配'}。`
+  return <div className="disposition-records">
+    <div className="disposition-timeline">
+      {records.map((record) => <article className="disposition-record" key={record.id}><i/><header><div><strong>{record.type}</strong><span>{record.operator} · {record.time}</span></div>{record.status && <StatusTag>{record.status}</StatusTag>}</header><p>{record.summary}</p>{(record.fromOwner || record.toOwner) && <div className="disposition-flow"><small>{record.type === '提交整改' ? '整改人' : record.type === '复核' ? '复核人' : record.type === '转派' ? '原处理人' : '操作人'}</small><strong>{record.fromOwner || record.operator || '系统'}</strong><b>→</b><small>{record.type === '提交整改' ? '复核人' : record.type === '复核' ? '整改人' : record.type === '转派' ? '新处理人' : '整改人'}</small><strong>{record.toOwner || '流程结束'}</strong></div>}{record.materials && <div className="disposition-materials">{record.materials.length ? record.materials.map((material) => <div className="attachment" key={material}><Icon name="file"/><span>{material}</span><button>预览</button></div>) : <div className="attachment"><Icon name="file"/><span>未上传证明材料（可选）</span></div>}</div>}</article>)}
+      {event.status !== '已关闭' && <article className="disposition-record current"><i/><header><div><strong>{pendingTitle}</strong><span>当前环节</span></div><StatusTag>{event.status}</StatusTag></header><p>{pendingSummary}</p></article>}
+    </div>
+  </div>
 }
-function ReviewView({ event }: { event: RiskEvent }) { return <div className="review-card"><StatusTag>{event.status === '已关闭' ? '复核通过' : event.status === '待复核' ? '待复核' : '未进入复核'}</StatusTag><h3>监管复核记录</h3><p>{event.status === '已关闭' ? '风险事实和整改材料完整，整改措施已执行，事件已经关闭。' : event.status === '待复核' ? '等待当前处理人选择通过、退回整改或不成立关闭。' : '整改结果提交后，系统将生成复核待办并在此留痕。'}</p></div> }
 

@@ -20,6 +20,7 @@ import type {
   GraphVersion,
   OntologyItem,
   RiskEvent,
+  RiskEventDispositionRecord,
   RoleItem,
   SceneItem,
   TodoItem,
@@ -387,8 +388,9 @@ export const useAppStore = create<AppState>()(
           if (!event || event.status === '已关闭') return { ok: false, message: '当前风险事件不能转派' }
           if (event.owner === owner) return { ok: false, message: '新处理人不能与当前处理人相同' }
           const oldOwner = event.owner
+          const dispositionRecord: RiskEventDispositionRecord = { id: `DR-${id}-${Date.now()}`, type: '转派', operator: '尹晨阳', time: '刚刚', summary: `转派原因：${transferReason}`, status: event.status, fromOwner: oldOwner, toOwner: owner }
           set((state) => ({
-            riskEvents: state.riskEvents.map((item) => item.id === id ? { ...item, owner, rectificationOwner: item.status === '待整改' ? owner : item.rectificationOwner, updatedAt: '刚刚' } : item),
+            riskEvents: state.riskEvents.map((item) => item.id === id ? { ...item, owner, rectificationOwner: item.status === '待整改' ? owner : item.rectificationOwner, dispositionRecords: [...(item.dispositionRecords || []), dispositionRecord], updatedAt: '刚刚' } : item),
             todos: state.todos.map((todo) => todo.route.endsWith(id) ? { ...todo, owner } : todo),
           }))
           notify('转派', `风险事件已由${oldOwner}转派给${owner}：${event.title}`, id, `/risk/events/${id}`)
@@ -402,8 +404,9 @@ export const useAppStore = create<AppState>()(
           const rectificationMeasures = measures.trim() || '未填写'
           const event = get().riskEvents.find((item) => item.id === id)
           if (!event || event.status !== '待整改') return { ok: false, message: '当前事件不在待整改状态' }
+          const dispositionRecord: RiskEventDispositionRecord = { id: `DR-${id}-${Date.now()}`, type: '提交整改', operator: event.owner, time: '刚刚', summary: `整改结果：${result}；整改措施：${rectificationMeasures}`, status: result, fromOwner: event.owner, toOwner: selectedReviewer, materials }
           set((state) => ({
-            riskEvents: state.riskEvents.map((item) => item.id === id ? { ...item, status: '待复核', rectificationOwner: event.owner, rectificationResult: result, rectificationMeasures, rectificationMaterials: materials, owner: selectedReviewer, updatedAt: '刚刚' } : item),
+            riskEvents: state.riskEvents.map((item) => item.id === id ? { ...item, status: '待复核', rectificationOwner: event.owner, rectificationResult: result, rectificationMeasures, rectificationMaterials: materials, owner: selectedReviewer, dispositionRecords: [...(item.dispositionRecords || []), dispositionRecord], updatedAt: '刚刚' } : item),
             todos: [{ id: `TODO-${id}-REVIEW`, title: `复核：${event.title}`, objectType: '事件', level: event.level, status: '待复核', dueAt: '明天 18:00', owner: selectedReviewer, timeState: '正常', route: `/risk/events/${id}` }, ...state.todos.filter((todo) => !todo.route.endsWith(id))],
           }))
           notify('整改', `${event.owner}已提交整改结果，等待${selectedReviewer}复核`, id, `/risk/events/${id}`)
@@ -415,8 +418,10 @@ export const useAppStore = create<AppState>()(
           if (!event || event.status !== '待复核') return { ok: false, message: '当前事件不在待复核状态' }
           const returnedOwner = event.rectificationOwner || event.owner
           const nextStatus = result === '退回整改' ? '待整改' : '已关闭'
+          const nextOwner = result === '退回整改' ? returnedOwner : event.owner
+          const dispositionRecord: RiskEventDispositionRecord = { id: `DR-${id}-${Date.now()}`, type: '复核', operator: event.owner, time: '刚刚', summary: `复核结论：${result}；复核说明：${reason.trim() || '未填写'}`, status: nextStatus, fromOwner: event.owner, toOwner: result === '退回整改' ? returnedOwner : undefined }
           set((state) => ({
-            riskEvents: state.riskEvents.map((item) => item.id === id ? { ...item, status: nextStatus, owner: result === '退回整改' ? returnedOwner : item.owner, updatedAt: '刚刚' } : item),
+            riskEvents: state.riskEvents.map((item) => item.id === id ? { ...item, status: nextStatus, owner: nextOwner, dispositionRecords: [...(item.dispositionRecords || []), dispositionRecord], updatedAt: '刚刚' } : item),
             todos: result === '退回整改'
               ? [{ id: `TODO-${id}-RECTIFY`, title: `整改：${event.title}`, objectType: '事件', level: event.level, status: '待整改', dueAt: '明天 18:00', owner: returnedOwner, timeState: '正常', route: `/risk/events/${id}` }, ...state.todos.filter((todo) => !todo.route.endsWith(id))]
               : state.todos.filter((todo) => !todo.route.endsWith(id)),

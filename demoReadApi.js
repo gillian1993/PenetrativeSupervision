@@ -27,7 +27,7 @@ function leadTime(generated,due){
   return `${hours}小时`
 }
 
-function mapWarning(row,runSummary='',eventWorkflow=null){
+function mapWarning(row,runSummary='',eventWorkflow=null,ruleLibrary=''){
   return {
     id:row.warning_code,
     caseId:row.case_id,
@@ -40,6 +40,7 @@ function mapWarning(row,runSummary='',eventWorkflow=null){
     sceneCode:row.scene_code,
     sceneVersion:row.scene_version||row.scene_version_id,
     sceneVersionId:row.scene_version_id,
+    ruleLibrary:ruleLibrary||'穿透式监管规则库',
     target:row.object_name,
     targetId:row.object_id,
     targetEvent:row.event_name||'规则运行',
@@ -70,11 +71,13 @@ async function warningRows(pool,where='',params=[]){
     WHERE w.batch_id IN (?) ${where} ORDER BY w.risk_score DESC,w.generated_at DESC,w.warning_code`,[batchIds,...params])
   const ids=rows.map((row)=>row.warning_code)
   const summaries=new Map()
+  const libraries=new Map()
   const workflows=new Map()
   if(ids.length){
-    const [runs]=await pool.query(`SELECT warning_code,GROUP_CONCAT(JSON_UNQUOTE(JSON_EXTRACT(evidence_json,'$.actualValueSummary')) ORDER BY executed_at SEPARATOR '；') AS summary
-      FROM rule_run_records WHERE warning_code IN (?) GROUP BY warning_code`,[ids])
-    runs.forEach((row)=>summaries.set(row.warning_code,String(row.summary||'')))
+    const [runs]=await pool.query(`SELECT rr.warning_code,GROUP_CONCAT(JSON_UNQUOTE(JSON_EXTRACT(rr.evidence_json,'$.actualValueSummary')) ORDER BY rr.executed_at SEPARATOR '；') AS summary,
+      GROUP_CONCAT(DISTINCT COALESCE(rav.library_name,'穿透式监管规则库') ORDER BY rav.library_name SEPARATOR '、') AS rule_library
+      FROM rule_run_records rr LEFT JOIN rule_asset_versions rav ON rav.id=rr.rule_version_id WHERE rr.warning_code IN (?) GROUP BY rr.warning_code`,[ids])
+    runs.forEach((row)=>{summaries.set(row.warning_code,String(row.summary||''));libraries.set(row.warning_code,String(row.rule_library||'穿透式监管规则库'))})
     try{
       const [eventRows]=await pool.query(`SELECT warning_code,status,owner_name,rectification_owner_name,due_at,updated_at
         FROM risk_event_workflow_snapshots WHERE warning_code IN (?)`,[ids])
@@ -83,7 +86,7 @@ async function warningRows(pool,where='',params=[]){
       if(error?.code!=='ER_NO_SUCH_TABLE')throw error
     }
   }
-  return rows.map((row)=>mapWarning(row,summaries.get(row.warning_code)||'',workflows.get(row.warning_code)||null))
+  return rows.map((row)=>mapWarning(row,summaries.get(row.warning_code)||'',workflows.get(row.warning_code)||null,libraries.get(row.warning_code)||''))
 }
 
 async function ensureWorkflowTable(connection){

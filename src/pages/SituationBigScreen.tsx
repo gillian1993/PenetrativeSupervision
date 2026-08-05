@@ -184,7 +184,7 @@ export function SituationBigScreen({ warnings, events, sceneDomains, currentScop
 
     <section className="bi-bottom-grid">
       <BiPanel title="十大领域风险排行" subtitle="综合风险指数"><DomainRanking stats={rankedDomains}/></BiPanel>
-      <BiPanel title="领域风险热力矩阵" subtitle="风险规模、严重度、趋势与处置压力"><DomainHeatMatrix stats={domainStats}/></BiPanel>
+      <BiPanel title="领域风险热力矩阵" subtitle="风险规模、严重程度、增长趋势与处置压力"><DomainHeatMatrix stats={domainStats}/></BiPanel>
       <BiPanel title="监管运行成效" subtitle="当前快照覆盖情况"><div className="bi-outcome-grid"><div><span>监测对象</span><strong>{formatNumber(monitoringCoverage)}</strong><small>当前统计范围</small></div><div><span>平稳领域</span><strong>{quietDomains}</strong><small>暂无风险触发</small></div><div><span>重点领域</span><strong>{domainStats.filter((item) => item.major > 0 || item.high > 0).length}</strong><small>存在重大高风险</small></div><div><span>按期闭环率</span><strong>{onTimeClosure}%</strong><small>目标 ≥90%</small></div></div></BiPanel>
     </section>
 
@@ -250,12 +250,60 @@ function DomainRanking({ stats }: { stats: DomainStat[] }) {
   return <div className="bi-domain-ranking">{stats.slice(0, 5).map((item, index) => <article key={item.key}><b>{index + 1}</b><span><strong>{item.label}</strong><small>{item.total}项风险</small></span><em><i style={{ width: `${Math.max(item.score ? 8 : 2, item.score / max * 100)}%`, background: item.color }}/></em><strong>{item.score}</strong></article>)}</div>
 }
 
+const formatTrendValue = (value: number) => `${value > 0 ? '+' : ''}${value}%`
+
+const heatLevelText = (level: number) => {
+  if (level >= 4) return '高热'
+  if (level === 3) return '中高'
+  if (level === 2) return '中低'
+  if (level === 1) return '低热'
+  return '无'
+}
+
 function DomainHeatMatrix({ stats }: { stats: DomainStat[] }) {
   const rows = [
-    { label: '风险规模', value: (item: DomainStat) => Math.min(4, item.total) },
-    { label: '严重程度', value: (item: DomainStat) => Math.min(4, item.major * 2 + item.high) },
-    { label: '增长趋势', value: (item: DomainStat) => item.trend > 5 ? 4 : item.trend > 2 ? 3 : item.trend > 0 ? 2 : 1 },
-    { label: '处置压力', value: (item: DomainStat) => Math.min(4, item.open + item.overdue * 2) },
+    {
+      label: '风险规模',
+      value: (item: DomainStat) => Math.min(4, item.total),
+      rule: '预警+风险事件，4项及以上为高热',
+      detail: (item: DomainStat) => `共${item.total}项：预警${item.warnings.length}条，风险事件${item.events.length}项`,
+    },
+    {
+      label: '严重程度',
+      value: (item: DomainStat) => Math.min(4, item.major * 2 + item.high),
+      rule: '重大×2 + 高风险×1，4分及以上为高热',
+      detail: (item: DomainStat) => `重大${item.major}项，高风险${item.high}项，得分${item.major * 2 + item.high}`,
+    },
+    {
+      label: '增长趋势',
+      value: (item: DomainStat) => item.trend > 5 ? 4 : item.trend > 2 ? 3 : item.trend > 0 ? 2 : 1,
+      rule: '趋势>5%为高热，>2%为中高，>0%为中低，否则低热',
+      detail: (item: DomainStat) => `当前趋势${formatTrendValue(item.trend)}`,
+    },
+    {
+      label: '处置压力',
+      value: (item: DomainStat) => Math.min(4, item.open + item.overdue * 2),
+      rule: '在办事项 + 逾期事项×2，4分及以上为高热',
+      detail: (item: DomainStat) => `在办${item.open}项，逾期${item.overdue}项，得分${item.open + item.overdue * 2}`,
+    },
   ]
-  return <div className="bi-heat-matrix"><div className="bi-heat-head"><span>指标</span>{stats.map((item) => <b key={item.key}>{item.shortLabel}</b>)}</div>{rows.map((row) => <div className="bi-heat-row" key={row.label}><span>{row.label}</span>{stats.map((item) => { const level = row.value(item); return <i key={item.key} className={`heat-${level}`} title={`${item.label} · ${row.label}`}>{level || '—'}</i> })}</div>)}</div>
+  return <div className="bi-heat-matrix">
+    <div className="bi-heat-head"><span>指标</span>{stats.map((item) => <b key={item.key}>{item.shortLabel}</b>)}</div>
+    {rows.map((row) => <div className="bi-heat-row" key={row.label}>
+      <span title={row.rule}>{row.label}</span>
+      {stats.map((item) => {
+        const level = row.value(item)
+        const title = `${item.label} · ${row.label}\n档位：${level || '—'}（${heatLevelText(level)}）\n依据：${row.detail(item)}\n规则：${row.rule}`
+        return <i key={item.key} className={`heat-${level}`} title={title} aria-label={title}>{level || '—'}</i>
+      })}
+    </div>)}
+    <div className="bi-heat-legend">
+      <span>热度档位</span>
+      <b><i className="heat-1"/>低</b>
+      <b><i className="heat-2"/>中低</b>
+      <b><i className="heat-3"/>中高</b>
+      <b><i className="heat-4"/>高</b>
+      <em>悬浮格子查看原始口径</em>
+    </div>
+  </div>
 }

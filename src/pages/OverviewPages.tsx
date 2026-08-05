@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import type { RiskEvent, TodoItem, Warning, WorkMessage } from '../types'
 import { useAppStore } from '../store'
 import { Button, Drawer, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, RiskTag, StatCard, StatusTag, Tabs, type IconName } from '../ui'
 import { SituationBigScreen } from './SituationBigScreen'
 import { inferSituationDomain, SITUATION_DOMAINS } from '../situationDomains'
+import { createReturnState, locationPath } from '../navigation'
 
 const pageSize = 4
 type SituationTone = 'blue' | 'red' | 'orange' | 'purple' | 'green'
@@ -26,6 +27,7 @@ const messageIcon = (item: WorkMessage): IconName => {
 
 export function WorkbenchPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const todos = useAppStore((state) => state.todos)
   const messages = useAppStore((state) => state.messages)
   const transferTodo = useAppStore((state) => state.transferTodo)
@@ -84,6 +86,7 @@ export function WorkbenchPage() {
     setToast(result.message)
     if (result.ok) setTransferTarget(null)
   }
+  const openWorkbenchDetail = (route: string) => navigate(route, { state: createReturnState(locationPath(location), '返回监管工作台') })
   const openMessage = (item: WorkMessage) => {
     setMessageTarget(item)
     markMessageRead(item.id)
@@ -107,7 +110,7 @@ export function WorkbenchPage() {
             <Field label="时限状态"><select value={draft.time} onChange={(event) => setDraft({ ...draft, time: event.target.value })}><option>全部</option><option>正常</option><option>临期</option><option>已逾期</option></select></Field>
           </FilterGrid>
         </div>
-        {loading ? <div className="table-loading"><i/><span>正在加载本人待办…</span></div> : rows.length === 0 ? <div className="empty-state"><span><Icon name="check"/></span><strong>当前条件下没有待办</strong><p>可调整查询条件或清除统计卡筛选。</p></div> : <div className="table-container compact-table"><table><thead><tr><th>待办编号 / 标题</th><th>对象类型</th><th>风险等级</th><th>状态</th><th>截止时间</th><th>当前处理人</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(item.route)}><strong>{item.title}</strong><span>{item.id}</span></button></td><td><span className={`tag todo-object-tag ${item.objectType === '事件' ? 'event' : 'warning'}`}>{item.objectType}</span></td><td><RiskTag level={item.level}/></td><td><StatusTag>{item.status}</StatusTag></td><td><span className={`deadline ${item.timeState === '已逾期' ? 'overdue' : item.timeState === '临期' ? 'soon' : ''}`}>{item.dueAt}<small>{item.timeState}</small></span></td><td>{item.owner || '待分配'}</td><td><div className="row-actions"><button onClick={() => navigate(item.route)}>{todoActionLabel(item)}</button><button onClick={() => { setTransferTarget(item); setTransferOwner(item.owner === '李华' ? '王宁' : '李华'); setTransferReason('工作职责调整') }}>转派</button></div></td></tr>)}</tbody></table></div>}
+        {loading ? <div className="table-loading"><i/><span>正在加载本人待办…</span></div> : rows.length === 0 ? <div className="empty-state"><span><Icon name="check"/></span><strong>当前条件下没有待办</strong><p>可调整查询条件或清除统计卡筛选。</p></div> : <div className="table-container compact-table"><table><thead><tr><th>待办编号 / 标题</th><th>对象类型</th><th>风险等级</th><th>状态</th><th>截止时间</th><th>当前处理人</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => openWorkbenchDetail(item.route)}><strong>{item.title}</strong><span>{item.id}</span></button></td><td><span className={`tag todo-object-tag ${item.objectType === '事件' ? 'event' : 'warning'}`}>{item.objectType}</span></td><td><RiskTag level={item.level}/></td><td><StatusTag>{item.status}</StatusTag></td><td><span className={`deadline ${item.timeState === '已逾期' ? 'overdue' : item.timeState === '临期' ? 'soon' : ''}`}>{item.dueAt}<small>{item.timeState}</small></span></td><td>{item.owner || '待分配'}</td><td><div className="row-actions"><button onClick={() => openWorkbenchDetail(item.route)}>{todoActionLabel(item)}</button><button onClick={() => { setTransferTarget(item); setTransferOwner(item.owner === '李华' ? '王宁' : '李华'); setTransferReason('工作职责调整') }}>转派</button></div></td></tr>)}</tbody></table></div>}
         <div className="pagination"><span>共 {filteredTodos.length} 条</span><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => setPage(page + 1)}>›</button></div>
       </Panel>
       <Panel title="消息接收框" subtitle={`${messages.filter((item) => item.unread).length} 条未读`} actions={<button className="text-button" disabled={!messages.some((item) => item.unread)} onClick={() => setAllReadConfirm(true)}>全部已读</button>} className="message-panel">
@@ -116,12 +119,13 @@ export function WorkbenchPage() {
     </section>
     <Modal open={!!transferTarget} title="转派当前任务" description={transferTarget ? `${transferTarget.id} · ${transferTarget.title}` : ''} onClose={() => setTransferTarget(null)} onConfirm={confirmTransfer}><div className="form-stack"><Field label="当前处理人"><input value={transferTarget?.owner || '待分配'} disabled/></Field><Field label="新处理人（必填）"><select value={transferOwner} onChange={(event) => setTransferOwner(event.target.value)}><option>李华</option><option>王宁</option><option>周航</option><option>孙凯</option><option>尹晨阳</option></select></Field><Field label="转派原因"><textarea value={transferReason} onChange={(event) => setTransferReason(event.target.value)} placeholder="可选，说明任务转派原因"/></Field><div className="alert-box"><Icon name="warning"/><span>转派会同步更新来源预警或风险事件的当前处理人，但不会改变业务状态。</span></div></div></Modal>
     <Modal open={allReadConfirm} title="全部标记为已读" description={`将处理 ${messages.filter((item) => item.unread).length} 条未读消息。`} onClose={() => setAllReadConfirm(false)} onConfirm={() => { markAllMessagesRead(); setAllReadConfirm(false); setToast('全部消息已标记为已读') }}><p className="drawer-note">消息已读状态会保留，消息本身不会删除，也不会影响待办数量。</p></Modal>
-    <Drawer open={!!messageTarget} title={messageTarget?.source || ''} eyebrow={`业务消息 / ${messageTarget?.type || ''}`} onClose={() => setMessageTarget(null)} footer={<Button variant="primary" onClick={() => { if (messageTarget) navigate(messageTarget.route); setMessageTarget(null) }}>进入来源对象</Button>}><div className="message-detail"><StatusTag>{messageTarget?.type}</StatusTag><h3>{messageTarget?.title}</h3><p>消息与来源对象共用同一工作流状态。进入详情后可继续当前阶段允许的查看、转派、整改或复核操作。</p><KeyValue items={[{ label: '来源对象', value: messageTarget?.source }, { label: '发送时间', value: messageTarget?.time }, { label: '当前状态', value: messageTarget?.unread ? '未读' : '已读' }]}/></div></Drawer>
+    <Drawer open={!!messageTarget} title={messageTarget?.source || ''} eyebrow={`业务消息 / ${messageTarget?.type || ''}`} onClose={() => setMessageTarget(null)} footer={<Button variant="primary" onClick={() => { if (messageTarget) openWorkbenchDetail(messageTarget.route); setMessageTarget(null) }}>进入来源对象</Button>}><div className="message-detail"><StatusTag>{messageTarget?.type}</StatusTag><h3>{messageTarget?.title}</h3><p>消息与来源对象共用同一工作流状态。进入详情后可继续当前阶段允许的查看、转派、整改或复核操作。</p><KeyValue items={[{ label: '来源对象', value: messageTarget?.source }, { label: '发送时间', value: messageTarget?.time }, { label: '当前状态', value: messageTarget?.unread ? '未读' : '已读' }]}/></div></Drawer>
   </>
 }
 
 export function SituationPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
   const warnings = useAppStore((state) => state.warnings)
   const events = useAppStore((state) => state.riskEvents)
@@ -152,6 +156,7 @@ export function SituationPage() {
   const onTimeClosed = closedEvents.filter((item) => !item.overdue)
   const onTimeClosure = closedEvents.length ? Math.round(onTimeClosed.length / closedEvents.length * 1000) / 10 : 0
   const highWarnings = visibleWarnings.filter((item) => ['重大', '高'].includes(item.level))
+  const openSituationDetail = (route: string) => navigate(route, { state: createReturnState(locationPath(location), '返回监管态势') })
   const query = () => { setLoading(true); window.setTimeout(() => { setFilters(draft); setLoading(false); setToast('全部态势组件已使用同一筛选快照更新') }, 320) }
   const drill = (path: string, source: string) => navigate(`${path}${path.includes('?') ? '&' : '?'}source=${source}&snapshot=202607171200`)
   const drillMetric = (code: string) => {
@@ -213,7 +218,7 @@ export function SituationPage() {
         {(tab === 'overview' || tab === 'warning') && <><Panel className="situation-chart-card situation-trend-card" title={tab === 'warning' ? '预警阶段趋势' : '预警趋势'} subtitle={`${filters.time} · 预警数量及变化方向`} actions={<button className="text-button" onClick={() => drill('/risk/warnings', 'trend')}>查看明细</button>}><SituationTrendChart range={filters.time} onClick={() => drill('/risk/warnings', 'trend-chart')}/></Panel><Panel className="situation-chart-card" title="风险等级结构" subtitle="按当前筛选范围实时计算"><RiskLevelChart warnings={visibleWarnings} onClick={(level) => drill(`/risk/warnings?level=${encodeURIComponent(level)}`, 'level-donut')}/></Panel></>}
         {(tab === 'overview' || tab === 'risk') && <><Panel className="situation-chart-card" title="组织风险排行" subtitle="按预警数量排序，点击组织下钻"><OrganizationRiskChart warnings={visibleWarnings} onClick={(label) => drill(`/risk/warnings?org=${encodeURIComponent(label)}`, 'org-bar')}/></Panel><Panel className="situation-chart-card" title="风险处置进展" subtitle="展示事件当前处置阶段"><RiskDispositionChart events={visibleEvents} onClick={(status) => drill(`/risk/events?status=${encodeURIComponent(status)}`, 'status-bar')}/></Panel></>}
       </section>}
-      <Panel title="重点事项" subtitle="重大高风险、逾期事项和重点组织" className="section-panel situation-priority-panel" actions={<button className="text-button situation-diagnostic" onClick={() => setComponentError(true)}>组件诊断</button>}><div className="table-container"><table><thead><tr><th>对象编号 / 标题</th><th>类型</th><th>风险等级</th><th>组织 / 领域</th><th>当前状态</th><th>责任人</th><th>截止时间</th></tr></thead><tbody>{highWarnings.slice(0, 3).map((item) => <tr key={item.id} onClick={() => navigate(`/risk/warnings/${item.id}`)}><td><button className="table-link title-cell"><strong>{item.title}</strong><span>{item.id}</span></button></td><td>预警</td><td><RiskTag level={item.level}/></td><td>{item.organization}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.owner}</td><td>{item.expectedAt}</td></tr>)}{overdue.slice(0, 2).map((item) => <tr key={item.id} onClick={() => navigate(`/risk/events/${item.id}`)}><td><button className="table-link title-cell"><strong>{item.title}</strong><span>{item.id}</span></button></td><td>风险事件</td><td><RiskTag level={item.level}/></td><td>{item.organization}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.owner}</td><td><span className="deadline overdue">{item.dueAt}<small>已逾期</small></span></td></tr>)}</tbody></table></div></Panel>
+      <Panel title="重点事项" subtitle="重大高风险、逾期事项和重点组织" className="section-panel situation-priority-panel" actions={<button className="text-button situation-diagnostic" onClick={() => setComponentError(true)}>组件诊断</button>}><div className="table-container"><table><thead><tr><th>对象编号 / 标题</th><th>类型</th><th>风险等级</th><th>组织 / 领域</th><th>当前状态</th><th>责任人</th><th>截止时间</th></tr></thead><tbody>{highWarnings.slice(0, 3).map((item) => <tr key={item.id} onClick={() => openSituationDetail(`/risk/warnings/${item.id}`)}><td><button className="table-link title-cell"><strong>{item.title}</strong><span>{item.id}</span></button></td><td>预警</td><td><RiskTag level={item.level}/></td><td>{item.organization}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.owner}</td><td>{item.expectedAt}</td></tr>)}{overdue.slice(0, 2).map((item) => <tr key={item.id} onClick={() => openSituationDetail(`/risk/events/${item.id}`)}><td><button className="table-link title-cell"><strong>{item.title}</strong><span>{item.id}</span></button></td><td>风险事件</td><td><RiskTag level={item.level}/></td><td>{item.organization}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.owner}</td><td><span className="deadline overdue">{item.dueAt}<small>已逾期</small></span></td></tr>)}</tbody></table></div></Panel>
     </>}
     {bigScreenOpen && <SituationBigScreen
       warnings={visibleWarnings}
@@ -222,7 +227,7 @@ export function SituationPage() {
       currentScope={filters.org}
       initialDomain={filters.domain !== '全部授权领域' ? filters.domain : undefined}
       onExit={() => setBigScreenOpen(false)}
-      onNavigate={(path) => { setBigScreenOpen(false); navigate(path) }}
+      onNavigate={(path) => { setBigScreenOpen(false); navigate(path, { state: createReturnState(locationPath(location), '返回监管态势大屏') }) }}
     />}
   </>
 }
