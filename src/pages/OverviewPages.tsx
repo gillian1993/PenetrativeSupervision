@@ -108,7 +108,7 @@ export function WorkbenchPage() {
       <StatCard label="已逾期" value={counts.overdue} helper="需要优先处置的当前任务" tone="red" icon="clock" active={cardFilter === '已逾期'} onClick={() => { setCardFilter(cardFilter === '已逾期' ? '全部' : '已逾期'); setPage(1) }}/>
     </section>
     <section className="workbench-layout">
-      <Panel title="我的待办" subtitle={`查询结果 ${filteredTodos.length} 项，当前第 ${page}/${totalPages} 页`} actions={cardFilter !== '全部' && <button className="filter-chip" onClick={() => setCardFilter('全部')}>{cardFilter}<Icon name="close" size={13}/></button>} className="workbench-todo-panel">
+      <Panel title="我的待办" actions={cardFilter !== '全部' && <button className="filter-chip" onClick={() => setCardFilter('全部')}>{cardFilter}<Icon name="close" size={13}/></button>} className="workbench-todo-panel">
         <div className="workbench-filter">
           <FilterGrid onReset={reset} onSearch={runQuery}>
             <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && runQuery()} placeholder="编号、标题、对象或处理人"/></Field>
