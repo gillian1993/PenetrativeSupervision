@@ -1,13 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import type { RiskEvent, TodoItem, Warning, WorkMessage } from '../types'
 import { useAppStore } from '../store'
-import { Button, Drawer, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, RiskTag, StatCard, StatusTag, Tabs, type IconName } from '../ui'
+import { Button, Drawer, Field, FilterGrid, Icon, KeyValue, Modal, PageHeader, Panel, RiskTag, StatCard, StatusTag, type IconName } from '../ui'
 import { SituationBigScreen } from './SituationBigScreen'
 import { inferSituationDomain, SITUATION_DOMAINS } from '../situationDomains'
 import { createReturnState, locationPath } from '../navigation'
 
-const pageSize = 4
+const pageSizeOptions = [5, 10, 15, 30, 100]
 type SituationTone = 'blue' | 'red' | 'orange' | 'purple' | 'green'
 
 const todoActionLabel = (item: TodoItem) => {
@@ -38,6 +38,7 @@ export function WorkbenchPage() {
   const [draft, setDraft] = useState({ keyword: '', objectType: '全部', status: '全部', time: '全部' })
   const [filters, setFilters] = useState(draft)
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
   const [transferTarget, setTransferTarget] = useState<TodoItem | null>(null)
   const [transferOwner, setTransferOwner] = useState('李华')
   const [transferReason, setTransferReason] = useState('工作职责调整')
@@ -57,12 +58,18 @@ export function WorkbenchPage() {
   }), [todos, cardFilter, filters])
   const totalPages = Math.max(1, Math.ceil(filteredTodos.length / pageSize))
   const rows = filteredTodos.slice((page - 1) * pageSize, page * pageSize)
+  const pageStart = filteredTodos.length ? (page - 1) * pageSize + 1 : 0
+  const pageEnd = Math.min(page * pageSize, filteredTodos.length)
   const counts = {
     warning: todos.filter((item) => item.objectType === '预警' && item.status === '待研判').length,
     rectify: todos.filter((item) => item.objectType === '事件' && item.status === '待整改').length,
     review: todos.filter((item) => item.objectType === '事件' && item.status === '待复核').length,
     overdue: todos.filter((item) => item.timeState === '已逾期').length,
   }
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
 
   const runQuery = () => {
     setLoading(true)
@@ -111,7 +118,7 @@ export function WorkbenchPage() {
           </FilterGrid>
         </div>
         {loading ? <div className="table-loading"><i/><span>正在加载本人待办…</span></div> : rows.length === 0 ? <div className="empty-state"><span><Icon name="check"/></span><strong>当前条件下没有待办</strong><p>可调整查询条件或清除统计卡筛选。</p></div> : <div className="table-container compact-table"><table><thead><tr><th>待办编号 / 标题</th><th>对象类型</th><th>风险等级</th><th>状态</th><th>截止时间</th><th>当前处理人</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => openWorkbenchDetail(item.route)}><strong>{item.title}</strong><span>{item.id}</span></button></td><td><span className={`tag todo-object-tag ${item.objectType === '事件' ? 'event' : 'warning'}`}>{item.objectType}</span></td><td><RiskTag level={item.level}/></td><td><StatusTag>{item.status}</StatusTag></td><td><span className={`deadline ${item.timeState === '已逾期' ? 'overdue' : item.timeState === '临期' ? 'soon' : ''}`}>{item.dueAt}<small>{item.timeState}</small></span></td><td>{item.owner || '待分配'}</td><td><div className="row-actions"><button onClick={() => openWorkbenchDetail(item.route)}>{todoActionLabel(item)}</button><button onClick={() => { setTransferTarget(item); setTransferOwner(item.owner === '李华' ? '王宁' : '李华'); setTransferReason('工作职责调整') }}>转派</button></div></td></tr>)}</tbody></table></div>}
-        <div className="pagination"><span>共 {filteredTodos.length} 条</span><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => setPage(page + 1)}>›</button></div>
+        <div className="pagination workbench-pagination"><span className="pagination-total">显示 {pageStart}-{pageEnd} / 共 {filteredTodos.length} 条</span><label className="page-size-selector"><span>每页显示</span><select aria-label="每页显示条数" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1) }}>{pageSizeOptions.map((value) => <option key={value} value={value}>{value}</option>)}</select><span>条</span></label><button disabled={page === 1} onClick={() => setPage(page - 1)}>‹</button>{Array.from({ length: totalPages }, (_, index) => <button key={index + 1} className={page === index + 1 ? 'active' : ''} onClick={() => setPage(index + 1)}>{index + 1}</button>)}<button disabled={page === totalPages} onClick={() => setPage(page + 1)}>›</button></div>
       </Panel>
       <Panel title="消息接收框" subtitle={`${messages.filter((item) => item.unread).length} 条未读`} actions={<button className="text-button" disabled={!messages.some((item) => item.unread)} onClick={() => setAllReadConfirm(true)}>全部已读</button>} className="message-panel">
         <div className="message-list">{messages.slice(0, 8).map((item) => <button key={item.id} className={`message-item ${item.unread ? 'unread' : ''}`} onClick={() => openMessage(item)}><span className="message-icon"><Icon name={messageIcon(item)}/></span><span className="message-main"><b><StatusTag>{item.type}</StatusTag>{item.unread && <i/>}</b><strong>{item.title}</strong><small>{item.source} · {item.time}</small></span><Icon name="chevron" size={15}/></button>)}</div>
@@ -132,7 +139,6 @@ export function SituationPage() {
   const scenes = useAppStore((state) => state.scenes)
   const currentScope = useAppStore((state) => state.currentScope)
   const setToast = useAppStore((state) => state.setToast)
-  const [tab, setTab] = useState('overview')
   const [draft, setDraft] = useState({ time: '最近30天', org: currentScope, domain: '全部授权领域', level: '全部等级', stage: '全部阶段' })
   const [filters, setFilters] = useState(draft)
   const [loading, setLoading] = useState(false)
@@ -211,12 +217,13 @@ export function SituationPage() {
       <Field label="预警阶段"><select value={draft.stage} onChange={(event) => setDraft({ ...draft, stage: event.target.value })}><option>全部阶段</option><option>事前</option><option>事中</option><option>事后</option></select></Field>
     </FilterGrid>
     </div>
-    <div className="situation-tabs"><Tabs value={tab} onChange={setTab} items={[{ key: 'overview', label: '综合态势' }, { key: 'warning', label: '预警态势' }, { key: 'risk', label: '风险处置态势' }]}/></div>
     {loading ? <div className="dashboard-loading"><i/><strong>正在计算统一统计快照</strong><span>指标、图表和重点事项将同时更新</span></div> : <>
       <section className="situation-metric-grid">{metrics.map((item) => <SituationMetricCard key={item.code} {...item} onClick={() => drillMetric(item.code)}/>)}</section>
       {componentError ? <Panel title="态势分析区加载失败" className="component-error"><div className="alert-box danger"><Icon name="warning"/><span>组织风险分布服务响应超时，其他指标仍可正常使用。</span></div><Button onClick={() => setComponentError(false)}>单独重试该组件</Button></Panel> : <section className="situation-dashboard-grid">
-        {(tab === 'overview' || tab === 'warning') && <><Panel className="situation-chart-card situation-trend-card" title={tab === 'warning' ? '预警阶段趋势' : '预警趋势'} subtitle={`${filters.time} · 预警数量及变化方向`} actions={<button className="text-button" onClick={() => drill('/risk/warnings', 'trend')}>查看明细</button>}><SituationTrendChart range={filters.time} onClick={() => drill('/risk/warnings', 'trend-chart')}/></Panel><Panel className="situation-chart-card" title="风险等级结构" subtitle="按当前筛选范围实时计算"><RiskLevelChart warnings={visibleWarnings} onClick={(level) => drill(`/risk/warnings?level=${encodeURIComponent(level)}`, 'level-donut')}/></Panel></>}
-        {(tab === 'overview' || tab === 'risk') && <><Panel className="situation-chart-card" title="组织风险排行" subtitle="按预警数量排序，点击组织下钻"><OrganizationRiskChart warnings={visibleWarnings} onClick={(label) => drill(`/risk/warnings?org=${encodeURIComponent(label)}`, 'org-bar')}/></Panel><Panel className="situation-chart-card" title="风险处置进展" subtitle="展示事件当前处置阶段"><RiskDispositionChart events={visibleEvents} onClick={(status) => drill(`/risk/events?status=${encodeURIComponent(status)}`, 'status-bar')}/></Panel></>}
+        <Panel className="situation-chart-card situation-trend-card" title="预警趋势" subtitle={`${filters.time} · 预警数量及变化方向`} actions={<button className="text-button" onClick={() => drill('/risk/warnings', 'trend')}>查看明细</button>}><SituationTrendChart range={filters.time} onClick={() => drill('/risk/warnings', 'trend-chart')}/></Panel>
+        <Panel className="situation-chart-card" title="风险等级结构" subtitle="按当前筛选范围实时计算"><RiskLevelChart warnings={visibleWarnings} onClick={(level) => drill(`/risk/warnings?level=${encodeURIComponent(level)}`, 'level-donut')}/></Panel>
+        <Panel className="situation-chart-card" title="组织风险排行" subtitle="按预警数量排序，点击组织下钻"><OrganizationRiskChart warnings={visibleWarnings} onClick={(label) => drill(`/risk/warnings?org=${encodeURIComponent(label)}`, 'org-bar')}/></Panel>
+        <Panel className="situation-chart-card" title="风险处置进展" subtitle="展示事件当前处置阶段"><RiskDispositionChart events={visibleEvents} onClick={(status) => drill(`/risk/events?status=${encodeURIComponent(status)}`, 'status-bar')}/></Panel>
       </section>}
       <Panel title="重点事项" subtitle="重大高风险、逾期事项和重点组织" className="section-panel situation-priority-panel" actions={<button className="text-button situation-diagnostic" onClick={() => setComponentError(true)}>组件诊断</button>}><div className="table-container"><table><thead><tr><th>对象编号 / 标题</th><th>类型</th><th>风险等级</th><th>组织 / 领域</th><th>当前状态</th><th>责任人</th><th>截止时间</th></tr></thead><tbody>{highWarnings.slice(0, 3).map((item) => <tr key={item.id} onClick={() => openSituationDetail(`/risk/warnings/${item.id}`)}><td><button className="table-link title-cell"><strong>{item.title}</strong><span>{item.id}</span></button></td><td>预警</td><td><RiskTag level={item.level}/></td><td>{item.organization}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.owner}</td><td>{item.expectedAt}</td></tr>)}{overdue.slice(0, 2).map((item) => <tr key={item.id} onClick={() => openSituationDetail(`/risk/events/${item.id}`)}><td><button className="table-link title-cell"><strong>{item.title}</strong><span>{item.id}</span></button></td><td>风险事件</td><td><RiskTag level={item.level}/></td><td>{item.organization}</td><td><StatusTag>{item.status}</StatusTag></td><td>{item.owner}</td><td><span className="deadline overdue">{item.dueAt}<small>已逾期</small></span></td></tr>)}</tbody></table></div></Panel>
     </>}

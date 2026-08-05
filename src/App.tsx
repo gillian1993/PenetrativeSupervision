@@ -210,7 +210,7 @@ function AppEnhanced() {
   }, [location.pathname])
 
   const currentRoleItem = roles.find((item) => item.name === currentRole)
-  const rolePermissions = currentRoleItem?.permissions || []
+  const rolePermissions = currentRoleItem?.permissions
   const effectivePermissions = useMemo(() => resolveRolePermissionCodes(currentRole, rolePermissions), [currentRole, rolePermissions])
   const visibleNavSections = useMemo(() => filterNavSections(effectivePermissions), [effectivePermissions])
   const firstAccessiblePath = useMemo(() => getFirstAccessiblePath(effectivePermissions), [effectivePermissions])
@@ -323,7 +323,7 @@ function AppEnhanced() {
   }
 
   const chooseScope = (scope: string) => { setScope(scope); setScopeOpen(false); setToast(`监管范围已切换为：${scope}`) }
-  const chooseRole = (role: string) => { const nextRoleItem = roles.find((item) => item.name === role); const nextPermissions = resolveRolePermissionCodes(role, nextRoleItem?.permissions || []); setCurrentRole(role); setRoleOpen(false); setToast(`当前角色已切换为：${role}`); navigate(getFirstAccessiblePath(nextPermissions)) }
+  const chooseRole = (role: string) => { const nextRoleItem = roles.find((item) => item.name === role); const nextPermissions = resolveRolePermissionCodes(role, nextRoleItem?.permissions); setCurrentRole(role); setRoleOpen(false); setToast(`当前角色已切换为：${role}`); navigate(getFirstAccessiblePath(nextPermissions)) }
   const confirmWorkflowReset = async () => {
     if (resettingWorkflow) return
     setResettingWorkflow(true)

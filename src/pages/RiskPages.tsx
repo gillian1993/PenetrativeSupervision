@@ -29,10 +29,8 @@ export function WarningListPage() {
   const [searchParams] = useSearchParams()
   const warnings = useAppStore((state) => state.warnings)
   const scenes = useAppStore((state) => state.scenes)
-  const warningSource = useAppStore((state) => state.warningSource)
   const loadWarningsFromDatabase = useAppStore((state) => state.loadWarningsFromDatabase)
   const riskEvents = useAppStore((state) => state.riskEvents)
-  const currentRole = useAppStore((state) => state.currentRole)
   const transferWarning = useAppStore((state) => state.transferWarning)
   const releaseWarning = useAppStore((state) => state.releaseWarning)
   const escalateWarning = useAppStore((state) => state.escalateWarning)
@@ -96,7 +94,7 @@ export function WarningListPage() {
   }
 
   return <>
-    <PageHeader eyebrow="风险监管 / 统一预警" title="统一预警" description="统一查询事前、事中和事后预警，完成查看、转派、解除和风险升级。" actions={<><span className="updated-time">数据：{warningSource === 'database' ? 'MySQL证据 · 工作流可操作' : '本地演示数据'} · 当前角色：{currentRole}</span><Button icon="refresh" onClick={() => void query()}>刷新</Button></>}/>
+    <PageHeader eyebrow="风险监管 / 统一预警" title="统一预警" description="统一查询事前、事中和事后预警，完成查看、转派、解除和风险升级。" actions={<Button icon="refresh" onClick={() => void query()}>刷新</Button>}/>
     <div className="page-query page-query-warning">
       <FilterGrid onReset={() => { const value = { keyword: '', status: '待研判', stage: '全部', level: '全部', domain: '全部' }; setDraft(value); setFilters(value); setPage(1) }} onSearch={query}>
         <Field label="关键词"><input value={draft.keyword} onChange={(event) => setDraft({ ...draft, keyword: event.target.value })} onKeyDown={(event) => event.key === 'Enter' && void query()} placeholder="预警编号、标题或目标对象"/></Field>

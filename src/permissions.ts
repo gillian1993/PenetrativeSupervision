@@ -140,10 +140,8 @@ export const ROLE_PERMISSION_PRESETS: Record<string, PermissionCode[]> = {
   采购应用管理员: [...unifiedMenus, ...procurementMenus, 'menu.system.models', 'menu.system.audit'],
 }
 
-export function resolveRolePermissionCodes(roleName: string, storedPermissions: string[] = []) {
-  const stored = normalizePermissionCodes(storedPermissions)
-  const preset = normalizePermissionCodes(ROLE_PERMISSION_PRESETS[roleName] || [])
-  if (roleName === '监管负责人') return new Set([...preset, ...stored])
-  return new Set(stored.length ? stored : preset)
+export function resolveRolePermissionCodes(roleName: string, storedPermissions?: string[]) {
+  const source = storedPermissions === undefined ? ROLE_PERMISSION_PRESETS[roleName] || [] : storedPermissions
+  return new Set(normalizePermissionCodes(source))
 }
 
