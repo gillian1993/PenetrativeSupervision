@@ -45,8 +45,6 @@ const riskOrder: Record<RiskLevel, number> = { 重大: 0, 高: 1, 中: 2, 低: 3
 
 const riskTone = (item: DomainStat) => item.major > 0 ? 'critical' : item.high > 0 ? 'high' : item.total > 0 ? 'medium' : 'quiet'
 
-const formatNumber = (value: number) => value.toLocaleString('zh-CN')
-
 export function SituationBigScreen({ warnings, events, sceneDomains, currentScope, initialDomain, onExit, onNavigate }: SituationBigScreenProps) {
   const initial = SITUATION_DOMAINS.some((item) => item.key === initialDomain) ? initialDomain as SituationDomainKey : null
   const [selectedDomain, setSelectedDomain] = useState<SituationDomainKey | null>(initial)
@@ -114,9 +112,6 @@ export function SituationBigScreen({ warnings, events, sceneDomains, currentScop
   const onTimeClosed = closedEvents.filter((item) => !item.overdue)
   const onTimeClosure = closedEvents.length ? Math.round(onTimeClosed.length / closedEvents.length * 1000) / 10 : 0
   const activeDefinition = selectedDomain ? SITUATION_DOMAINS.find((item) => item.key === selectedDomain) : null
-  const monitoringCoverage = selectedDomain ? activeDefinition?.coverage || 0 : SITUATION_DOMAINS.reduce((sum, item) => sum + item.coverage, 0)
-  const quietDomains = domainStats.filter((item) => item.total === 0).length
-
   const metrics = [
     { label: '本期预警总量', value: activeWarnings.length, unit: '条', tone: 'blue', helper: '当前统计周期新增预警' },
     { label: '在办风险事件', value: activeOpenEvents.length, unit: '项', tone: 'purple', helper: `本期新增 ${activeEvents.length}项 · 环比 +20%` },
@@ -183,9 +178,18 @@ export function SituationBigScreen({ warnings, events, sceneDomains, currentScop
     </main>
 
     <section className="bi-bottom-grid">
-      <BiPanel title="十大领域风险排行" subtitle="综合风险指数"><DomainRanking stats={rankedDomains}/></BiPanel>
-      <BiPanel title="领域风险热力矩阵" subtitle="风险规模、严重程度、增长趋势与处置压力"><DomainHeatMatrix stats={domainStats}/></BiPanel>
-      <BiPanel title="监管运行成效" subtitle="当前快照覆盖情况"><div className="bi-outcome-grid"><div><span>监测对象</span><strong>{formatNumber(monitoringCoverage)}</strong><small>当前统计范围</small></div><div><span>平稳领域</span><strong>{quietDomains}</strong><small>暂无风险触发</small></div><div><span>重点领域</span><strong>{domainStats.filter((item) => item.major > 0 || item.high > 0).length}</strong><small>存在重大高风险</small></div><div><span>按期闭环率</span><strong>{onTimeClosure}%</strong><small>目标 ≥90%</small></div></div></BiPanel>
+      <BiPanel title="十大领域风险分布" subtitle="综合排名与多维热度对照" className="bi-bottom-composite">
+        <div className="bi-bottom-composite-grid">
+          <section className="bi-bottom-section">
+            <header><div><h3>十大领域风险排行</h3><p>综合风险指数</p></div></header>
+            <DomainRanking stats={rankedDomains}/>
+          </section>
+          <section className="bi-bottom-section bi-bottom-heat">
+            <header><div><h3>风险热力矩阵</h3><p>风险规模、严重程度、增长趋势与处置压力</p></div><HeatLegend/></header>
+            <DomainHeatMatrix stats={domainStats} selected={selectedDomain}/>
+          </section>
+        </div>
+      </BiPanel>
     </section>
 
     <footer className="bi-footer">
@@ -247,7 +251,7 @@ function DispositionProgress({ events }: { events: RiskEvent[] }) {
 
 function DomainRanking({ stats }: { stats: DomainStat[] }) {
   const max = Math.max(1, ...stats.map((item) => item.score))
-  return <div className="bi-domain-ranking">{stats.slice(0, 5).map((item, index) => <article key={item.key}><b>{index + 1}</b><span><strong>{item.label}</strong><small>{item.total}项风险</small></span><em><i style={{ width: `${Math.max(item.score ? 8 : 2, item.score / max * 100)}%`, background: item.color }}/></em><strong>{item.score}</strong></article>)}</div>
+  return <div className="bi-domain-ranking">{[stats.slice(0, 5), stats.slice(5, 10)].map((group, groupIndex) => <div className="bi-domain-ranking-column" key={groupIndex}>{group.map((item, index) => { const rank = groupIndex * 5 + index + 1; return <article key={item.key}><b className={`rank-${rank}`}>{rank}</b><span><strong>{item.label}</strong><small>{item.total}项</small></span><em><i style={{ width: `${Math.max(item.score ? 8 : 2, item.score / max * 100)}%`, background: item.color }}/></em><strong>{item.score}</strong></article> })}</div>)}</div>
 }
 
 const formatTrendValue = (value: number) => `${value > 0 ? '+' : ''}${value}%`
@@ -260,7 +264,11 @@ const heatLevelText = (level: number) => {
   return '无'
 }
 
-function DomainHeatMatrix({ stats }: { stats: DomainStat[] }) {
+function HeatLegend() {
+  return <div className="bi-heat-legend"><span>热度</span><b><i className="heat-1"/>低</b><b><i className="heat-2"/>中低</b><b><i className="heat-3"/>中高</b><b><i className="heat-4"/>高</b></div>
+}
+
+function DomainHeatMatrix({ stats, selected }: { stats: DomainStat[]; selected: SituationDomainKey | null }) {
   const rows = [
     {
       label: '风险规模',
@@ -288,22 +296,15 @@ function DomainHeatMatrix({ stats }: { stats: DomainStat[] }) {
     },
   ]
   return <div className="bi-heat-matrix">
-    <div className="bi-heat-head"><span>指标</span>{stats.map((item) => <b key={item.key}>{item.shortLabel}</b>)}</div>
+    <div className="bi-heat-head"><span>指标</span>{stats.map((item) => <b key={item.key} className={selected === item.key ? 'selected' : ''} title={item.label}>{item.shortLabel}</b>)}</div>
     {rows.map((row) => <div className="bi-heat-row" key={row.label}>
       <span title={row.rule}>{row.label}</span>
       {stats.map((item) => {
         const level = row.value(item)
         const title = `${item.label} · ${row.label}\n档位：${level || '—'}（${heatLevelText(level)}）\n依据：${row.detail(item)}\n规则：${row.rule}`
-        return <i key={item.key} className={`heat-${level}`} title={title} aria-label={title}>{level || '—'}</i>
+        return <i key={item.key} className={`heat-${level} ${selected === item.key ? 'selected' : ''}`} title={title} aria-label={title}>{level || '—'}</i>
       })}
     </div>)}
-    <div className="bi-heat-legend">
-      <span>热度档位</span>
-      <b><i className="heat-1"/>低</b>
-      <b><i className="heat-2"/>中低</b>
-      <b><i className="heat-3"/>中高</b>
-      <b><i className="heat-4"/>高</b>
-      <em>悬浮格子查看原始口径</em>
-    </div>
+
   </div>
 }

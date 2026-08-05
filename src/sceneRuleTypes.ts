@@ -31,7 +31,7 @@ export interface EvidenceRequirement{
   elementType?:EvidenceElementType;elementCode?:string;elementName?:string;parentCode?:string;parentName?:string;
   source?:string;sourceField?:string;
   entityCode?:string;entityName?:string;fieldCode?:string;fieldName?:string;
-  attachmentRequirement?:string;completeness?:string;description:string
+  attachmentName?:string;description:string
 }
 export interface SkillInput{id:string;name:string;sourceType:'对象字段'|'事件数据'|'附件'|'文本';source:string;required:boolean}
 export interface SkillOutput{id:string;name:string;dataType:string;description:string}

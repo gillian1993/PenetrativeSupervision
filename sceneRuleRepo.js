@@ -31,7 +31,7 @@ export function normalizeEvidenceRequirements(value){
   return list.map((item,index)=>{
     if(typeof item==='string'){
       const entityName=evidenceEntityFor(item)
-      return{id:`evidence-${index+1}`,name:item,graphVersion:'',ontologyId:'',elementType:'class',elementCode:'',elementName:entityName,parentCode:'',parentName:'',source:entityName,sourceField:'',entityCode:'',entityName,fieldCode:'',fieldName:'',attachmentRequirement:'',completeness:'',description:''}
+      return{id:`evidence-${index+1}`,name:item,graphVersion:'',ontologyId:'',elementType:'class',elementCode:'',elementName:entityName,parentCode:'',parentName:'',source:entityName,sourceField:'',entityCode:'',entityName,fieldCode:'',fieldName:'',attachmentName:'',description:''}
     }
     const name=String(item?.name||'')
     const graphVersion=String(item?.graphVersion||item?.graph_version||'')
@@ -85,8 +85,7 @@ export function normalizeEvidenceRequirements(value){
       entityName:normalizedEntityName,
       fieldCode:normalizedFieldCode,
       fieldName:normalizedFieldName,
-      attachmentRequirement:String(item?.attachmentRequirement||item?.attachment_requirement||''),
-      completeness:String(item?.completeness||''),
+      attachmentName:String(item?.attachmentName||item?.attachment_name||''),
       description:String(item?.description||''),
     }
   })
