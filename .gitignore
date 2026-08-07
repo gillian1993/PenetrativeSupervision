@@ -1,11 +1,26 @@
+# dependencies / build
 node_modules/
 dist/
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
 .vite/
-.DS_Store
+
+# environment
 .env.local
+.DS_Store
+
+# local runtime logs
+*.log
+.server*.log
+
+# generated outputs
 outputs/
 .codex_ppt_build/
 .codex_tmp/
+.codex_artifacts/
+.super-agent-data/
+
+# local agent/tool state
+.agents/
+.codex/

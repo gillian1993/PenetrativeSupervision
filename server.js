@@ -9,6 +9,7 @@ import { initializeDataGraphDatabase, handleDataGraphApi } from './dataGraphApi.
 import { handleDemoReadApi } from './demoReadApi.js'
 import { initializeRuleCatalogDatabase } from './ruleCatalogService.js'
 import { handleRuleCatalogApi } from './ruleCatalogRouter.js'
+import { handleSuperAgentApi } from './superAgentRouter.js'
 
 const root=fileURLToPath(new URL('.',import.meta.url))
 
@@ -371,6 +372,7 @@ async function deleteOntologyV2(res,id){
 }
 async function handleApi(req,res,url){
   if(url.pathname==='/api/health'&&req.method==='GET')return sendJson(res,200,{ok:true,database})
+  if(await handleSuperAgentApi(req,res,url,{sendJson}))return
   if(await handleDemoReadApi(req,res,url,{pool,sendJson}))return
   if(await handleRuleCatalogApi(req,res,url,{pool,sendJson,readBody}))return
   if(await handleSceneRuleApi(req,res,url,{pool,sendJson,readBody}))return
@@ -392,4 +394,3 @@ const server=http.createServer(async(req,res)=>{const url=new URL(req.url||'/',`
 server.listen(port,'127.0.0.1',()=>{console.log(`穿透式监管服务已启动：http://127.0.0.1:${port}`);console.log(`MySQL业务库已就绪：${database}`)})
 async function shutdown(){await vite?.close();await pool?.end();server.close(()=>process.exit(0))}
 process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown)
-

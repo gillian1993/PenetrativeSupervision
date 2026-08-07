@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AuditPage, DataSourceCreatePage, DataSourceDetailPage, GraphManagementPage, ModelManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
-import { ProcurementHomePage, ProcurementModulePage, ProcurementOverviewPage, SuperAgentPage } from './pages/ProcurementApplicationPages'
+import { ProcurementHomePage, ProcurementModulePage, ProcurementOverviewPage } from './pages/ProcurementApplicationPages'
+import { SuperAgentPage } from './pages/SuperAgentPage'
 import { GraphCreatePage } from './pages/GraphCreateWizard'
 import { RuleAssetCreatePage, RuleAssetEditorPage, RuleAssetManagementPage } from './pages/RuleAssetPages'
 import { OntologyCreatePage, OntologyEditorPage } from './pages/OntologyLocalPages'
@@ -140,6 +141,7 @@ const permissionsForPath = (path: string): PermissionCode[] => {
 }
 
 const pathAllowedByPermissions = (path: string, permissions: Set<string>) => {
+  if (path.startsWith('/super-agent')) return true
   const required = permissionsForPath(path)
   return required.length === 0 || required.some((permission) => permissions.has(permission))
 }
@@ -156,6 +158,7 @@ function AppEnhanced() {
   const navigate = useNavigate()
   const location = useLocation()
   const graphWorkspace = location.pathname === '/graphs/new' || /^\/graphs\/[^/]+\/edit$/.test(location.pathname)
+  const superAgentPage = location.pathname.startsWith('/super-agent')
   const messages = useAppStore((state) => state.messages)
   const todos = useAppStore((state) => state.todos)
   const warnings = useAppStore((state) => state.warnings)
@@ -342,7 +345,7 @@ function AppEnhanced() {
     }
   }
 
-  return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''}`} onClick={(event) => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false); const target = event.target as Element; if (agentOpen && !target.closest('.agent-popover') && !target.closest('.agent-fab')) setAgentOpen(false) }}>
+  return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''} ${superAgentPage ? 'super-agent-embedded-shell' : ''}`} onClick={(event) => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false); const target = event.target as Element; if (agentOpen && !target.closest('.agent-popover') && !target.closest('.agent-fab')) setAgentOpen(false) }}>
     <header className="topbar">
       <button className="brand" onClick={() => navigate(firstAccessiblePath)} aria-label="返回采购管理应用"><img className="brand-logo" src={cloudLogo} alt="中国电子云"/><em/><span>采购管理应用</span></button>
       <nav className="platform-nav" aria-label="平台切换">{platformTabs.map((tab) => <button key={tab} className={tab === currentPlatformTab ? 'active' : ''} onClick={() => tab === currentPlatformTab ? navigate(firstAccessiblePath) : setToast(`${tab}暂未进入，当前选择采购管理应用`)}>{tab}</button>)}</nav>
