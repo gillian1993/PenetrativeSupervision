@@ -50,10 +50,10 @@ interface OntologyState {
 }
 
 const sampleElements: OntologyElement[] = [
-  { id: 'EL-PROC-001', type: 'class', code: 'PROC.Supplier', name: '供应商', dataType: '类', constraint: '统一社会信用代码为主标识', description: '参与采购、合同或服务活动的业务主体。' },
+  { id: 'EL-PROC-001', type: 'class', code: 'PROC.Supplier', name: '供应商', dataType: '实体类型', constraint: '统一社会信用代码为主标识', description: '参与采购、合同或服务活动的业务主体。' },
   { id: 'EL-PROC-002', type: 'property', code: 'PROC.Supplier.credit_code', name: '统一社会信用代码', dataType: '文本', constraint: '主标识、必填', description: '供应商工商登记主标识。' },
   { id: 'EL-PROC-003', type: 'relation', code: 'PROC.participate', name: '参与采购', dataType: '供应商 → 采购项目', constraint: '多对多', description: '供应商报名或参与采购项目。' },
-  { id: 'EL-PROC-004', type: 'class', code: 'PROC.BidConfirmed', name: '中标确认', dataType: '类', constraint: '发生时间必填', description: '采购项目确认中标结果的业务记录。' },
+  { id: 'EL-PROC-004', type: 'class', code: 'PROC.BidConfirmed', name: '中标确认', dataType: '实体类型', constraint: '发生时间必填', description: '采购项目确认中标结果的业务记录。' },
 ]
 
 const descriptions: Record<string, string> = {
@@ -118,7 +118,7 @@ export const useOntologyStore = create<OntologyState>()(
       publishOntology: (id) => {
         const item = get().ontologies.find((row) => row.id === id)
         if (!item) return { ok: false, message: '图谱结构不存在' }
-        if (item.classes < 1) return { ok: false, message: '图谱结构至少需要一个类才能发布' }
+        if (item.classes < 1) return { ok: false, message: '图谱结构至少需要一个实体类型才能发布' }
         set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, status: '已发布', updatedAt: '刚刚' } : row) }))
         return { ok: true, message: '图谱结构版本已发布' }
       },

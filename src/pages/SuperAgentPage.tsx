@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import mascot from '../assets/super-agent-mascot.png'
-import { superAgentApi, type ReviewFinding, type SuperAgentDocument, type SuperAgentReport, type SuperAgentReview, type SuperAgentReviewJob, type SuperAgentRule, type SuperAgentRuntime } from '../superAgentApi'
+import { superAgentApi, type ReviewFinding, type ReviewRiskItem, type SuperAgentDocument, type SuperAgentReport, type SuperAgentReview, type SuperAgentReviewJob, type SuperAgentRule, type SuperAgentRuntime } from '../superAgentApi'
 import '../superAgent.css'
 
 type ChatMessageKind = 'chat' | 'review' | 'report' | 'rectification' | 'document'
@@ -130,26 +130,88 @@ function isReviewJobRunning(job?: SuperAgentReviewJob | null) {
 
 function formatReviewJobStatus(job: SuperAgentReviewJob) {
   if (job.status === 'queued') return '排队中'
-  if (job.status === 'running') return '规则审查中'
-  if (job.status === 'partial') return '已完成，部分规则待补齐'
+  if (job.status === 'running' && job.stage === 'prechecking') return '问题线索预审中'
+  if (job.status === 'running' && job.review) return '规则依据追溯中'
+  if (job.status === 'running') return '风险识别中'
+  if (job.status === 'partial') return '已完成，部分结果待补齐'
   if (job.status === 'completed') return '已完成'
   return '处理失败'
 }
 
 function formatReviewJobProgress(job: SuperAgentReviewJob) {
   const failed = job.failedBatches || 0
-  const failedText = failed ? '\n部分规则暂未形成可靠结论，系统会保留已完成结果。' : ''
-  return `审查任务已进入后台执行：${formatReviewJobStatus(job)}\n审查进度：${job.progress || 0}%\n已发现风险：高 ${job.highCount || 0} / 中 ${job.mediumCount || 0} / 低 ${job.lowCount || 0}${failedText}\n当前会话审查中，暂不可继续输入；你可以切换到其他会话或新建对话。完成后我会自动给出结果和报告入口。`
+  const failedText = failed ? '\n部分结果暂未形成可靠结论，系统会保留已完成结果。' : ''
+  const quickText = job.review ? '\n初步风险清单已生成，正在后台补充规则依据和报告附录。' : ''
+  return `审查任务已进入后台执行：${formatReviewJobStatus(job)}\n审查进度：${job.progress || 0}%${quickText}\n已识别风险线索：高 ${job.highCount || 0} / 中 ${job.mediumCount || 0} / 低 ${job.lowCount || 0}；待补充材料 ${job.insufficientCount || 0} 项${failedText}\n当前会话审查中，暂不可继续输入；你可以切换到其他会话或新建对话。完成后我会自动给出最终结果和报告入口。`
 }
-
 function formatReviewJobDone(job: SuperAgentReviewJob) {
   const review = job.review
   if (!review) return job.errorMessage || '审查任务已结束，但未生成可用审查结果。'
-  const partialText = job.status === 'partial' ? '部分规则未形成可靠结论，已先汇总成功规则结果，建议后续重试补齐。\n' : ''
+  const partialText = job.status === 'partial' ? '部分结果未形成可靠结论，已先汇总成功审查结果，建议后续重试补齐。\n' : ''
   const documentLabel = review.documentCount && review.documentCount > 1 ? `${review.documentCount} 篇文档` : '当前文档'
-  return `${partialText}已完成${documentLabel}审查。综合评分 ${review.score} 分，结论：${review.conclusion}\n高风险 ${review.highCount} 项，中风险 ${review.mediumCount} 项，低风险 ${review.lowCount} 项。\n你可以继续追问具体风险、要求生成整改清单，或生成正式检测报告。`
+  const stats = riskItemStats(fallbackRiskItems(review))
+  return `${partialText}已完成${documentLabel}审查。综合评分 ${review.score} 分，结论：${review.conclusion}\n本次识别主要风险 ${stats.risks.length} 项，其中高风险 ${stats.high} 项、中风险 ${stats.medium} 项、低风险 ${stats.low} 项；另有 ${stats.gaps.length} 项材料需补充核验。\n你可以继续追问具体风险、要求生成整改清单，或生成正式检测报告。`
+}
+function isRiskFinding(finding: ReviewFinding) {
+  return finding.status === 'risk' || (!finding.status && finding.passed === false)
 }
 
+function isInsufficientFinding(finding: ReviewFinding) {
+  return finding.status === 'insufficient'
+}
+
+function findingStatusText(finding: ReviewFinding) {
+  if (finding.statusText) return finding.statusText
+  if (isRiskFinding(finding)) return '命中风险'
+  if (isInsufficientFinding(finding)) return '证据不足'
+  return '通过'
+}
+
+function findingRiskCategory(finding: ReviewFinding) {
+  const text = `${finding.category} ${finding.ruleName} ${finding.issue} ${finding.evidence} ${finding.reason}`
+  if (/关联|股权|实际控制|交易对手|客户|供应商|空壳|资质/.test(text)) return '主体关联'
+  if (/货权|物流|运输|仓储|仓单|入库|出库|过磅|化验|签收|交付|货物/.test(text)) return '货物流/货权'
+  if (/资金|付款|收款|回款|银行|流水|账户|账期|逾期|预付|融资|保证金/.test(text)) return '资金流'
+  if (/发票|税|票|专票|开票|进项|销项|税负|虚开/.test(text)) return '发票税务'
+  if (/合同|订单|协议|签约|履约|结算|条款|价格|数量|标的/.test(text)) return '合同履约'
+  if (/审批|内控|授权|决策|制度|流程|台账|留痕|尽调|准入/.test(text)) return '审批内控'
+  if (/招标|投标|围标|串标|比价|竞价|中标/.test(text)) return '招投标'
+  if (/商业实质|真实贸易|空转|走单|循环|融资性|通道|闭环|虚假/.test(text)) return '商业实质'
+  return finding.category || '其他风险'
+}
+
+function fallbackRiskItems(review: SuperAgentReview | null): ReviewRiskItem[] {
+  if (!review) return []
+  if (review.riskItems?.length) return review.riskItems
+  const source = [...review.findings.filter(isRiskFinding), ...review.findings.filter(isInsufficientFinding)]
+  return source.slice(0, 16).map((finding, index) => ({
+    id: `RISK-FALLBACK-${index + 1}`,
+    type: isInsufficientFinding(finding) ? 'material_gap' : 'risk',
+    title: isInsufficientFinding(finding) ? `${findingRiskCategory(finding)}材料需补充核验` : (finding.issue || finding.reason || finding.ruleName || '风险事项').replace(/^(问题|风险|异常|疑似)[:：\s]*/g, '').slice(0, 42),
+    category: findingRiskCategory(finding),
+    severity: finding.severity,
+    statusText: isInsufficientFinding(finding) ? '需补充材料' : `${finding.severity}风险`,
+    summary: finding.issue || finding.reason || '存在异常线索',
+    evidence: finding.evidence || finding.reason || '未提供',
+    suggestion: finding.suggestion || '补充材料并开展穿透复核。',
+    findingIds: [finding.id],
+    relatedRuleIds: [finding.ruleId],
+    relatedRuleNames: [finding.ruleName],
+    findingCount: 1,
+  }))
+}
+
+function riskItemStats(items: ReviewRiskItem[]) {
+  const risks = items.filter((item) => item.type !== 'material_gap')
+  const gaps = items.filter((item) => item.type === 'material_gap')
+  return {
+    risks,
+    gaps,
+    high: risks.filter((item) => item.severity === '高').length,
+    medium: risks.filter((item) => item.severity === '中').length,
+    low: risks.filter((item) => item.severity === '低').length,
+  }
+}
 function errorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : '处理失败，请稍后重试'
   if (/CodingPlan subscription|subscription has expired|订阅|过期/i.test(message)) return '模型服务返回 CodingPlan 订阅无效或已过期，请在火山方舟控制台开通或续费 Coding Plan 后重试。当前文档解析结果已保留。'
@@ -179,6 +241,8 @@ function guessTurnIntent(value: string): 'chat' | 'review' | 'report' | 'rectifi
 }
 
 function buildReportMarkdown(review: SuperAgentReview) {
+  const riskItems = fallbackRiskItems(review)
+  const stats = riskItemStats(riskItems)
   const lines = [
     '# 文档检测报告',
     '',
@@ -186,9 +250,8 @@ function buildReportMarkdown(review: SuperAgentReview) {
     `- 文档名称：${review.documentName}`,
     `- 生成时间：${review.createdAt}`,
     `- 审查模型：${review.model}`,
-    `- 规则数量：${review.ruleCount}`,
     `- 综合评分：${review.score}`,
-    `- 风险统计：高 ${review.highCount} / 中 ${review.mediumCount} / 低 ${review.lowCount}`,
+    `- 风险事项：${stats.risks.length} 项；待补充材料：${stats.gaps.length} 项`,
     '',
     '## 审查结论',
     '',
@@ -198,24 +261,53 @@ function buildReportMarkdown(review: SuperAgentReview) {
     '',
     review.summary || '无',
     '',
-    '## 规则明细',
+    '## 主要风险',
     '',
   ]
-  review.findings.forEach((finding, index) => {
+  if (stats.risks.length) {
+    stats.risks.forEach((item, index) => {
+      lines.push(
+        `### ${index + 1}. [${item.statusText || item.severity}] ${item.title}`,
+        '',
+        `- 风险维度：${item.category}`,
+        `- 风险说明：${item.summary || '无'}`,
+        `- 关键依据：${item.evidence || '无'}`,
+        `- 整改建议：${item.suggestion || '无'}`,
+        '',
+      )
+    })
+  } else {
+    lines.push('当前上传材料未识别出明确风险事项。', '')
+  }
+  lines.push('## 材料缺口与待核验事项', '')
+  if (stats.gaps.length) {
+    stats.gaps.forEach((item, index) => {
+      lines.push(
+        `### ${index + 1}. ${item.title}`,
+        '',
+        `- 风险维度：${item.category}`,
+        `- 缺口说明：${item.evidence || item.summary || '无'}`,
+        `- 补充建议：${item.suggestion || '无'}`,
+        '',
+      )
+    })
+  } else {
+    lines.push('当前审查未形成单独的材料缺口事项。', '')
+  }
+  lines.push('## 附录：内部规则匹配明细', '', '以下内容用于复核和审计留痕，用户主结论以风险事项为准。', '')
+  review.findings.filter((finding) => isRiskFinding(finding) || isInsufficientFinding(finding)).slice(0, 30).forEach((finding, index) => {
     lines.push(
-      `### ${index + 1}. [${finding.passed ? '通过' : '未通过'}][${finding.severity}] ${finding.ruleName}`,
+      `### ${index + 1}. [${findingStatusText(finding)}][${finding.severity}] ${finding.ruleName}`,
       '',
       `- 分类：${finding.category}`,
       `- 问题：${finding.issue || '无'}`,
       `- 依据：${finding.evidence || '无'}`,
       `- 建议：${finding.suggestion || '无'}`,
-      `- 理由：${finding.reason || '无'}`,
       '',
     )
   })
   return lines.join('\n')
 }
-
 function downloadText(fileName: string, text: string, mimeType: string) {
   const blob = new Blob([text], { type: mimeType })
   const url = URL.createObjectURL(blob)
@@ -484,7 +576,13 @@ export function SuperAgentPage() {
     const applyJob = (nextJob: SuperAgentReviewJob) => {
       job = nextJob
       attachReviewJobToConversation(conversationId, nextJob)
-      if (selectedConversationIdRef.current === conversationId) setActiveReviewJob(nextJob)
+      if (selectedConversationIdRef.current === conversationId) {
+        setActiveReviewJob(nextJob)
+        if (nextJob.review) {
+          setActiveReview(nextJob.review)
+          setActiveReport(null)
+        }
+      }
     }
 
     applyJob(job)
@@ -826,7 +924,7 @@ function AgentFeaturePanel({ type, rules, runtime, rulesLoading, rulesError, doc
     ]
     : [
       ['文档解析', 'txt / md / docx / pdf'],
-      ['规则审查', `${runtime?.rules || rules.length || 10} 条规则${runtime?.reviewRuleBatchConcurrency ? ` · 分组并发${runtime.reviewRuleBatchConcurrency}路` : ''}`],
+      ['风险识别', `主体 / 资金 / 物流 / 发票${runtime?.reviewPrecheckIssueLimit ? ` · 预审线索${runtime.reviewPrecheckIssueLimit}条` : ''}`],
       ['报告生成', report ? 'Markdown 已生成' : '待审查后生成'],
     ]
 
@@ -860,8 +958,9 @@ function MessageView({ message }: { message: ChatMessage }) {
 
 function ReviewPanel({ documents, review, reviewJob, report, uploading, generatingReport, onGenerateReport, onExportReview, onExportReport, onExportReportWord, onAskRectification }: { documents: SuperAgentDocument[]; review: SuperAgentReview | null; reviewJob: SuperAgentReviewJob | null; report: SuperAgentReport | null; uploading: boolean; generatingReport: boolean; onGenerateReport: () => void; onExportReview: (format: 'markdown' | 'json') => void; onExportReport: () => void; onExportReportWord: () => void; onAskRectification: () => void }) {
   if (!documents.length) return null
-  const failedFindings = review?.findings.filter((item) => !item.passed) || []
-  const topFindings = failedFindings.length ? failedFindings.slice(0, 8) : review?.findings.slice(0, 4) || []
+  const riskItems = fallbackRiskItems(review)
+  const stats = riskItemStats(riskItems)
+  const topRiskItems = stats.risks.length ? stats.risks.slice(0, 8) : stats.gaps.length ? stats.gaps.slice(0, 6) : []
   const totalSize = documents.reduce((sum, document) => sum + document.size, 0)
   const totalCharacters = documents.reduce((sum, document) => sum + document.characters, 0)
   const primaryDocument = documents[0]
@@ -896,27 +995,29 @@ function ReviewPanel({ documents, review, reviewJob, report, uploading, generati
       <div className="super-agent-review-job-track"><i style={{ width: `${Math.max(3, reviewJob.progress || 0)}%` }}/></div>
       <div className="super-agent-review-job-meta">
         <span>进度 {reviewJob.progress || 0}%</span>
-        <span>风险 高 {reviewJob.highCount || 0} / 中 {reviewJob.mediumCount || 0} / 低 {reviewJob.lowCount || 0}</span>
-        {Boolean(reviewJob.failedBatches) && <span>部分规则待补齐</span>}
+        <span>风险线索 高 {reviewJob.highCount || 0} / 中 {reviewJob.mediumCount || 0} / 低 {reviewJob.lowCount || 0}；待补充材料 {reviewJob.insufficientCount || 0}</span>
+        {Boolean(reviewJob.failedBatches) && <span>部分结果待补齐</span>}
       </div>
     </div>}
-    {reviewJob && review && reviewJob.status === 'partial' && <div className="super-agent-review-job is-partial">部分规则未形成可靠结论，已先展示成功规则审查结果。</div>}
+    {reviewJob && review && !isReviewJobFinished(reviewJob) && <div className="super-agent-review-job is-partial">初步风险清单已生成，规则依据和报告附录正在后台补充中：{reviewJob.progress || 0}%</div>}
+    {reviewJob && review && reviewJob.status === 'partial' && <div className="super-agent-review-job is-partial">部分结果未形成可靠结论，已先展示成功审查结果。</div>}
     {review && <>
       <div className="super-agent-report-summary">
         <div><span>综合评分</span><strong>{review.score}</strong></div>
-        <div><span>高风险</span><strong>{review.highCount}</strong></div>
-        <div><span>中风险</span><strong>{review.mediumCount}</strong></div>
-        <div><span>低风险</span><strong>{review.lowCount}</strong></div>
+        <div><span>风险事项</span><strong>{stats.risks.length}</strong></div>
+        <div><span>高风险</span><strong>{stats.high}</strong></div>
+        <div><span>待核验</span><strong>{stats.gaps.length}</strong></div>
       </div>
-      <div className="super-agent-report-conclusion"><strong>{review.conclusion}</strong><p>{review.summary}</p><small>{review.model} · {review.ruleCount} 条规则 · {review.createdAt}</small></div>
+      <div className="super-agent-report-conclusion"><strong>{review.conclusion}</strong><p>{review.summary}</p><small>{review.model} · {review.createdAt}</small></div>
       <div className="super-agent-finding-list">
-        {topFindings.length ? topFindings.map((finding) => <FindingItem key={finding.id} finding={finding}/>) : <div className="super-agent-finding-empty">未发现未通过问题</div>}
+        {topRiskItems.length ? topRiskItems.map((item) => <RiskItemCard key={item.id} item={item}/>) : <div className="super-agent-finding-empty">未识别出明确风险事项</div>}
       </div>
     </>}
   </article>
 }
-
 function ReportPanel({ report, onExportReport, onExportReportWord }: { report: SuperAgentReport; onExportReport: () => void; onExportReportWord: () => void }) {
+  const riskCount = report.riskStats.riskItemCount ?? report.riskStats.failedCount ?? 0
+  const materialGapCount = report.riskStats.materialGapCount ?? report.riskStats.insufficientCount ?? 0
   return <article className="super-agent-formal-report-card">
     <header className="super-agent-formal-report-head">
       <div>
@@ -929,8 +1030,8 @@ function ReportPanel({ report, onExportReport, onExportReportWord }: { report: S
     <div className="super-agent-formal-report-stats">
       <div><span>风险等级</span><strong>{report.riskLevel}</strong></div>
       <div><span>综合评分</span><strong>{report.riskStats.score}</strong></div>
-      <div><span>未通过</span><strong>{report.riskStats.failedCount}</strong></div>
-      <div><span>已通过</span><strong>{report.riskStats.passedCount}</strong></div>
+      <div><span>风险事项</span><strong>{riskCount}</strong></div>
+      <div><span>待核验</span><strong>{materialGapCount}</strong></div>
     </div>
     <div className="super-agent-formal-report-body">
       <div className="super-agent-report-abstract">
@@ -943,15 +1044,23 @@ function ReportPanel({ report, onExportReport, onExportReportWord }: { report: S
     </div>
   </article>
 }
+function RiskItemCard({ item }: { item: ReviewRiskItem }) {
+  return <section className={`super-agent-finding severity-${item.severity} ${item.type === 'material_gap' ? 'is-gap' : ''}`}>
+    <header><span>{item.severity}</span><strong>{item.title}</strong><em>{item.statusText || (item.type === 'material_gap' ? '需补充材料' : `${item.severity}风险`)}</em></header>
+    {item.summary && <p>{item.summary}</p>}
+    {item.evidence && <blockquote>{item.evidence}</blockquote>}
+    {item.suggestion && <small>{item.suggestion}</small>}
+  </section>
+}
+
 function FindingItem({ finding }: { finding: ReviewFinding }) {
   return <section className={`super-agent-finding severity-${finding.severity}`}>
-    <header><span>{finding.severity}</span><strong>{finding.ruleName}</strong><em>{finding.passed ? '通过' : '未通过'}</em></header>
+    <header><span>{finding.severity}</span><strong>{finding.ruleName}</strong><em>{findingStatusText(finding)}</em></header>
     {finding.issue && <p>{finding.issue}</p>}
     {finding.evidence && <blockquote>{finding.evidence}</blockquote>}
     {finding.suggestion && <small>{finding.suggestion}</small>}
   </section>
 }
-
 function AgentIcon({ name }: { name: AgentIconName }) {
   const paths: Record<AgentIconName, ReactNode> = {
     new: <><path d="M12 5v4l3-3"/><path d="M20 12a8 8 0 0 1-14.6 4.5M4 12A8 8 0 0 1 18.6 7.5"/></>,

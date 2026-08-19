@@ -23,7 +23,7 @@ const canvasWidth = 1040
 const canvasHeight = 700
 const layoutKey = (ontologyId: string) => `ontology-visual-layout-v3:${ontologyId}`
 const modeKey = (ontologyId: string) => `ontology-visual-layout-mode-v3:${ontologyId}`
-const labels: Record<OntologyElementType, string> = { class: '类', property: '属性', relation: '关系' }
+const labels: Record<OntologyElementType, string> = { class: '实体类型', property: '属性字段', relation: '关系类型' }
 
 function readPositions(ontologyId: string): Record<string, CanvasPosition> {
   try { return JSON.parse(localStorage.getItem(layoutKey(ontologyId)) || '{}') as Record<string, CanvasPosition> } catch { return {} }
@@ -178,8 +178,8 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
 
   const disabledReason = (type: OntologyElementType) => {
     if (readonly) return '当前版本只读，请先复制新版本'
-    if (type === 'property' && classCount < 1) return '请先新增至少一个类'
-    if (type === 'relation' && classCount < 2) return '请先新增至少两个类'
+    if (type === 'property' && classCount < 1) return '请先新增至少一个实体类型'
+    if (type === 'relation' && classCount < 2) return '请先新增至少两个实体类型'
     return ''
   }
 
@@ -255,9 +255,9 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
   }
 
   const palette: Array<{ type: OntologyElementType; icon: 'graph' | 'file' | 'link'; title: string; description: string }> = [
-    { type: 'class', icon: 'graph', title: '新增类', description: '业务对象、事件或概念' },
-    { type: 'property', icon: 'file', title: '新增属性', description: '配置到所属类' },
-    { type: 'relation', icon: 'link', title: '新增关系', description: '连接两个类' },
+    { type: 'class', icon: 'graph', title: '新增实体类型', description: '业务对象、事件或概念' },
+    { type: 'property', icon: 'file', title: '新增属性字段', description: '配置到所属实体类型' },
+    { type: 'relation', icon: 'link', title: '新增关系类型', description: '连接两个实体类型' },
   ]
 
   return <div className="ontology-modeler">
@@ -267,16 +267,16 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
         const reason = disabledReason(item.type)
         return <button type="button" key={item.type} draggable={!reason} disabled={Boolean(reason)} title={reason || undefined} onDragStart={(event) => { event.dataTransfer.setData('application/x-ontology-element', item.type); event.dataTransfer.effectAllowed = 'copy' }} onClick={() => onCreate(item.type)}><Icon name={item.icon}/><span><strong>{item.title}</strong><small>{reason || item.description}</small></span></button>
       })}</div>
-      <div className="ontology-model-summary"><span>模型元素</span><strong>{elements.length}</strong><small>{classCount} 个类 · {properties.length} 个属性 · {relations.length} 条关系</small></div>
+      <div className="ontology-model-summary"><span>模型元素</span><strong>{elements.length}</strong><small>{classCount} 个实体类型 · {properties.length} 个属性字段 · {relations.length} 条关系类型</small></div>
       {readonly && <div className="ontology-readonly-note"><Icon name="lock"/><span>当前版本只读，画布可查看和调整本机布局；修改语义请先复制新版本。</span></div>}
     </aside>
 
     <section className="ontology-canvas-panel">
       <div className="ontology-canvas-toolbar"><div><strong>图谱结构画布</strong><span>球形节点突出结构，详细定义在右侧查看</span></div><div><Button className={connectMode ? 'active-tool' : ''} disabled={readonly || classCount < 2} onClick={() => { movedRef.current = false; setConnectMode((value) => !value); setLinkSource('') }}><Icon name="link" size={15}/>{connectMode ? '退出连线' : '连接关系'}</Button><select aria-label="布局方式" value={layoutMode} onChange={(event) => applyLayout(event.target.value as LayoutMode)}><option value="smart">智能分组</option><option value="ring">环形布局</option><option value="layered">层级布局</option><option value="free">自由布局</option></select><Button onClick={() => applyLayout(layoutMode === 'free' ? 'smart' : layoutMode)}>重新布局</Button><div className="canvas-zoom"><button onClick={() => setZoom((value) => Math.max(.7, Number((value - .1).toFixed(1))))}>－</button><span>{Math.round(zoom * 100)}%</span><button onClick={() => setZoom((value) => Math.min(1.3, Number((value + .1).toFixed(1))))}>＋</button></div></div></div>
-      {connectMode && <div className="connection-guide"><Icon name="link"/><span>{linkSource ? `已选择起点：${elements.find((item) => item.code === linkSource)?.name}，点击终点类后确认关系定义即可生成连线` : '请依次点击起点类和终点类，随后确认关系定义'}</span></div>}
+      {connectMode && <div className="connection-guide"><Icon name="link"/><span>{linkSource ? `已选择起点：${elements.find((item) => item.code === linkSource)?.name}，点击终点实体类型后确认关系定义即可生成连线` : '请依次点击起点实体类型和终点实体类型，随后确认关系定义'}</span></div>}
       <div className="ontology-canvas-viewport" ref={viewportRef} onClick={(event) => { const target = event.target as Element; if (!target.closest('button') && !target.closest('g')) setFocusActive(false) }} onDragOver={(event) => { if (!readonly) event.preventDefault() }} onDrop={handleDrop}>
         <div className="ontology-canvas-stage" ref={canvasRef} style={{ width: canvasWidth, height: canvasHeight, transform: `scale(${zoom})` }}>
-          <svg className="ontology-canvas-edges" width={canvasWidth} height={canvasHeight} aria-label="图谱结构关系连线">
+          <svg className="ontology-canvas-edges" width={canvasWidth} height={canvasHeight} aria-label="图谱结构关系类型连线">
             <defs><marker id={arrowId} markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L8,3 z"/></marker></defs>
             {relations.map((relation, index) => {
               const fromElement = nodes.find((item) => item.code === relation.ownerCode); const toElement = nodes.find((item) => item.code === relation.targetCode)
@@ -290,18 +290,18 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
             const position = positions[element.code] || { x: 50, y: 50 }; const size = nodeSize(element)
             const propertyCount = element.type === 'class' ? properties.filter((item) => item.ownerCode === element.code).length : 0
             const dimmed = Boolean(focusActive && selected && !relatedCodes.has(element.code))
-            return <button type="button" title={`${element.name} · ${element.code}`} className={`ontology-canvas-node class ${size > 90 ? 'core' : ''} ${selectedCode === element.code ? 'selected' : ''} ${linkSource === element.code ? 'link-source' : ''} ${dimmed ? 'dimmed' : ''}`} style={{ left: position.x, top: position.y, width: size, height: size }} key={element.id} onPointerDown={(event) => startDrag(event, element)} onPointerMove={(event) => moveNode(event, element)} onPointerUp={(event) => stopDrag(event, element)} onClick={() => selectNode(element)}><span className="node-kind"><Icon name="graph" size={13}/>类</span><strong>{element.name}</strong><small>{element.code.split('.').pop()}</small><em>{propertyCount}</em></button>
+            return <button type="button" title={`${element.name} · ${element.code}`} className={`ontology-canvas-node class ${size > 90 ? 'core' : ''} ${selectedCode === element.code ? 'selected' : ''} ${linkSource === element.code ? 'link-source' : ''} ${dimmed ? 'dimmed' : ''}`} style={{ left: position.x, top: position.y, width: size, height: size }} key={element.id} onPointerDown={(event) => startDrag(event, element)} onPointerMove={(event) => moveNode(event, element)} onPointerUp={(event) => stopDrag(event, element)} onClick={() => selectNode(element)}><span className="node-kind"><Icon name="graph" size={13}/>实体类型</span><strong>{element.name}</strong><small>{element.code.split('.').pop()}</small><em>{propertyCount}</em></button>
           })}
-          {selectedNode && !readonly && positions[selectedNode.code] && <div className="ontology-node-actions" style={{ left: Math.min(canvasWidth - 138, positions[selectedNode.code].x + nodeSize(selectedNode) + 10), top: positions[selectedNode.code].y + 3 }}><button onClick={() => onEdit(selectedNode.type, selectedNode)}><Icon name="edit" size={13}/>编辑</button><button onClick={() => onCreate('property', undefined, { ownerCode: selectedNode.code })}><Icon name="file" size={13}/>属性</button><button disabled={classCount < 2} onClick={() => { movedRef.current = false; setConnectMode(true); setLinkSource(selectedNode.code) }}><Icon name="link" size={13}/>关系</button></div>}
-          {!nodes.length && <div className="ontology-canvas-empty"><EmptyState title="画布中还没有类" description={readonly ? '当前版本没有可展示的类。' : '从左侧拖入类开始建模。'}/></div>}
+          {selectedNode && !readonly && positions[selectedNode.code] && <div className="ontology-node-actions" style={{ left: Math.min(canvasWidth - 138, positions[selectedNode.code].x + nodeSize(selectedNode) + 10), top: positions[selectedNode.code].y + 3 }}><button onClick={() => onEdit(selectedNode.type, selectedNode)}><Icon name="edit" size={13}/>编辑</button><button onClick={() => onCreate('property', undefined, { ownerCode: selectedNode.code })}><Icon name="file" size={13}/>属性字段</button><button disabled={classCount < 2} onClick={() => { movedRef.current = false; setConnectMode(true); setLinkSource(selectedNode.code) }}><Icon name="link" size={13}/>关系类型</button></div>}
+          {!nodes.length && <div className="ontology-canvas-empty"><EmptyState title="画布中还没有实体类型" description={readonly ? '当前版本没有可展示的实体类型。' : '从左侧拖入实体类型开始建模。'}/></div>}
         </div>
       </div>
       <footer className="ontology-validation-bar"><div><Icon name={(validation?.blockers.length || unlinkedRelations) ? 'warning' : 'check'}/><span>模型校验</span><strong>{validation?.blockers.length || 0} 个阻断</strong><strong>{validation?.warnings.length || 0} 个提示</strong>{unlinkedRelations > 0 && <strong>{unlinkedRelations} 条关系未连接</strong>}</div><small>{layoutMode === 'free' ? '自由布局已保存到本机' : `当前：${layoutMode === 'smart' ? '智能分组' : layoutMode === 'ring' ? '环形布局' : '层级布局'}`} · 不改变图谱结构语义</small></footer>
     </section>
 
     <aside className="ontology-inspector">
-      <header><span>属性检查器</span><small>{selected ? labels[selected.type] : '未选择元素'}</small></header>
-      {selected ? <><div className={`inspector-identity ${selected.type}`}><Icon name={selected.type === 'relation' ? 'link' : 'graph'}/><div><strong>{selected.name}</strong><span>{selected.code}</span></div><StatusTag>{selected.type === 'class' ? '类' : labels[selected.type]}</StatusTag></div><dl><div><dt>{selected.type === 'class' ? '类型' : '数据类型或方向'}</dt><dd>{selected.type === 'class' ? '类' : selected.dataType || '—'}</dd></div><div><dt>约束</dt><dd>{selected.constraint || '—'}</dd></div><div><dt>业务说明</dt><dd>{selected.description || '—'}</dd></div></dl>{selected.type === 'class' && <><section className="inspector-list"><h3><span>类属性 <b>{selectedProperties.length}</b></span>{!readonly && <button className="inspector-add-property" onClick={() => onCreate('property', undefined, { ownerCode: selected.code })}>＋ 新增属性</button>}</h3>{selectedProperties.length ? selectedProperties.map((item) => <div className="inspector-property-row" key={item.id}><button className="inspector-property-main" onClick={() => { setSelectedCode(item.code); setFocusActive(true) }}><span>{item.name}</span><small>{item.dataType}</small></button>{!readonly && <div className="inspector-property-actions"><button onClick={() => onEdit('property', item)}>编辑</button><button className="danger" onClick={() => onDelete(item)}>删除</button></div>}</div>) : <p>暂未配置属性</p>}</section><section className="inspector-list"><h3>关联关系 <b>{selectedRelations.length}</b></h3>{selectedRelations.length ? selectedRelations.map((item) => <button key={item.id} onClick={() => { setSelectedCode(item.code); setFocusActive(true) }}><span>{item.name}</span><small>{item.dataType}</small></button>) : <p>暂未配置关系</p>}</section></>}<Button icon="edit" disabled={readonly} title={readonly ? '当前版本只读，请先复制新版本' : undefined} onClick={() => onEdit(selected.type, selected)}>编辑当前元素</Button></> : <EmptyState title="请选择画布元素" description="点击球形节点或关系曲线查看详细定义。"/>}
+      <header><span>元素检查器</span><small>{selected ? labels[selected.type] : '未选择元素'}</small></header>
+      {selected ? <><div className={`inspector-identity ${selected.type}`}><Icon name={selected.type === 'relation' ? 'link' : 'graph'}/><div><strong>{selected.name}</strong><span>{selected.code}</span></div><StatusTag>{selected.type === 'class' ? '实体类型' : labels[selected.type]}</StatusTag></div><dl><div><dt>{selected.type === 'class' ? '类型' : '数据类型或方向'}</dt><dd>{selected.type === 'class' ? '实体类型' : selected.dataType || '—'}</dd></div><div><dt>约束</dt><dd>{selected.constraint || '—'}</dd></div><div><dt>业务说明</dt><dd>{selected.description || '—'}</dd></div></dl>{selected.type === 'class' && <><section className="inspector-list"><h3><span>属性字段 <b>{selectedProperties.length}</b></span>{!readonly && <button className="inspector-add-property" onClick={() => onCreate('property', undefined, { ownerCode: selected.code })}>＋ 新增属性字段</button>}</h3>{selectedProperties.length ? selectedProperties.map((item) => <div className="inspector-property-row" key={item.id}><button className="inspector-property-main" onClick={() => { setSelectedCode(item.code); setFocusActive(true) }}><span>{item.name}</span><small>{item.dataType}</small></button>{!readonly && <div className="inspector-property-actions"><button onClick={() => onEdit('property', item)}>编辑</button><button className="danger" onClick={() => onDelete(item)}>删除</button></div>}</div>) : <p>暂未配置属性字段</p>}</section><section className="inspector-list"><h3>关联关系类型 <b>{selectedRelations.length}</b></h3>{selectedRelations.length ? selectedRelations.map((item) => <button key={item.id} onClick={() => { setSelectedCode(item.code); setFocusActive(true) }}><span>{item.name}</span><small>{item.dataType}</small></button>) : <p>暂未配置关系类型</p>}</section></>}<Button icon="edit" disabled={readonly} title={readonly ? '当前版本只读，请先复制新版本' : undefined} onClick={() => onEdit(selected.type, selected)}>编辑当前元素</Button></> : <EmptyState title="请选择画布元素" description="点击实体类型节点或关系曲线查看详细定义。"/>}
     </aside>
   </div>
 }

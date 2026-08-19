@@ -1,4 +1,5 @@
 export type ReviewSeverity = '高' | '中' | '低'
+export type ReviewFindingStatus = 'passed' | 'risk' | 'insufficient'
 
 export type SuperAgentDocument = {
   id: string
@@ -27,13 +28,32 @@ export type ReviewFinding = {
   ruleName: string
   category: string
   severity: ReviewSeverity
+  status?: ReviewFindingStatus
+  statusText?: string
   passed: boolean
+  verified?: boolean
+  verificationModel?: string
   issue: string
   evidence: string
   suggestion: string
   reason: string
 }
 
+export type ReviewRiskItem = {
+  id: string
+  type?: 'risk' | 'material_gap'
+  title: string
+  category: string
+  severity: ReviewSeverity
+  statusText?: string
+  summary: string
+  evidence: string
+  suggestion: string
+  findingIds?: string[]
+  relatedRuleIds?: string[]
+  relatedRuleNames?: string[]
+  findingCount?: number
+}
 export type SuperAgentReview = {
   id: string
   documentId: string
@@ -43,6 +63,8 @@ export type SuperAgentReview = {
   sourceDocuments?: SuperAgentDocument[]
   createdAt: string
   model: string
+  reviewMode?: 'quick-risk' | 'full-rules'
+  isPreliminary?: boolean
   ruleCount: number
   checkedTextCharacters: number
   totalTextCharacters: number
@@ -52,6 +74,15 @@ export type SuperAgentReview = {
   highCount: number
   mediumCount: number
   lowCount: number
+  riskCount?: number
+  insufficientCount?: number
+  passedCount?: number
+  riskItems?: ReviewRiskItem[]
+  riskItemCount?: number
+  materialGapCount?: number
+  highRiskItemCount?: number
+  mediumRiskItemCount?: number
+  lowRiskItemCount?: number
   findings: ReviewFinding[]
 }
 export type SuperAgentReviewJobStatus = 'queued' | 'running' | 'completed' | 'partial' | 'failed'
@@ -83,6 +114,12 @@ export type SuperAgentReviewJob = {
   failedBatches: number
   processedBatches: number
   findingsCount: number
+  riskCount?: number
+  insufficientCount?: number
+  passedCount?: number
+  precheckIssueCount?: number
+  precheckErrorMessage?: string
+  precheckModel?: string
   highCount: number
   mediumCount: number
   lowCount: number
@@ -91,6 +128,9 @@ export type SuperAgentReviewJob = {
   batchConcurrency?: number
   currentBatch?: number
   reviewId?: string
+  quickReviewId?: string
+  fullReviewId?: string
+  quickReviewCompletedAt?: string
   reportId?: string
   errorMessage?: string
   createdAt: string
@@ -117,8 +157,10 @@ export type SuperAgentReport = {
   sections?: string[]
   categoryStats?: Array<{
     category: string
-    ruleCount: string
-    failedRules: string
+    ruleCount?: string
+    failedRules?: string
+    riskItems?: string
+    materialGaps?: string
     severityStats: string
     mainRisk: string
   }>
@@ -127,11 +169,16 @@ export type SuperAgentReport = {
     score: number
     ruleCount: number
     failedCount: number
+    riskCount?: number
+    riskItemCount?: number
+    insufficientCount?: number
+    materialGapCount?: number
     passedCount: number
     highCount: number
     mediumCount: number
     lowCount: number
   }
+  riskItems?: ReviewRiskItem[]
   findings: ReviewFinding[]
   markdown: string
 }
@@ -144,6 +191,9 @@ export type SuperAgentServerConversation = {
   updatedAt: string
   documentIds?: string[]
   reviewId?: string
+  quickReviewId?: string
+  fullReviewId?: string
+  quickReviewCompletedAt?: string
   reportId?: string
   lastIntent?: SuperAgentTurnType
   messages?: Array<{ role: 'user' | 'assistant'; content: string; kind?: SuperAgentTurnType; status?: string; createdAt?: string }>
@@ -171,8 +221,11 @@ export type SuperAgentRuntime = {
   rules: number
   maxUploadBytes: number
   reviewTextLimit: number
+  quickReviewTextLimit?: number
   reviewRuleBatchSize?: number
   reviewRuleBatchConcurrency?: number
+  reviewPrecheckIssueLimit?: number
+  reviewVerifyHighRiskDuringReview?: boolean
 }
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {

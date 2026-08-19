@@ -797,6 +797,17 @@
   line-height: 1.6;
 }
 
+
+.super-agent-finding.is-gap {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.super-agent-finding.is-gap header span,
+.super-agent-finding.is-gap header em {
+  background: #fef3c7;
+  color: #92400e;
+}
 .super-agent-finding-empty {
   padding: 14px;
   border: 1px solid #bbf7d0;

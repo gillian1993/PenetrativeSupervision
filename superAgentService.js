@@ -16,8 +16,11 @@ const conversationRoot = join(dataRoot, 'conversations')
 const reviewJobRoot = join(dataRoot, 'review-jobs')
 const maxUploadBytes = Number(process.env.SUPER_AGENT_MAX_UPLOAD_BYTES || 20 * 1024 * 1024)
 const reviewTextLimit = Number(process.env.SUPER_AGENT_REVIEW_TEXT_LIMIT || 28000)
-const reviewRuleBatchSize = Math.min(superAgentRules.length || 1, Math.max(1, Math.floor(Number(process.env.SUPER_AGENT_RULE_BATCH_SIZE) || 12)))
-const reviewRuleBatchConcurrency = Math.min(superAgentRules.length || 1, Math.max(1, Math.floor(Number(process.env.SUPER_AGENT_RULE_BATCH_CONCURRENCY) || 2)))
+const quickReviewTextLimit = Math.max(6000, Math.min(reviewTextLimit, Number(process.env.SUPER_AGENT_QUICK_REVIEW_TEXT_LIMIT || 14000)))
+const reviewRuleBatchSize = Math.min(superAgentRules.length || 1, Math.max(1, Math.floor(Number(process.env.SUPER_AGENT_RULE_BATCH_SIZE) || 8)))
+const reviewRuleBatchConcurrency = Math.min(superAgentRules.length || 1, Math.max(1, Math.floor(Number(process.env.SUPER_AGENT_RULE_BATCH_CONCURRENCY) || 3)))
+const reviewPrecheckIssueLimit = Math.max(0, Math.floor(Number(process.env.SUPER_AGENT_PRECHECK_ISSUE_LIMIT) || 18))
+const reviewVerifyHighRiskDuringReview = /^(1|true|yes)$/i.test(String(process.env.SUPER_AGENT_VERIFY_HIGH_RISK_DURING_REVIEW || ''))
 const runningReviewJobs = new Set()
 
 async function ensureStorage() {
@@ -413,21 +416,30 @@ function sortedBatchResults(job) {
 
 function recomputeReviewJobStats(job) {
   const results = sortedBatchResults(job)
-  const findings = results.flatMap((item) => Array.isArray(item.findings) ? item.findings : [])
-  const failedFindings = findings.filter((item) => !item.passed)
+  const resultFindings = results.flatMap((item) => Array.isArray(item.findings) ? item.findings : [])
+  const findings = results.length ? resultFindings : Array.isArray(job.findings) ? job.findings : []
+  const riskItems = Array.isArray(job.riskItems) && job.riskItems.length ? job.riskItems : aggregateReviewRiskItems(findings)
+  const itemStats = riskItemStats(riskItems)
+  const failedFindings = findings.filter(isRiskFinding)
+  const insufficientFindings = findings.filter(isInsufficientFinding)
   job.batchResults = results
   job.findings = findings
+  if (riskItems.length) job.riskItems = riskItems
   job.completedBatches = results.filter((item) => item.status === 'completed').length
   job.failedBatches = results.filter((item) => item.status === 'failed').length
   job.processedBatches = job.completedBatches + job.failedBatches
-  job.findingsCount = failedFindings.length
-  job.highCount = failedFindings.filter((item) => item.severity === '高').length
-  job.mediumCount = failedFindings.filter((item) => item.severity === '中').length
-  job.lowCount = failedFindings.filter((item) => item.severity === '低').length
-  job.progress = job.totalBatches ? Math.min(100, Math.round((job.processedBatches / job.totalBatches) * 100)) : 0
+  job.findingsCount = itemStats.riskItemCount || failedFindings.length
+  job.riskCount = itemStats.riskItemCount || failedFindings.length
+  job.insufficientCount = itemStats.materialGapCount || insufficientFindings.length
+  job.passedCount = Math.max(0, findings.length - failedFindings.length - insufficientFindings.length)
+  job.highCount = itemStats.highRiskItemCount || failedFindings.filter((item) => item.severity === '高').length
+  job.mediumCount = itemStats.mediumRiskItemCount || failedFindings.filter((item) => item.severity === '中').length
+  job.lowCount = itemStats.lowRiskItemCount || failedFindings.filter((item) => item.severity === '低').length
+  const batchProgress = job.totalBatches ? Math.min(100, Math.round((job.processedBatches / job.totalBatches) * 100)) : 0
+  const quickProgress = job.quickReviewId && !reviewJobDoneStatus(job.status) ? 15 : job.stage === 'prechecking' ? 5 : 0
+  job.progress = Math.max(batchProgress, quickProgress)
   return job
 }
-
 function upsertBatchResult(job, result) {
   const results = Array.isArray(job.batchResults) ? job.batchResults.slice() : []
   const index = results.findIndex((item) => Number(item.batch) === Number(result.batch))
@@ -445,6 +457,8 @@ function failedFindingsForBatch(batchRules, batchIndex, error) {
     ruleName: rule.name,
     category: rule.category || '综合',
     severity: rule.severity || '中',
+    status: 'insufficient',
+    statusText: '证据不足',
     passed: true,
     issue: '',
     evidence: '',
@@ -474,18 +488,17 @@ async function publicReviewJob(job) {
 
 function reviewJobProgressText(job) {
   const failed = Number(job.failedBatches || 0)
-  const riskText = `已发现风险：高 ${job.highCount || 0} / 中 ${job.mediumCount || 0} / 低 ${job.lowCount || 0}`
-  const retryText = failed ? '。部分规则暂未形成可靠结论，系统会保留已完成结果' : ''
-  return `审查任务 ${job.id} 正在后台执行。审查进度：${job.progress || 0}%。${riskText}${retryText}。当前会话审查中，暂不可继续输入；你可以切换到其他会话或新建对话。完成后我会给出审查结果和报告入口。`
+  const riskText = `已识别风险线索：高 ${job.highCount || 0} / 中 ${job.mediumCount || 0} / 低 ${job.lowCount || 0}；待补充材料 ${job.insufficientCount || 0} 项`
+  const retryText = failed ? '。部分审查分组暂未形成可靠结论，系统会保留已完成结果' : ''
+  return `审查任务 ${job.id} 正在后台执行。审查进度：${job.progress || 0}%。${riskText}${retryText}。当前会话审查中，暂不可继续输入；你可以切换到其他会话或新建对话。完成后我会给出风险清单和报告入口。`
 }
-
 function completedReviewJobAnswer(job, review) {
   if (!review) return `审查任务 ${job.id} 已结束，但未生成可用审查结果。请稍后重试。`
-  const partialText = job.status === 'partial' ? '部分规则未形成可靠结论，已先汇总成功规则结果，建议后续重试补齐。\n' : ''
+  const partialText = job.status === 'partial' ? '部分审查分组未形成可靠结论，已先汇总成功结果，建议后续重试补齐。\n' : ''
   const documentLabel = review.documentCount && review.documentCount > 1 ? `${review.documentCount} 篇文档` : '当前文档'
-  return `${partialText}已完成${documentLabel}审查。综合评分 ${review.score} 分，结论：${review.conclusion}\n高风险 ${review.highCount} 项，中风险 ${review.mediumCount} 项，低风险 ${review.lowCount} 项。\n你可以继续追问具体风险、要求生成整改清单，或生成正式检测报告。`
+  const stats = riskItemStats(reviewRiskItems(review))
+  return `${partialText}已完成${documentLabel}审查。综合评分 ${review.score} 分，结论：${review.conclusion}\n本次识别主要风险 ${stats.riskItemCount} 项，其中高风险 ${stats.highRiskItemCount} 项、中风险 ${stats.mediumRiskItemCount} 项、低风险 ${stats.lowRiskItemCount} 项；另有 ${stats.materialGapCount} 项材料需补充核验。\n你可以继续追问具体风险、要求生成整改清单，或生成正式检测报告。`
 }
-
 async function appendReviewJobConversation(job, answer, status = 'done') {
   if (!job?.conversationId || !answer) return
   const conversation = await getSuperAgentConversation(job.conversationId)
@@ -548,7 +561,7 @@ export async function startSuperAgentReviewJob(payload = {}) {
       documentName: currentReview.documentName,
       documentCount: currentReview.documentCount || sourceDocuments.length || 1,
       totalCharacters: currentReview.totalTextCharacters || document.characters,
-      checkedTextCharacters: currentReview.checkedTextCharacters || Math.min(document.text.length, reviewTextLimit),
+      checkedTextCharacters: currentReview.checkedTextCharacters || document.text.length,
       ruleCount: superAgentRules.length,
       totalBatches: batches.length,
       batchSize: reviewRuleBatchSize,
@@ -591,7 +604,7 @@ export async function startSuperAgentReviewJob(payload = {}) {
     documentName: document.fileName,
     documentCount: sourceDocuments.length || 1,
     totalCharacters: document.characters,
-    checkedTextCharacters: Math.min(document.text.length, reviewTextLimit),
+    checkedTextCharacters: document.text.length,
     ruleCount: superAgentRules.length,
     totalBatches: batches.length,
     batchSize: reviewRuleBatchSize,
@@ -649,7 +662,7 @@ async function runReviewJob(id) {
   try {
     const document = await loadDocumentBundle(job.documentIds, { required: true })
     if (!document) fail(404, '文档不存在，请重新上传')
-    const text = document.text.length > reviewTextLimit ? `${document.text.slice(0, reviewTextLimit)}\n\n[系统提示：文档较长，本次审查已截取前 ${reviewTextLimit} 字符。]` : document.text
+    const text = document.text
     const batches = chunkArray(superAgentRules, reviewRuleBatchSize)
     job.status = 'running'
     job.stage = 'running'
@@ -658,6 +671,31 @@ async function runReviewJob(id) {
     job.ruleCount = superAgentRules.length
     job.batchSize = reviewRuleBatchSize
     job.batchConcurrency = reviewRuleBatchConcurrency
+    job = await saveReviewJob(recomputeReviewJobStats(job))
+
+    job.stage = 'prechecking'
+    job = await saveReviewJob(recomputeReviewJobStats(job))
+    const precheck = await extractGlobalIssueHints(document)
+    const issueHints = precheck.issues || []
+    job.precheckIssueCount = issueHints.length
+    job.precheckErrorMessage = precheck.errorMessage || ''
+    job.precheckModel = precheck.model || ''
+    if (issueHints.length || !precheck.errorMessage) {
+      const quickReview = normalizeQuickRiskReview(precheck, document, {
+        jobId: job.id,
+        precheck: {
+          issueCount: issueHints.length,
+          model: precheck.model || '',
+          errorMessage: precheck.errorMessage || '',
+        },
+      })
+      await saveReview(quickReview)
+      job.quickReviewId = quickReview.id
+      job.quickReviewCompletedAt = nowText()
+      job.reviewId = quickReview.id
+      job.riskItems = quickReview.riskItems || []
+      job.stage = 'quick-risk-ready'
+    }
     job = await saveReviewJob(recomputeReviewJobStats(job))
 
     const completedBatchNumbers = new Set(sortedBatchResults(job).filter((item) => item.status === 'completed').map((item) => Number(item.batch)))
@@ -672,7 +710,7 @@ async function runReviewJob(id) {
         job.stage = `reviewing-batch-${batchIndex + 1}`
         await saveReviewJob(recomputeReviewJobStats(job))
         try {
-          const output = await reviewRuleBatch(document, text, batchRules, batchIndex, batches.length)
+          const output = await reviewRuleBatch(document, text, batchRules, batchIndex, batches.length, issueHints)
           upsertBatchResult(job, {
             ...output.batchResult,
             status: 'completed',
@@ -698,12 +736,18 @@ async function runReviewJob(id) {
     const successful = results.filter((item) => item.status === 'completed')
     const failed = results.filter((item) => item.status === 'failed')
     if (!successful.length) {
-      job.status = 'failed'
-      job.stage = 'failed'
+      job.status = job.quickReviewId ? 'partial' : 'failed'
+      job.stage = job.status
       job.completedAt = nowText()
       job.errorMessage = failed.map((item) => item.errorMessage).filter(Boolean).slice(0, 2).join('；') || '全部规则组审查失败'
       job = await saveReviewJob(recomputeReviewJobStats(job))
-      await appendReviewJobConversation(job, `审查任务 ${job.id} 未能完成：${job.errorMessage}。当前文档解析结果已保留，请稍后重试。`, 'error')
+      if (job.quickReviewId) {
+        const quickReview = await getReview(job.quickReviewId)
+        await appendReviewJobConversation(job, `${completedReviewJobAnswer(job, quickReview)}
+后台规则追溯未能完整完成：${job.errorMessage}。`, 'done')
+      } else {
+        await appendReviewJobConversation(job, `审查任务 ${job.id} 未能完成：${job.errorMessage}。当前文档解析结果已保留，请稍后重试。`, 'error')
+      }
       return
     }
 
@@ -715,12 +759,20 @@ async function runReviewJob(id) {
       batchConcurrency: reviewRuleBatchConcurrency,
       batchCount: batches.length,
       failedBatches: failed.map((item) => item.batch),
-      batches: results.map(({ batch, ruleIds, status, usage }) => ({ batch, ruleIds, status, usage })),
+      quickReviewId: job.quickReviewId || '',
+      precheck: {
+        issueCount: issueHints.length,
+        model: precheck.model || '',
+        errorMessage: precheck.errorMessage || '',
+      },
+      batches: results.map(({ batch, ruleIds, status, usage, issueHintCount }) => ({ batch, ruleIds, status, usage, issueHintCount })),
     }
     const model = successful.map((item) => item.model).find(Boolean) || getSuperAgentModelName()
-    const review = normalizeReview(buildBatchedReviewRaw(findings, batches.length), document, model, usage)
+    const review = normalizeReview(buildBatchedReviewRaw(findings, batches.length, job.riskItems || []), document, model, usage)
     await saveReview(review)
     job.reviewId = review.id
+    job.fullReviewId = review.id
+    job.riskItems = review.riskItems || []
     job.status = failed.length ? 'partial' : 'completed'
     job.stage = job.status
     job.completedAt = nowText()
@@ -872,8 +924,251 @@ function compactRuleForPrompt(rule) {
   }
 }
 
+function normalizeKeyword(value) {
+  return String(value || '').replace(/\s+/g, '').toLowerCase()
+}
+
+const domainEvidenceKeywords = [
+  '合同', '订单', '采购', '销售', '供应商', '客户', '交易对手', '关联', '股权', '法人', '高管', '投标', '比价', '围标', '串标',
+  '煤炭', '标的', '规格', '数量', '单价', '金额', '价差', '毛利', '账期', '预付', '回款', '付款', '收款', '资金', '融资',
+  '物流', '运输', '交付', '货权', '仓单', '仓储', '入库', '出库', '过磅', '磅单', '化验', '验收', '签收',
+  '发票', '专票', '开票', '税率', '进项', '销项', '税负', '真实贸易', '商业实质', '循环贸易', '空转', '走单', '虚假贸易'
+]
+
+const globalRiskSignalKeywords = [
+  '问题', '异常', '风险', '疑似', '涉嫌', '不符合', '不一致', '不匹配', '不完整', '缺少', '缺失', '未提供', '未见', '无法证明', '证据不足',
+  '审计发现', '检查发现', '整改事项', '整改建议', '风险提示', '重大缺陷', '内控缺陷', '违规', '规避', '拆单', '补签', '倒签', '先履行后审批', '先发货后签约',
+  '无商业实质', '交易必要性不足', '客户真实需求不足', '盈利逻辑不足', '固定收益', '保底收益', '差额补足', '兜底承诺', '到期返还', '回购', '通道', '托盘', '手续费', '资金占用费',
+  '低毛利', '零毛利', '价差异常', '长账期', '垫资', '预付款异常', '资金回流', '闭环', '回流', '循环', '自买自卖', '空转', '走单', '虚增营收',
+  '无物流', '无货权', '无仓储', '无入库', '无出库', '无过磅', '无磅单', '无化验', '无签收', '四流不一致', '三流不一致', '货权未转移', '未实际交付',
+  '关联方', '实控人', '同一控制', '交叉持股', '集中托管', '空壳', '新成立', '失信', '经营异常', '涉诉', '黑名单', '围标', '串标', '陪标'
+]
+function ruleKeywords(rules) {
+  const seed = rules.map((rule) => `${rule.id} ${rule.name} ${rule.category || ''} ${rule.severity || ''} ${rule.description || ''} ${rule.checkPrompt || ''}`).join(' ')
+  const compactSeed = normalizeKeyword(seed)
+  const words = domainEvidenceKeywords.filter((word) => compactSeed.includes(normalizeKeyword(word)))
+  for (const match of seed.matchAll(/[\u4e00-\u9fa5A-Za-z0-9.%％]{2,18}/g)) {
+    const word = match[0]
+    if (/^(围绕|核查|智能|自动|识别|检测|风险|规则|监管|映射|建议|证据|来源|如果|如命中|未命中|说明|文档|内部|外部|数据)$/.test(word)) continue
+    if (/^[0-9]+$/.test(word)) continue
+    words.push(word)
+  }
+  return [...new Set(words.map(normalizeKeyword).filter((word) => word.length >= 2))].slice(0, 80)
+}
+
+function sourceTextSections(document) {
+  const fullText = String(document?.text || '')
+  const markers = [...fullText.matchAll(/【文档(\d+)：([^】]+)】\n/g)]
+  if (!markers.length) return [{ index: 1, fileName: document?.fileName || '当前文档', text: fullText }]
+  return markers.map((marker, index) => {
+    const start = (marker.index || 0) + marker[0].length
+    const end = index + 1 < markers.length ? markers[index + 1].index || fullText.length : fullText.length
+    return { index: Number(marker[1]) || index + 1, fileName: marker[2] || `文档${index + 1}`, text: fullText.slice(start, end).trim() }
+  })
+}
+
+function clippedText(value, limit) {
+  const text = normalizeText(value)
+  return text.length > limit ? `${text.slice(0, limit)}...` : text
+}
+
+function collectKeywordSnippets(text, keywords, limit = 8) {
+  const source = String(text || '')
+  const compact = normalizeKeyword(source)
+  const snippets = []
+  const seen = new Set()
+  for (const keyword of keywords) {
+    if (!keyword) continue
+    let searchFrom = 0
+    let found = 0
+    while (found < 2) {
+      const compactPos = compact.indexOf(keyword, searchFrom)
+      if (compactPos < 0) break
+      const ratio = compact.length ? compactPos / compact.length : 0
+      const approx = Math.max(0, Math.min(source.length - 1, Math.floor(source.length * ratio)))
+      const start = Math.max(0, approx - 260)
+      const end = Math.min(source.length, approx + 460)
+      const key = `${Math.floor(start / 120)}-${Math.floor(end / 120)}`
+      if (!seen.has(key)) {
+        snippets.push(clippedText(source.slice(start, end), 760))
+        seen.add(key)
+      }
+      found += 1
+      searchFrom = compactPos + keyword.length
+      if (snippets.length >= limit) return snippets
+    }
+  }
+  return snippets
+}
+
+function collectRiskSignalSnippets(text, limit = 8) {
+  const source = String(text || '')
+  if (!source) return []
+  const compact = normalizeKeyword(source)
+  const signals = globalRiskSignalKeywords.map(normalizeKeyword).filter((word) => word.length >= 2)
+  const scored = []
+  const seen = new Set()
+  for (const keyword of signals) {
+    let searchFrom = 0
+    let found = 0
+    while (found < 3) {
+      const compactPos = compact.indexOf(keyword, searchFrom)
+      if (compactPos < 0) break
+      const ratio = compact.length ? compactPos / compact.length : 0
+      const approx = Math.max(0, Math.min(source.length - 1, Math.floor(source.length * ratio)))
+      const start = Math.max(0, approx - 380)
+      const end = Math.min(source.length, approx + 680)
+      const key = `${Math.floor(start / 180)}-${Math.floor(end / 180)}`
+      if (!seen.has(key)) {
+        const snippet = clippedText(source.slice(start, end), 980)
+        const hitText = normalizeKeyword(snippet)
+        const score = signals.reduce((sum, word) => sum + (hitText.includes(word) ? 1 : 0), 0)
+        scored.push({ snippet, score, start })
+        seen.add(key)
+      }
+      found += 1
+      searchFrom = compactPos + keyword.length
+    }
+  }
+  return scored
+    .sort((a, b) => b.score - a.score || a.start - b.start)
+    .slice(0, limit)
+    .map((item) => item.snippet)
+}
+function fallbackDocumentSnippets(text, limit = 3) {
+  const source = String(text || '')
+  if (!source) return []
+  const segments = [source.slice(0, 800)]
+  if (source.length > 2200) segments.push(source.slice(Math.max(0, Math.floor(source.length / 2) - 400), Math.floor(source.length / 2) + 400))
+  if (source.length > 1400) segments.push(source.slice(Math.max(0, source.length - 800)))
+  return segments.map((item) => clippedText(item, 820)).filter(Boolean).slice(0, limit)
+}
+
+function buildEvidenceTextForRules(document, rules, limit = reviewTextLimit) {
+  const sections = sourceTextSections(document)
+  const keywords = ruleKeywords(rules)
+  const materialList = (document.sourceDocuments || [document]).map((item, index) => `${index + 1}. ${item.fileName}，正文 ${item.characters} 字，解析器 ${item.parser}`).join('\n')
+  const header = [
+    '【材料清单】',
+    materialList,
+    '',
+    '【证据抽取说明】以下片段由系统从每篇材料全文中按本组规则关键词和全局异常线索检索抽取，并补充各材料首尾/中部兜底片段；未出现的外部数据或底账不得臆测。',
+  ].join('\n')
+  const budget = Math.max(6000, Number(limit) || reviewTextLimit)
+  const perDocumentBudget = Math.max(1200, Math.floor((budget - header.length) / Math.max(1, sections.length)))
+  const parts = [header]
+  for (const section of sections) {
+    const keywordSnippets = collectKeywordSnippets(section.text, keywords, Math.max(4, Math.floor(perDocumentBudget / 1100)))
+    const signalSnippets = collectRiskSignalSnippets(section.text, Math.max(3, Math.floor(perDocumentBudget / 1400)))
+    const fallback = fallbackDocumentSnippets(section.text, keywordSnippets.length || signalSnippets.length ? 1 : 3)
+    const unique = [...new Set([...signalSnippets, ...keywordSnippets, ...fallback])]
+    const body = unique.map((snippet, index) => `片段${index + 1}：\n${snippet}`).join('\n\n') || '未抽取到可用文本片段。'
+    parts.push(`\n【文档${section.index}：${section.fileName}】\n${clippedText(body, perDocumentBudget)}`)
+  }
+  const result = parts.join('\n')
+  return result.length > budget ? `${result.slice(0, budget)}\n\n[系统提示：证据片段较长，已按规则相关性截取。]` : result
+}
+
+function buildPrecheckEvidenceText(document, limit = reviewTextLimit) {
+  const sections = sourceTextSections(document)
+  const materialList = (document.sourceDocuments || [document]).map((item, index) => `${index + 1}. ${item.fileName}，正文 ${item.characters} 字，解析器 ${item.parser}`).join('\n')
+  const header = [
+    '【材料清单】',
+    materialList,
+    '',
+    '【预审说明】以下片段按全文异常线索抽取，用于先发现文档中明写的问题，再反向匹配内置规则；不得依据未提供的外部底账臆测。',
+  ].join('\n')
+  const budget = Math.max(7000, Number(limit) || reviewTextLimit)
+  const perDocumentBudget = Math.max(1600, Math.floor((budget - header.length) / Math.max(1, sections.length)))
+  const parts = [header]
+  for (const section of sections) {
+    const signalSnippets = collectRiskSignalSnippets(section.text, Math.max(6, Math.floor(perDocumentBudget / 1200)))
+    const fallback = fallbackDocumentSnippets(section.text, signalSnippets.length ? 1 : 3)
+    const unique = [...new Set([...signalSnippets, ...fallback])]
+    const body = unique.map((snippet, index) => `预审片段${index + 1}：\n${snippet}`).join('\n\n') || '未抽取到可用文本片段。'
+    parts.push(`\n【文档${section.index}：${section.fileName}】\n${clippedText(body, perDocumentBudget)}`)
+  }
+  const result = parts.join('\n')
+  return result.length > budget ? `${result.slice(0, budget)}\n\n[系统提示：预审片段较长，已按异常线索相关性截取。]` : result
+}
+
+function issueArrayFromRaw(raw) {
+  if (Array.isArray(raw)) return raw
+  if (Array.isArray(raw?.issues)) return raw.issues
+  if (Array.isArray(raw?.findings)) return raw.findings
+  if (Array.isArray(raw?.risks)) return raw.risks
+  return []
+}
+
+function normalizeIssueKeywords(value) {
+  if (Array.isArray(value)) return value.map((item) => String(item || '').trim()).filter(Boolean).slice(0, 8)
+  return String(value || '').split(/[、,，;；\s]+/).map((item) => item.trim()).filter(Boolean).slice(0, 8)
+}
+
+function normalizePrecheckIssue(item, index) {
+  const title = String(item?.title || item?.issue || item?.name || item?.riskPoint || `疑似问题${index + 1}`).trim()
+  const evidence = String(item?.evidence || item?.quote || item?.basis || '').trim()
+  const reason = String(item?.reason || item?.analysis || item?.description || '').trim()
+  const suggestion = String(item?.suggestion || item?.advice || '结合内置规则进一步复核。').trim()
+  const keywords = normalizeIssueKeywords(item?.keywords || item?.tags || `${title} ${reason}`)
+  return {
+    id: item?.id || `ISSUE-${String(index + 1).padStart(3, '0')}`,
+    title: title.slice(0, 80),
+    category: String(item?.category || item?.type || '综合').trim().slice(0, 40),
+    severity: normalizeSeverity(item?.severity, /重大|严重|高危|违规|涉嫌/.test(`${title} ${reason}`) ? '高' : '中'),
+    evidence: evidence.slice(0, 220),
+    reason: reason.slice(0, 180),
+    suggestion: suggestion.slice(0, 160),
+    sourceDocument: String(item?.sourceDocument || item?.document || '').trim().slice(0, 80),
+    keywords,
+  }
+}
+
+function compactIssueHint(issue, index) {
+  const keywords = Array.isArray(issue.keywords) && issue.keywords.length ? `；关键词：${issue.keywords.slice(0, 6).join('、')}` : ''
+  const source = issue.sourceDocument ? `；来源：${issue.sourceDocument}` : ''
+  return `${index + 1}. [${issue.severity}] ${issue.title}${source}${keywords}\n证据：${issue.evidence || '未提供'}\n理由：${issue.reason || '未提供'}\n建议：${issue.suggestion || '结合对应规则复核。'}`
+}
+
+function issueRuleMatchScore(issue, rules) {
+  const ruleSeed = normalizeKeyword(rules.map((rule) => `${rule.name} ${rule.category || ''} ${rule.description || ''} ${rule.checkPrompt || ''}`).join(' '))
+  const issueTerms = [issue.title, issue.category, issue.reason, issue.evidence, ...(issue.keywords || [])].map(normalizeKeyword).filter((word) => word.length >= 2)
+  return issueTerms.reduce((score, term) => score + (ruleSeed.includes(term) ? Math.min(5, term.length) : 0), 0)
+}
+
+function formatIssueHintsForPrompt(issueHints, rules, limit = 12) {
+  const hints = Array.isArray(issueHints) ? issueHints : []
+  if (!hints.length) return '未抽取到全局预审问题线索。'
+  return hints
+    .map((issue, index) => ({ issue, index, score: issueRuleMatchScore(issue, rules) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .slice(0, limit)
+    .map((item, index) => compactIssueHint(item.issue, index))
+    .join('\n\n')
+}
+
+async function extractGlobalIssueHints(document) {
+  if (!reviewPrecheckIssueLimit) return { issues: [], model: '', usage: null, errorMessage: '' }
+  const evidenceText = buildPrecheckEvidenceText(document, quickReviewTextLimit)
+  try {
+    const result = await callSuperAgentModel({
+      temperature: 0,
+      maxTokens: Math.min(5200, Math.max(2600, reviewPrecheckIssueLimit * 280)),
+      messages: [
+        { role: 'system', content: '你是中文贸易合规预审专家。你只输出合法 JSON，不输出 Markdown、解释、前后缀或思考过程。' },
+        { role: 'user', content: `请先不套用具体规则，直接从材料片段中抽取“文档明写或可直接推导”的疑似问题线索，用于后续反向匹配规则。\n\n要求：\n1. 只返回 JSON 对象，第一个字符是 {，最后一个字符是 }。\n2. 最多输出 ${reviewPrecheckIssueLimit} 条 issues。\n3. 只有材料中有明确证据的事项才输出；如果只是缺少外部工商、资金流水、物流、发票等底账，也可以输出为“证据不足线索”。\n4. 不要编造主体、金额、日期、底账或外部事实。\n5. evidence 必须引用材料片段中的关键原文或高度贴近原文的表述。\n\nJSON 结构：\n{\n  "issues": [\n    {"title":"问题标题","category":"主体关联|商业实质|资金流|物流货权|发票税务|审批内控|价格账期|招投标|其他","severity":"高|中|低","evidence":"原文依据","reason":"为什么构成疑似问题或证据不足","suggestion":"后续复核建议","sourceDocument":"文档名或文档序号","keywords":["关键词1","关键词2"]}\n  ]\n}\n\n材料预审片段：\n${evidenceText}` },
+      ],
+    })
+    const raw = tryExtractJsonFromModel(result.content)
+    if (!raw) return { issues: [], model: result.model, usage: result.usage || null, errorMessage: '预审 JSON 不可解析' }
+    const issues = issueArrayFromRaw(raw).map(normalizePrecheckIssue).filter((item) => item.title && (item.evidence || item.reason)).slice(0, reviewPrecheckIssueLimit)
+    return { issues, model: result.model, usage: result.usage || null, errorMessage: '' }
+  } catch (error) {
+    return { issues: [], model: getSuperAgentModelName(), usage: null, errorMessage: safeModelErrorMessage(error) }
+  }
+}
 function reviewBatchMaxTokens(rules) {
-  return Math.min(9000, Math.max(3200, rules.length * 520))
+  return Math.min(9000, Math.max(3200, rules.length * 560))
 }
 
 async function mapWithConcurrency(items, concurrency, mapper) {
@@ -890,79 +1185,86 @@ async function mapWithConcurrency(items, concurrency, mapper) {
   return results
 }
 
-function buildReviewPrompt(document, text, retry = false, rules = superAgentRules, batchIndex = 0, batchCount = 1) {
+function buildReviewPrompt(document, text, retry = false, rules = superAgentRules, batchIndex = 0, batchCount = 1, issueHints = []) {
   const sourceDocuments = document.sourceDocuments || [document]
   const materialList = sourceDocuments.map((item, index) => `${index + 1}. ${item.fileName}，正文 ${item.characters} 字，解析器 ${item.parser}`).join('\n')
-  const batchLabel = batchCount > 1 ? `第 ${batchIndex + 1}/${batchCount} 批` : '全部规则'
-  const ruleScope = batchCount > 1 ? `本批 ${rules.length} 条规则（全量共 ${superAgentRules.length} 条）` : `全部 ${rules.length} 条规则`
-  return `${retry ? '上一次输出无法解析为 JSON，请重新审查并修正输出格式。\n\n' : ''}请基于以下${ruleScope}审查用户上传的真实文档。必须只根据文档内容判断，不要编造不存在的证据。
-
-硬性输出要求：
-1. 只返回一个可被 JSON.parse 直接解析的 JSON 对象。
-2. 第一个字符必须是 {，最后一个字符必须是 }。
-3. 禁止输出 Markdown、代码块、解释说明、思考过程、XML 标签或 JSON 以外的任何文字。
-4. findings 必须覆盖${ruleScope}，每条规则一个结果，且不得输出本批以外的规则。
-5. issue、evidence、suggestion、reason 每个字段尽量控制在 120 个中文字符以内，避免输出过长导致截断。
-6. 如果证据来自某一篇材料，请在 evidence 中尽量写明对应文档名或“文档1/文档2”。
-7. passed 为 true 表示未见该规则风险证据；passed 为 false 表示文档存在该规则命中证据或明显缺失必要材料。
-
-JSON 结构如下：
-{
-  "findings": [
-    {"ruleId":"规则ID","ruleName":"规则名称","category":"分类","severity":"高","passed":false,"issue":"问题说明；通过时可为空","evidence":"来自文档的原文依据；没有依据时写空字符串","suggestion":"修改建议；通过时可为空","reason":"判断理由"}
-  ]
+  const batchLabel = batchCount > 1 ? `第 ${batchIndex + 1}/${batchCount} 组规则` : '全部规则'
+  const ruleScope = batchCount > 1 ? `本组 ${rules.length} 条规则（全量共 ${superAgentRules.length} 条）` : `全部 ${rules.length} 条规则`
+  const issueHintText = formatIssueHintsForPrompt(issueHints, rules)
+  return `${retry ? '上一次输出无法解析为 JSON，请重新审查并修正输出格式。\n\n' : ''}请基于以下${ruleScope}审查用户上传的真实文档。必须只根据材料证据片段和全局预审问题线索判断，不要编造不存在的证据。若当前证据片段不足以支持命中风险，必须判为“证据不足”或“通过”，不得为了覆盖规则而臆测风险。\n\n硬性输出要求：\n1. 只返回一个可被 JSON.parse 直接解析的 JSON 对象。\n2. 第一个字符必须是 {，最后一个字符必须是 }。\n3. 禁止输出 Markdown、代码块、解释说明、思考过程、XML 标签或 JSON 以外的任何文字。\n4. findings 必须覆盖${ruleScope}，每条规则一个结果，且不得输出本组以外的规则。\n5. issue、evidence、suggestion、reason 每个字段尽量控制在 120 个中文字符以内，避免输出过长导致截断。\n6. 如果证据来自某一篇材料，请在 evidence 中尽量写明对应文档名或“文档1/文档2”。\n7. status 必须三选一：通过、命中风险、证据不足。\n8. 只有存在明确原文证据或可由原文直接推导的异常，才允许 status=命中风险；仅缺少外部工商、资金流水、物流底账、发票底账等材料时，应输出 status=证据不足，不得输出命中风险。\n9. passed 字段用于兼容旧结构：status=命中风险 时 passed=false；status=通过 或 证据不足 时 passed=true。\n10. 必须先阅读“全局预审问题线索”；如果线索与本组任一规则的监管含义相符，即使材料未出现规则名称，也要按原文证据判断该规则“命中风险/证据不足/通过”。\n\nJSON 结构如下：\n{\n  "findings": [\n    {"ruleId":"规则ID","ruleName":"规则名称","category":"分类","severity":"高","status":"命中风险","passed":false,"issue":"问题说明；通过时可为空","evidence":"来自文档的原文依据；证据不足时写缺少哪些材料","suggestion":"整改或补证建议；通过时可为空","reason":"判断理由"}\n  ]\n}\n\n当前审查范围：${batchLabel}\n\n内置规则：\n${JSON.stringify(rules.map(compactRuleForPrompt), null, 2)}\n\n文档信息：${document.fileName}，共 ${sourceDocuments.length} 篇材料，合计正文 ${document.characters} 字。\n\n材料清单：\n${materialList}\n\n全局预审问题线索：\n${issueHintText}\n\n材料证据片段：\n${text}`
 }
 
-当前审查范围：${batchLabel}
-
-内置规则：
-${JSON.stringify(rules.map(compactRuleForPrompt), null, 2)}
-
-文档信息：${document.fileName}，共 ${sourceDocuments.length} 篇材料，合计正文 ${document.characters} 字。
-
-材料清单：
-${materialList}
-
-文档正文：
-${text}`
-}
-
-async function repairReviewJson(document, text, invalidContent, rules = superAgentRules, batchIndex = 0, batchCount = 1) {
+async function repairReviewJson(document, text, invalidContent, rules = superAgentRules, batchIndex = 0, batchCount = 1, issueHints = []) {
   const result = await callSuperAgentModel({
     temperature: 0,
     maxTokens: reviewBatchMaxTokens(rules),
     messages: [
       { role: 'system', content: '你是只输出合法 JSON 的审查报告生成器。不要输出 Markdown、解释、前后缀或思考过程。' },
-      { role: 'user', content: `${buildReviewPrompt(document, text, true, rules, batchIndex, batchCount)}\n\n上一次不可解析输出摘录，仅用于避免重复格式错误：\n${String(invalidContent || '').slice(0, 3000)}` },
+      { role: 'user', content: `${buildReviewPrompt(document, text, true, rules, batchIndex, batchCount, issueHints)}\n\n上一次不可解析输出摘录，仅用于避免重复格式错误：\n${String(invalidContent || '').slice(0, 3000)}` },
     ],
   })
   return { raw: extractJsonFromModel(result.content), result }
 }
-async function reviewRuleBatch(document, text, batchRules, batchIndex, batchCount) {
+
+async function verifyHighRiskFindings(document, evidenceText, findings, rules, batchIndex, batchCount) {
+  const candidates = findings.filter((finding) => isRiskFinding(finding) && finding.severity === '高').slice(0, 6)
+  if (!candidates.length) return findings
+  const candidateRules = candidates.map((finding) => rules.find((rule) => rule.id === finding.ruleId)).filter(Boolean)
+  if (!candidateRules.length) return findings
+  try {
+    const result = await callSuperAgentModel({
+      temperature: 0,
+      maxTokens: Math.min(5200, Math.max(2400, candidates.length * 720)),
+      messages: [
+        { role: 'system', content: '你是中文合规审查复核专家。你只输出合法 JSON，不输出 Markdown、解释、前后缀或思考过程。' },
+        { role: 'user', content: `请对以下高风险命中项进行二次复核。复核原则：\n1. 只有证据片段中存在明确原文依据或可直接推导的异常，才保留“命中风险”。\n2. 如果只是缺少外部工商、资金流水、物流、发票等佐证材料，改为“证据不足”。\n3. 如果原判断依据不足或误读材料，改为“通过”或“证据不足”。\n4. 必须覆盖待复核规则，只输出 JSON。\n\nJSON 结构：{"findings":[{"ruleId":"规则ID","status":"通过|命中风险|证据不足","passed":true,"issue":"","evidence":"","suggestion":"","reason":""}]}\n\n待复核规则：\n${JSON.stringify(candidateRules.map(compactRuleForPrompt), null, 2)}\n\n第一轮命中结果：\n${JSON.stringify(candidates, null, 2)}\n\n材料证据片段：\n${evidenceText}` },
+      ],
+    })
+    const raw = tryExtractJsonFromModel(result.content)
+    if (!raw) return findings
+    const reviewed = normalizeFindingsForRules(candidateRules, findingsFromRaw(raw), 0)
+    const reviewedByRule = new Map(reviewed.map((item) => [item.ruleId, item]))
+    return findings.map((finding) => {
+      const next = reviewedByRule.get(finding.ruleId)
+      if (!next) return finding
+      return { ...finding, ...next, id: finding.id, verified: true, verificationModel: result.model }
+    })
+  } catch {
+    return findings
+  }
+}
+
+async function reviewRuleBatch(document, text, batchRules, batchIndex, batchCount, issueHints = []) {
+  const evidenceText = buildEvidenceTextForRules(document, batchRules, reviewTextLimit)
   let result = await callSuperAgentModel({
     temperature: 0,
     maxTokens: reviewBatchMaxTokens(batchRules),
     messages: [
       { role: 'system', content: '你是严谨的中文文档审查专家。你必须只输出一个合法 JSON 对象，不输出 Markdown、解释、前后缀或思考过程。' },
-      { role: 'user', content: buildReviewPrompt(document, text, false, batchRules, batchIndex, batchCount) },
+      { role: 'user', content: buildReviewPrompt(document, evidenceText, false, batchRules, batchIndex, batchCount, issueHints) },
     ],
   })
   let raw = tryExtractJsonFromModel(result.content)
   if (!raw) {
-    const repaired = await repairReviewJson(document, text, result.content, batchRules, batchIndex, batchCount)
+    const repaired = await repairReviewJson(document, evidenceText, result.content, batchRules, batchIndex, batchCount, issueHints)
     raw = repaired.raw
     result = repaired.result
   }
+  const normalizedFindings = normalizeFindingsForRules(batchRules, findingsFromRaw(raw), batchIndex * reviewRuleBatchSize)
+  const findings = reviewVerifyHighRiskDuringReview ? await verifyHighRiskFindings(document, evidenceText, normalizedFindings, batchRules, batchIndex, batchCount) : normalizedFindings
   return {
-    findings: normalizeFindingsForRules(batchRules, findingsFromRaw(raw), batchIndex * reviewRuleBatchSize),
+    findings,
     batchResult: {
       batch: batchIndex + 1,
       ruleIds: batchRules.map((rule) => rule.id),
       model: result.model,
       usage: result.usage || null,
+      evidenceMode: 'rule-keyword-and-global-risk-snippets',
+      issueHintCount: Array.isArray(issueHints) ? issueHints.length : 0,
     },
   }
 }
+
 function normalizeSeverity(value, fallback = '中') {
   return ['高', '中', '低'].includes(value) ? value : fallback
 }
@@ -977,18 +1279,56 @@ function normalizePassed(value, hasItem) {
   return Boolean(value)
 }
 
+function normalizeFindingStatus(item, hasItem) {
+  if (!hasItem) return 'insufficient'
+  const explicit = String(item?.status || item?.result || item?.judgement || item?.conclusion || '').trim()
+  if (/证据不足|材料不足|依据不足|待补|待补证|无法判断|不能判断|无法确认|缺少|缺失|未提供|未披露|insufficient|unknown/i.test(explicit)) return 'insufficient'
+  if (/命中风险|命中|高风险|中风险|低风险|异常|违规|不通过|未通过|risk|failed/i.test(explicit)) return 'risk'
+  if (/通过|未命中|无风险|正常|pass|passed/i.test(explicit)) return 'passed'
+
+  const combined = `${item?.issue || ''} ${item?.evidence || ''} ${item?.reason || ''} ${item?.suggestion || ''}`
+  if (typeof item?.passed !== 'undefined') {
+    const passed = normalizePassed(item.passed, true)
+    if (!passed && /缺少|缺失|未提供|证据不足|材料不足|待补|无法判断|未披露/.test(combined) && !String(item?.evidence || '').trim()) return 'insufficient'
+    return passed ? 'passed' : 'risk'
+  }
+  if (/命中|异常|违规|不一致|回流|空转|循环|融资性|虚假|围标|串标/.test(combined) && String(item?.evidence || '').trim()) return 'risk'
+  if (/缺少|缺失|未提供|证据不足|材料不足|待补|无法判断|未披露/.test(combined)) return 'insufficient'
+  return String(item?.evidence || item?.issue || item?.reason || '').trim() ? 'risk' : 'passed'
+}
+
+function findingStatusLabel(status) {
+  if (status === 'risk') return '命中风险'
+  if (status === 'insufficient') return '证据不足'
+  return '通过'
+}
+
+function isRiskFinding(item) {
+  return item?.status === 'risk' || (!item?.status && item?.passed === false)
+}
+
+function isInsufficientFinding(item) {
+  return item?.status === 'insufficient'
+}
+
 function normalizeFindingForRule(rule, item, index) {
+  const hasItem = Boolean(item)
+  const status = normalizeFindingStatus(item, hasItem)
+  const defaultIssue = status === 'insufficient' ? '当前材料未提供足够证据支持该规则判断' : hasItem ? '' : '模型未返回该规则的结构化审查结果'
+  const defaultSuggestion = status === 'insufficient' ? '补充对应合同、订单、资金流水、物流/货权、发票或外部工商等佐证材料后复核。' : hasItem ? '' : '请重新审查或补充该规则判断'
   return {
     id: item?.id || `FIND-${String(index + 1).padStart(3, '0')}`,
     ruleId: String(item?.ruleId || rule.id),
     ruleName: String(item?.ruleName || rule.name),
     category: String(item?.category || rule.category || '综合'),
     severity: normalizeSeverity(item?.severity, rule.severity || '中'),
-    passed: normalizePassed(item?.passed, Boolean(item)),
-    issue: String(item?.issue || (item ? '' : '模型未返回该规则的结构化审查结果')).trim(),
+    status,
+    statusText: findingStatusLabel(status),
+    passed: status !== 'risk',
+    issue: String(item?.issue || defaultIssue).trim(),
     evidence: String(item?.evidence || '').trim(),
-    suggestion: String(item?.suggestion || (item ? '' : '请重新审查或补充该规则判断')).trim(),
-    reason: String(item?.reason || (item ? '' : '结构化结果缺失')).trim(),
+    suggestion: String(item?.suggestion || defaultSuggestion).trim(),
+    reason: String(item?.reason || (hasItem ? '' : '结构化结果缺失')).trim(),
   }
 }
 
@@ -1009,15 +1349,258 @@ function normalizeFindingsForRules(rules, sourceFindings, startIndex = 0) {
   })
 }
 
-function normalizeReview(raw, document, model, usage) {
-  const findings = normalizeFindingsForRules(superAgentRules, findingsFromRaw(raw))
-  const failed = findings.filter((item) => !item.passed)
-  const highCount = failed.filter((item) => item.severity === '高').length
-  const mediumCount = failed.filter((item) => item.severity === '中').length
-  const lowCount = failed.filter((item) => item.severity === '低').length
-  const score = Number.isFinite(Number(raw?.score)) ? Math.max(0, Math.min(100, Math.round(Number(raw.score)))) : Math.max(0, 100 - highCount * 16 - mediumCount * 9 - lowCount * 4)
+function severityRank(value) {
+  return ({ 高: 1, 中: 2, 低: 3 }[value] || 9)
+}
+
+function highestSeverity(items) {
+  return (items || []).map((item) => normalizeSeverity(item.severity, '中')).sort((a, b) => severityRank(a) - severityRank(b))[0] || '中'
+}
+
+function uniqueText(values, limit = 4, textLimit = 180) {
+  const seen = new Set()
+  const result = []
+  for (const value of values) {
+    const text = briefText(String(value || '').replace(/\s+/g, ' ').trim(), textLimit)
+    if (!text || seen.has(text)) continue
+    seen.add(text)
+    result.push(text)
+    if (result.length >= limit) break
+  }
+  return result
+}
+
+function riskThemeForFinding(finding) {
+  const text = `${finding?.category || ''} ${finding?.ruleName || ''} ${finding?.issue || ''} ${finding?.evidence || ''} ${finding?.reason || ''}`
+  const themes = [
+    ['主体关联', /关联|股权|实际控制|受益|同一|交易对手|空壳|资质|客户|供应商|上下游|特定利益/],
+    ['商业实质', /商业实质|真实贸易|空转|走单|循环|融资性|通道|无实物|背靠背|闭环|虚假|贸易背景/],
+    ['货物流/货权', /货权|物流|运输|仓储|仓单|入库|出库|过磅|化验|签收|交付|提货|流转|煤炭|货物/],
+    ['资金流', /资金|付款|收款|回款|银行|流水|账户|账期|逾期|预付|保证金|垫资|占用|融资|闭环资金/],
+    ['发票税务', /发票|税|票|专票|开票|进项|销项|税负|虚开/],
+    ['合同履约', /合同|订单|协议|签约|履约|验收|结算|条款|价格|数量|标的|违约|交割/],
+    ['审批内控', /审批|内控|授权|决策|制度|流程|台账|留痕|风控|尽调|准入|评审/],
+    ['招投标', /招标|投标|围标|串标|比价|竞价|采购方式|中标/],
+  ]
+  return themes.find(([, regex]) => regex.test(text))?.[0] || finding?.category || '其他风险'
+}
+
+function cleanRiskTitle(value) {
+  const text = briefText(String(value || '').replace(/^(问题|风险|异常|疑似)[:：\s]*/g, '').replace(/\s+/g, ' ').trim(), 42)
+  return text.replace(/[。；;，,]+$/g, '')
+}
+
+function userRiskTitle(theme, findings, type) {
+  if (type === 'material_gap') return `${theme}材料需补充核验`
+  const candidate = findings.map((item) => cleanRiskTitle(item.issue || item.reason)).find((text) => text && text.length >= 6 && !/未提供|无|证据不足|材料不足/.test(text))
+  if (candidate) return candidate
+  return `${theme}风险`
+}
+
+function aggregateReviewRiskItems(findings = []) {
+  const groups = new Map()
+  const add = (finding, type) => {
+    const category = riskThemeForFinding(finding)
+    const key = `${type}:${category}`
+    if (!groups.has(key)) groups.set(key, { type, category, findings: [] })
+    groups.get(key).findings.push(finding)
+  }
+  findings.filter(isRiskFinding).forEach((finding) => add(finding, 'risk'))
+  findings.filter(isInsufficientFinding).forEach((finding) => add(finding, 'material_gap'))
+
+  const items = Array.from(groups.values()).map((group, index) => {
+    const source = group.findings
+    const evidenceParts = uniqueText(source.map((item) => item.evidence || item.reason || item.issue), 3, 180)
+    const issueParts = uniqueText(source.map((item) => item.issue || item.reason || item.ruleName), 3, 130)
+    const suggestionParts = uniqueText(source.map((item) => item.suggestion), 3, 150)
+    const severity = group.type === 'material_gap' ? highestSeverity(source) : highestSeverity(source)
+    return {
+      id: `RISK-${String(index + 1).padStart(3, '0')}`,
+      type: group.type,
+      title: userRiskTitle(group.category, source, group.type),
+      category: group.category,
+      severity,
+      statusText: group.type === 'risk' ? `${severity}风险` : '需补充材料',
+      summary: issueParts.join('；') || (group.type === 'risk' ? `${group.category}存在异常线索。` : `${group.category}关键材料不足，需补充后核验。`),
+      evidence: evidenceParts.join('；') || (group.type === 'risk' ? '当前风险事项未形成稳定证据摘录，请查看内部规则明细。' : '当前材料未提供足够证据支持完整判断。'),
+      suggestion: suggestionParts.join('；') || (group.type === 'risk' ? '补充底层材料并开展穿透复核，明确责任主体、整改动作和完成时限。' : '补充合同、订单、资金流水、物流/货权、发票及外部工商等佐证材料后复核。'),
+      findingIds: source.map((item) => item.id).filter(Boolean),
+      relatedRuleIds: uniqueText(source.map((item) => item.ruleId), 20, 80),
+      relatedRuleNames: uniqueText(source.map((item) => item.ruleName), 8, 120),
+      findingCount: source.length,
+    }
+  })
+
+  return items.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'risk' ? -1 : 1
+    return severityRank(a.severity) - severityRank(b.severity) || b.findingCount - a.findingCount || a.category.localeCompare(b.category, 'zh-CN')
+  }).map((item, index) => ({ ...item, id: `RISK-${String(index + 1).padStart(3, '0')}` }))
+}
+
+function riskItemDedupeKey(item) {
+  const title = normalizeKeyword(item?.title || item?.summary || '').slice(0, 28)
+  return `${item?.type || 'risk'}:${item?.category || '综合'}:${title}`
+}
+
+function mergeRiskItems(items = []) {
+  const byKey = new Map()
+  for (const item of items.filter(Boolean)) {
+    const key = riskItemDedupeKey(item)
+    if (!byKey.has(key)) {
+      byKey.set(key, { ...item })
+      continue
+    }
+    const current = byKey.get(key)
+    byKey.set(key, {
+      ...current,
+      severity: severityRank(item.severity) < severityRank(current.severity) ? item.severity : current.severity,
+      statusText: current.statusText || item.statusText,
+      summary: current.summary || item.summary,
+      evidence: uniqueText([current.evidence, item.evidence], 2, 220).join('；'),
+      suggestion: uniqueText([current.suggestion, item.suggestion], 2, 180).join('；'),
+      findingIds: [...new Set([...(current.findingIds || []), ...(item.findingIds || [])])],
+      relatedRuleIds: [...new Set([...(current.relatedRuleIds || []), ...(item.relatedRuleIds || [])])],
+      relatedRuleNames: [...new Set([...(current.relatedRuleNames || []), ...(item.relatedRuleNames || [])])].slice(0, 8),
+      findingCount: Number(current.findingCount || 0) + Number(item.findingCount || 0),
+    })
+  }
+  return Array.from(byKey.values())
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'risk' ? -1 : 1
+      return severityRank(a.severity) - severityRank(b.severity) || Number(b.findingCount || 0) - Number(a.findingCount || 0)
+    })
+    .map((item, index) => ({ ...item, id: `RISK-${String(index + 1).padStart(3, '0')}` }))
+}
+function reviewRiskItems(review) {
+  if (Array.isArray(review?.riskItems) && review.riskItems.length) return review.riskItems
+  return aggregateReviewRiskItems(review?.findings || [])
+}
+
+function riskItemStats(items = []) {
+  const riskItems = items.filter((item) => item.type !== 'material_gap')
+  const materialGaps = items.filter((item) => item.type === 'material_gap')
+  return {
+    riskItemCount: riskItems.length,
+    materialGapCount: materialGaps.length,
+    highRiskItemCount: riskItems.filter((item) => item.severity === '高').length,
+    mediumRiskItemCount: riskItems.filter((item) => item.severity === '中').length,
+    lowRiskItemCount: riskItems.filter((item) => item.severity === '低').length,
+  }
+}
+
+function riskTypeFromIssue(issue) {
+  const text = `${issue?.title || ''} ${issue?.reason || ''} ${issue?.evidence || ''} ${issue?.suggestion || ''}`
+  return /证据不足|材料不足|缺少|缺失|未提供|未见|无法确认|无法证明|待补|补充/.test(text) && !/明确|发现|存在|异常|违规|涉嫌/.test(text) ? 'material_gap' : 'risk'
+}
+
+function riskItemFromPrecheckIssue(issue, index) {
+  const type = riskTypeFromIssue(issue)
+  const category = String(issue?.category || '综合').trim() || '综合'
+  const severity = normalizeSeverity(issue?.severity, type === 'material_gap' ? '中' : '中')
+  return {
+    id: `RISK-${String(index + 1).padStart(3, '0')}`,
+    type,
+    title: cleanRiskTitle(issue?.title || issue?.reason || (type === 'material_gap' ? `${category}材料需补充核验` : `${category}风险`)) || (type === 'material_gap' ? `${category}材料需补充核验` : `${category}风险`),
+    category,
+    severity,
+    statusText: type === 'material_gap' ? '需补充材料' : `${severity}风险`,
+    summary: briefText(issue?.reason || issue?.title || '存在异常线索', 160),
+    evidence: briefText(issue?.evidence || issue?.reason || '未提供', 220),
+    suggestion: briefText(issue?.suggestion || (type === 'material_gap' ? '补充底层材料后复核。' : '补充证据并开展穿透复核。'), 180),
+    findingIds: [],
+    relatedRuleIds: [],
+    relatedRuleNames: [],
+    findingCount: 0,
+  }
+}
+
+function riskItemsFromPrecheckIssues(issues = []) {
+  return (Array.isArray(issues) ? issues : [])
+    .map(riskItemFromPrecheckIssue)
+    .filter((item) => item.title && (item.evidence || item.summary))
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'risk' ? -1 : 1
+      return severityRank(a.severity) - severityRank(b.severity)
+    })
+    .map((item, index) => ({ ...item, id: `RISK-${String(index + 1).padStart(3, '0')}` }))
+}
+
+function normalizeQuickRiskReview(precheck, document, usage = {}) {
+  const riskItems = riskItemsFromPrecheckIssues(precheck?.issues || [])
+  const stats = riskItemStats(riskItems)
   const documentIds = normalizeDocumentIds(document.documentIds || document.id)
   const sourceDocuments = document.sourceDocuments || [publicDocumentInfo(document)]
+  const score = Math.max(0, 100 - stats.highRiskItemCount * 16 - stats.mediumRiskItemCount * 9 - stats.lowRiskItemCount * 4 - Math.min(8, stats.materialGapCount))
+  return {
+    id: `REV-${randomUUID()}`,
+    documentId: documentIds[0] || document.id,
+    documentIds,
+    documentName: document.fileName,
+    documentCount: sourceDocuments.length,
+    sourceDocuments,
+    createdAt: nowText(),
+    model: precheck?.model || getSuperAgentModelName(),
+    usage: { mode: 'quick-risk', ...(usage || {}) },
+    reviewMode: 'quick-risk',
+    isPreliminary: true,
+    ruleCount: superAgentRules.length,
+    checkedTextCharacters: Math.min(document.text.length, quickReviewTextLimit),
+    totalTextCharacters: document.text.length,
+    score,
+    conclusion: defaultRiskConclusionFromItems(riskItems),
+    summary: riskSummaryFromItems(riskItems),
+    highCount: stats.highRiskItemCount,
+    mediumCount: stats.mediumRiskItemCount,
+    lowCount: stats.lowRiskItemCount,
+    riskCount: stats.riskItemCount,
+    insufficientCount: stats.materialGapCount,
+    passedCount: 0,
+    riskItems,
+    riskItemCount: stats.riskItemCount,
+    materialGapCount: stats.materialGapCount,
+    highRiskItemCount: stats.highRiskItemCount,
+    mediumRiskItemCount: stats.mediumRiskItemCount,
+    lowRiskItemCount: stats.lowRiskItemCount,
+    findings: [],
+  }
+}
+function defaultRiskConclusionFromItems(items = []) {
+  const stats = riskItemStats(items)
+  if (stats.highRiskItemCount) return '发现高风险事项，建议暂停相关业务并补充证据后复核'
+  if (stats.riskItemCount) return '发现一般风险事项，建议补充完善并开展穿透复核'
+  if (stats.materialGapCount) return '未发现明确风险事项，但存在材料缺口，建议补证后复核'
+  return '未发现明显风险事项'
+}
+
+function riskSummaryFromItems(items = []) {
+  const stats = riskItemStats(items)
+  const risks = items.filter((item) => item.type !== 'material_gap')
+  const gaps = items.filter((item) => item.type === 'material_gap')
+  if (risks.length) {
+    const themes = uniqueText(risks.map((item) => item.category), 6, 40).join('、')
+    return `本次识别出 ${stats.riskItemCount} 项主要风险，集中在${themes || '相关业务'}等方面；其中高风险 ${stats.highRiskItemCount} 项，中风险 ${stats.mediumRiskItemCount} 项，低风险 ${stats.lowRiskItemCount} 项。${stats.materialGapCount ? `另有 ${stats.materialGapCount} 项材料需补充核验。` : ''}`
+  }
+  if (gaps.length) return `本次未识别出明确风险事项，但有 ${stats.materialGapCount} 项材料需补充核验，建议补齐底层证据后复核。`
+  return '本次未识别出明确风险事项，建议保留审查过程并结合底层业务材料归档。'
+}
+function defaultReviewConclusion(highCount, riskCount, insufficientCount) {
+  if (highCount) return '发现高风险事项，建议暂停相关业务并补充证据后复核'
+  if (riskCount) return '发现一般风险事项，建议补充完善并开展穿透复核'
+  if (insufficientCount) return '未发现明确风险事项，但存在材料缺口，建议补证后复核'
+  return '未发现明显风险事项'
+}
+
+function normalizeReview(raw, document, model, usage) {
+  const findings = normalizeFindingsForRules(superAgentRules, findingsFromRaw(raw))
+  const failed = findings.filter(isRiskFinding)
+  const insufficient = findings.filter(isInsufficientFinding)
+  const passed = findings.filter((item) => !isRiskFinding(item) && !isInsufficientFinding(item))
+  const riskItems = mergeRiskItems([...(Array.isArray(raw?.riskItems) ? raw.riskItems : []), ...aggregateReviewRiskItems(findings)])
+  const itemStats = riskItemStats(riskItems)
+  const score = Math.max(0, 100 - itemStats.highRiskItemCount * 16 - itemStats.mediumRiskItemCount * 9 - itemStats.lowRiskItemCount * 4 - Math.min(8, itemStats.materialGapCount))
+  const documentIds = normalizeDocumentIds(document.documentIds || document.id)
+  const sourceDocuments = document.sourceDocuments || [publicDocumentInfo(document)]
+  const summary = String(raw?.summary || riskSummaryFromItems(riskItems)).trim()
   return {
     id: `REV-${randomUUID()}`,
     documentId: documentIds[0] || document.id,
@@ -1028,28 +1611,42 @@ function normalizeReview(raw, document, model, usage) {
     createdAt: nowText(),
     model,
     usage,
+    reviewMode: 'full-rules',
+    isPreliminary: false,
     ruleCount: superAgentRules.length,
-    checkedTextCharacters: Math.min(document.text.length, reviewTextLimit),
+    checkedTextCharacters: document.text.length,
     totalTextCharacters: document.text.length,
     score,
-    conclusion: String(raw?.conclusion || (highCount ? '建议修改后再通过审查' : failed.length ? '存在一般问题，建议补充完善' : '未发现明显阻断问题')).trim(),
-    summary: String(raw?.summary || '').trim(),
-    highCount,
-    mediumCount,
-    lowCount,
+    conclusion: String(raw?.conclusion || defaultRiskConclusionFromItems(riskItems)).trim(),
+    summary,
+    highCount: itemStats.highRiskItemCount,
+    mediumCount: itemStats.mediumRiskItemCount,
+    lowCount: itemStats.lowRiskItemCount,
+    riskCount: itemStats.riskItemCount,
+    insufficientCount: itemStats.materialGapCount,
+    passedCount: passed.length,
+    riskItems,
+    riskItemCount: itemStats.riskItemCount,
+    materialGapCount: itemStats.materialGapCount,
+    highRiskItemCount: itemStats.highRiskItemCount,
+    mediumRiskItemCount: itemStats.mediumRiskItemCount,
+    lowRiskItemCount: itemStats.lowRiskItemCount,
+    internalRuleRiskCount: failed.length,
+    internalRuleInsufficientCount: insufficient.length,
     findings,
   }
 }
 
-function buildBatchedReviewRaw(findings, batchCount) {
-  const failed = findings.filter((item) => !item.passed)
+function buildBatchedReviewRaw(findings, batchCount, seedRiskItems = []) {
+  const failed = findings.filter(isRiskFinding)
+  const insufficient = findings.filter(isInsufficientFinding)
   const highCount = failed.filter((item) => item.severity === '高').length
-  const mediumCount = failed.filter((item) => item.severity === '中').length
-  const lowCount = failed.filter((item) => item.severity === '低').length
+  const riskItems = mergeRiskItems([...(Array.isArray(seedRiskItems) ? seedRiskItems : []), ...aggregateReviewRiskItems(findings)])
   return {
     findings,
-    conclusion: highCount ? '建议修改后再通过审查' : failed.length ? '存在一般问题，建议补充完善' : '未发现明显阻断问题',
-    summary: `本次按 ${superAgentRules.length} 条规则分组并行完成审查，命中风险 ${failed.length} 条。其中高风险 ${highCount} 条，中风险 ${mediumCount} 条，低风险 ${lowCount} 条。`,
+    riskItems,
+    conclusion: defaultRiskConclusionFromItems(riskItems) || defaultReviewConclusion(highCount, failed.length, insufficient.length),
+    summary: riskSummaryFromItems(riskItems),
   }
 }
 
@@ -1058,9 +1655,12 @@ export async function runSuperAgentReview(documentInput) {
   const documentIds = normalizeDocumentIds(documentInput)
   const document = await loadDocumentBundle(documentIds, { required: true })
   if (!document) fail(404, '文档不存在，请重新上传')
-  const text = document.text.length > reviewTextLimit ? `${document.text.slice(0, reviewTextLimit)}\n\n[系统提示：文档较长，本次审查已截取前 ${reviewTextLimit} 字符。]` : document.text
+  const text = document.text
   const batches = chunkArray(superAgentRules, reviewRuleBatchSize)
-  const batchOutputs = await mapWithConcurrency(batches, reviewRuleBatchConcurrency, async (batchRules, batchIndex) => reviewRuleBatch(document, text, batchRules, batchIndex, batches.length))
+  const precheck = await extractGlobalIssueHints(document)
+  const issueHints = precheck.issues || []
+  const seedRiskItems = riskItemsFromPrecheckIssues(issueHints)
+  const batchOutputs = await mapWithConcurrency(batches, reviewRuleBatchConcurrency, async (batchRules, batchIndex) => reviewRuleBatch(document, text, batchRules, batchIndex, batches.length, issueHints))
   const findings = batchOutputs.flatMap((item) => item.findings)
   const batchResults = batchOutputs.map((item) => item.batchResult)
   const usage = {
@@ -1068,20 +1668,26 @@ export async function runSuperAgentReview(documentInput) {
     batchSize: reviewRuleBatchSize,
     batchConcurrency: reviewRuleBatchConcurrency,
     batchCount: batchResults.length,
-    batches: batchResults.map(({ batch, ruleIds, usage }) => ({ batch, ruleIds, usage })),
+    precheck: {
+      issueCount: issueHints.length,
+      model: precheck.model || '',
+      errorMessage: precheck.errorMessage || '',
+    },
+    batches: batchResults.map(({ batch, ruleIds, usage, issueHintCount }) => ({ batch, ruleIds, usage, issueHintCount })),
   }
   const model = batchResults.map((item) => item.model).find(Boolean) || getSuperAgentModelName()
-  const review = normalizeReview(buildBatchedReviewRaw(findings, batches.length), document, model, usage)
+  const review = normalizeReview(buildBatchedReviewRaw(findings, batches.length, seedRiskItems), document, model, usage)
   await saveReview(review)
   return review
 }
 function riskLevel(review) {
-  if (review.highCount > 0) return '高风险'
-  if (review.mediumCount > 0) return '中风险'
-  if (review.lowCount > 0) return '低风险'
+  const stats = riskItemStats(reviewRiskItems(review))
+  if (stats.highRiskItemCount > 0) return '高风险'
+  if (stats.mediumRiskItemCount > 0) return '中风险'
+  if (stats.lowRiskItemCount > 0) return '低风险'
+  if (stats.materialGapCount > 0) return '待补证核验'
   return '未发现明显风险'
 }
-
 function baseDocumentName(name) {
   return String(name || '待审查文档').replace(/\.[^.]+$/, '') || '待审查文档'
 }
@@ -1106,7 +1712,15 @@ function markdownTable(headers, rows) {
 }
 
 function failedFindings(review) {
-  return (review.findings || []).filter((item) => !item.passed)
+  return (review.findings || []).filter(isRiskFinding)
+}
+
+function insufficientFindings(review) {
+  return (review.findings || []).filter(isInsufficientFinding)
+}
+
+function passedFindings(review) {
+  return (review.findings || []).filter((item) => !isRiskFinding(item) && !isInsufficientFinding(item))
 }
 
 function groupByCategory(findings) {
@@ -1119,15 +1733,16 @@ function groupByCategory(findings) {
 }
 
 function categoryRows(review) {
-  return Object.entries(groupByCategory(review.findings || [])).map(([category, items]) => {
-    const failed = items.filter((item) => !item.passed)
-    const high = failed.filter((item) => item.severity === '高').length
-    const medium = failed.filter((item) => item.severity === '中').length
-    const low = failed.filter((item) => item.severity === '低').length
-    return [category, `${items.length} 条`, `${failed.length} 条`, `高 ${high} / 中 ${medium} / 低 ${low}`, failed.slice(0, 2).map((item) => item.ruleName).join('；') || '未见明显问题']
+  return Object.entries(groupByCategory(reviewRiskItems(review))).map(([category, items]) => {
+    const risks = items.filter((item) => item.type !== 'material_gap')
+    const gaps = items.filter((item) => item.type === 'material_gap')
+    const high = risks.filter((item) => item.severity === '高').length
+    const medium = risks.filter((item) => item.severity === '中').length
+    const low = risks.filter((item) => item.severity === '低').length
+    const mainRisk = risks.slice(0, 2).map((item) => item.title).join('；') || (gaps.length ? `待核验：${gaps.slice(0, 2).map((item) => item.title).join('；')}` : '未见明显问题')
+    return [category, `${risks.length} 项`, `${gaps.length} 项`, `高 ${high} / 中 ${medium} / 低 ${low}`, mainRisk]
   })
 }
-
 function extractRuleMeta(ruleId) {
   const rule = superAgentRules.find((item) => item.id === ruleId)
   const prompt = String(rule?.checkPrompt || '')
@@ -1141,7 +1756,7 @@ function findingNarrative(finding) {
   const evidence = finding.evidence || '未提供原文依据'
   const suggestion = finding.suggestion || '建议补充对应材料并由业务、财务、法务联合复核。'
   return [
-    `### ${finding.ruleName} ——【${finding.severity}风险 / ${finding.passed ? '未命中' : '命中'}】`,
+    `### ${finding.ruleName} ——【${finding.severity}风险 / ${finding.statusText || (finding.passed ? '未命中' : '命中')}】`,
     '',
     `- 风险判断：${issue}`,
     `- 关键依据：${evidence}`,
@@ -1220,11 +1835,13 @@ function regulationRows(review) {
     const meta = extractRuleMeta(item.ruleId)
     return [meta.regulation || item.category, item.ruleName, item.severity, item.issue || item.reason, item.evidence || '未提供']
   })
-  return rows.length ? rows : [['监管条款', '未命中重大异常', '低', '当前规则未发现未通过项。', '无']]
+  return rows.length ? rows : [['监管条款', '未命中重大异常', '低', '当前规则未发现明确风险命中项。', '无']]
 }
 
 function evidenceRows(review) {
-  return importantFindings(review, 18).map((item, index) => {
+  const rows = importantFindings(review, 18)
+  const items = rows.length ? rows : insufficientFindings(review).slice(0, 18)
+  return items.map((item, index) => {
     const meta = extractRuleMeta(item.ruleId)
     return [`E-${String(index + 1).padStart(2, '0')}`, meta.dataSource || item.category, item.evidence || item.issue || item.reason, item.ruleName]
   })
@@ -1240,11 +1857,81 @@ function rectificationRows(review) {
 }
 
 
+function riskItemsByType(review, type) {
+  const items = reviewRiskItems(review)
+  return type === 'material_gap' ? items.filter((item) => item.type === 'material_gap') : items.filter((item) => item.type !== 'material_gap')
+}
+
+function riskOverviewRows(review) {
+  return riskItemsByType(review, 'risk').map((item, index) => [
+    String(index + 1),
+    item.title,
+    item.category,
+    item.statusText || item.severity,
+    item.summary,
+  ])
+}
+
+function materialGapRows(review) {
+  return riskItemsByType(review, 'material_gap').map((item, index) => [
+    String(index + 1),
+    item.title,
+    item.category,
+    item.evidence || item.summary,
+    item.suggestion,
+  ])
+}
+
+function riskItemNarrative(item, index) {
+  return [
+    `### ${index + 1}. ${item.title} ——【${item.statusText || item.severity}】`,
+    '',
+    `- 风险维度：${item.category}`,
+    `- 风险说明：${item.summary || '未提供'}`,
+    `- 关键证据：${item.evidence || '未提供'}`,
+    `- 处置建议：${item.suggestion || '补充材料并开展穿透复核。'}`,
+  ].join('\n')
+}
+
+function riskRectificationRows(review) {
+  const risks = riskItemsByType(review, 'risk')
+  const gaps = riskItemsByType(review, 'material_gap')
+  const source = risks.length ? risks : gaps
+  const rows = source.slice(0, 12).map((item, index) => {
+    const priority = item.type === 'material_gap' ? '补证核验' : item.severity === '高' ? '立即整改' : item.severity === '中' ? '限期整改' : '持续完善'
+    const owner = /发票|税/.test(`${item.title} ${item.category}`) ? '财务/税务' : /合同|主体|招投标|审批|内控/.test(`${item.title} ${item.category}`) ? '业务/法务' : '业务/风控'
+    const due = item.severity === '高' ? '3 个工作日内形成处置意见' : item.type === 'material_gap' ? '补齐材料后重新核验' : '10 个工作日内完成复核'
+    return [String(index + 1), priority, item.title, item.suggestion || '补充材料并开展穿透核查。', owner, due]
+  })
+  return rows.length ? rows : [['1', '持续完善', '审查留痕', '归档本次审查材料和模型输出。', '业务/风控', '按项目节奏完成']]
+}
+
+function riskEvidenceRows(review) {
+  const items = reviewRiskItems(review).slice(0, 24)
+  return items.map((item, index) => [`E-${String(index + 1).padStart(2, '0')}`, item.category, item.evidence || item.summary || '未提供', item.title])
+}
+
+function ruleAppendixRows(review) {
+  const riskItems = reviewRiskItems(review)
+  const relatedTitleByRule = new Map()
+  for (const item of riskItems) {
+    for (const ruleId of item.relatedRuleIds || []) relatedTitleByRule.set(ruleId, item.title)
+  }
+  return [...failedFindings(review), ...insufficientFindings(review)].slice(0, 30).map((item) => [
+    item.ruleId,
+    item.ruleName,
+    item.statusText || findingStatusLabel(item.status),
+    relatedTitleByRule.get(item.ruleId) || item.category,
+    item.evidence || item.issue || item.reason || '未提供',
+  ])
+}
+
 function buildReportMarkdown(review, reportId, createdAt, document = null) {
-  const failed = failedFindings(review)
-  const passedCount = Math.max(0, (review.findings || []).length - failed.length)
+  const riskItems = reviewRiskItems(review)
+  const stats = riskItemStats(riskItems)
+  const risks = riskItemsByType(review, 'risk')
+  const gaps = riskItemsByType(review, 'material_gap')
   const signals = extractDocumentSignals(document)
-  const topFindings = importantFindings(review, 8)
   const title = reportTitle(review)
   const documentCount = review.documentCount || review.sourceDocuments?.length || document?.sourceDocuments?.length || 1
   return [
@@ -1258,111 +1945,69 @@ function buildReportMarkdown(review, reportId, createdAt, document = null) {
     `- 关联审查：${review.id}`,
     `- 报告日期：${createdAt}`,
     `- 审查模型：${review.model}`,
-    `- 内置规则：${review.ruleCount} 条虚假贸易审查规则`,
     `- 审查文本：${review.checkedTextCharacters}/${review.totalTextCharacters} 字`,
     '',
     '## 报告结构',
     '',
-    '一、审查概述',
-    '二、交易主体与业务模式解构',
-    '三、虚假贸易风险特征判定（对照“十不准”）',
-    '四、“四流合一”合规性审查',
-    '五、财务与交易异常量化分析',
-    '六、税务合规风险提示',
-    '七、综合结论',
-    '八、处置与整改建议',
-    '九、证据索引',
+    '一、审查结论',
+    '二、主要风险概览',
+    '三、重点风险明细',
+    '四、材料缺口与待核验事项',
+    '五、处置与整改建议',
+    '六、证据索引',
+    '附录、内部规则匹配明细',
     '',
-    '## 一、审查概述',
+    '## 一、审查结论',
     '',
-    '### 审查目的',
+    `综合评分：${review.score} 分；风险等级：${riskLevel(review)}。`,
     '',
-    '本报告围绕上传材料所反映的贸易业务进行专项合规审查，重点判断交易是否具备真实商业实质，是否存在融资性贸易、空转走单、循环贸易、特定利益关系交易、三流或四流不一致、税务及发票合规风险等情形。',
+    review.conclusion || defaultRiskConclusionFromItems(riskItems),
     '',
-    '### 审查材料范围',
+    review.summary || riskSummaryFromItems(riskItems),
     '',
-    markdownTable(['序号', '材料', '解析情况', '审查范围'], documentMaterialRows(review, document)),
+    `本次面向用户汇总为 ${stats.riskItemCount} 项主要风险、${stats.materialGapCount} 项待补充材料事项。内部规则命中明细仅作为附录留痕，不作为用户主结论。`,
     '',
-    '### 审查依据',
+    '## 二、主要风险概览',
     '',
-    '- 国资委贸易业务“十不准”及虚假贸易治理要求；',
-    '- 合同流、货物流、资金流、发票流一致性审查要求；',
-    '- 民法典关于合同真实意思表示、全面履行与交易实质的基本要求；',
-    '- 本系统内置虚假贸易模式清单及风险识别规则。',
+    riskOverviewRows(review).length ? markdownTable(['序号', '风险事项', '风险维度', '等级', '风险摘要'], riskOverviewRows(review)) : '当前上传材料未识别出明确风险事项。',
     '',
-    '### 核心结论摘要',
-    '',
-    `综合评分：${review.score} 分；风险等级：${riskLevel(review)}。本次共审查 ${review.ruleCount} 条规则，命中 ${failed.length} 条，未命中 ${passedCount} 条。其中高风险 ${review.highCount} 条，中风险 ${review.mediumCount} 条，低风险 ${review.lowCount} 条。`,
-    '',
-    review.conclusion || '未形成明确结论。',
-    '',
-    review.summary || '未提供摘要。',
-    '',
-    '## 二、交易主体与业务模式解构',
-    '',
-    '### 交易主体线索',
+    '### 交易主体及关键线索',
     '',
     signals.companies.length ? signals.companies.map((name) => `- ${name}`).join('\n') : '当前文本未能稳定抽取交易主体名称，建议补充合同首页、签章页、供应商/客户清单及工商穿透信息。',
-    '',
-    '### 关键金额、日期与数量线索',
     '',
     markdownTable(['类型', '抽取线索'], [
       ['金额/比例/数量', signals.amounts.join('；') || '未稳定抽取'],
       ['日期/周期', signals.dates.join('；') || '未稳定抽取'],
     ]),
     '',
-    '### 业务模式初步还原',
+    '## 三、重点风险明细',
     '',
-    topFindings.length ? topFindings.map((item) => `- ${item.ruleName}：${item.issue || item.reason || '存在异常线索'}；依据：${item.evidence || '待补充证据'}`).join('\n') : '当前规则未命中重大异常，仍建议结合合同、订单、发票、物流、支付流水进行穿透复核。',
+    risks.length ? risks.map(riskItemNarrative).join('\n\n') : '当前上传材料未识别出明确风险事项。',
     '',
-    '## 三、虚假贸易风险特征判定（对照“十不准”）',
+    '## 四、材料缺口与待核验事项',
     '',
-    markdownTable(['监管映射/规则类目', '命中模式', '等级', '风险判断', '关键依据'], regulationRows(review)),
+    gaps.length ? markdownTable(['序号', '待核验事项', '风险维度', '缺口说明', '补充建议'], materialGapRows(review)) : '当前审查未形成单独的材料缺口事项。',
     '',
-    topFindings.map(findingNarrative).join('\n\n') || '未发现未通过规则。',
+    '## 五、处置与整改建议',
     '',
-    '## 四、“四流合一”合规性审查',
-    '',
-    '四流一致是判断贸易真实性的重要抓手。本节从合同流、货物流/货权流、资金流、发票流四个维度归纳当前材料暴露的薄弱环节。',
-    '',
-    markdownTable(['维度', '风险等级', '实质判断'], dimensionRiskRows(review)),
-    '',
-    '## 五、财务与交易异常量化分析',
-    '',
-    '本节聚焦价差、毛利、账期、预付、逾期、资金占用、金额比例、数量与价格波动等可量化异常。若原始材料缺少明细数据，应作为后续穿透核查重点。',
-    '',
-    markdownTable(['异常项目', '等级', '量化/文本依据', '复核建议'], quantifiedRows(review, signals)),
-    '',
-    '## 六、税务合规风险提示',
-    '',
-    '对于疑似空转、走单、通道开票、三流或四流不一致的贸易业务，应重点关注增值税专用发票真实性、进销项匹配、税负率异常、资金回流与虚开风险。',
-    '',
-    markdownTable(['税务风险点', '等级', '风险说明', '证据依据'], taxRiskRows(review)),
-    '',
-    '提示：本节为基于上传文本和规则命中结果形成的风险识别，不构成最终税务鉴证结论；最终定性需结合发票底账、银行流水、物流轨迹、过磅/化验单据及工商关联数据综合判断。',
-    '',
-    '## 七、综合结论',
-    '',
-    `综合判定：${review.conclusion || riskLevel(review)}。`,
-    '',
-    failed.length ? `本次审查命中的主要风险集中在：${Object.entries(groupByCategory(failed)).map(([category, items]) => `${category} ${items.length} 项`).join('；')}。` : '本次规则审查未发现明确命中项，但仍建议保留审查过程并补充底层交易证据。',
-    '',
-    markdownTable(['风险维度', '覆盖规则', '命中规则', '主要风险'], categoryRows(review)),
-    '',
-    '## 八、处置与整改建议',
-    '',
-    markdownTable(['序号', '优先级', '风险事项', '整改动作', '建议责任部门', '完成要求'], rectificationRows(review)),
+    markdownTable(['序号', '优先级', '风险事项', '整改动作', '建议责任部门', '完成要求'], riskRectificationRows(review)),
     '',
     '### 建议处置路径',
     '',
-    '- 对高风险命中项，建议暂停新增同类业务或暂缓合同签署，先完成商业实质论证。',
+    '- 对高风险事项，建议暂停新增同类业务或暂缓合同签署，先完成商业实质论证。',
     '- 对主体、关联关系、资金流、货权流不清晰的事项，开展股权穿透、受益所有人识别和银行流水核验。',
     '- 对发票和税务风险事项，联动财务、税务、法务复核进销项、税负率、开票依据和真实交付证据。',
     '- 对确需继续开展的供应链贸易，补强真实货权控制、独立质检、物流留痕和合理商业利润机制。',
     '',
-    '## 九、证据索引',
+    '## 六、证据索引',
     '',
-    markdownTable(['编号', '证据来源/数据来源', '关键内容', '对应风险'], evidenceRows(review)),
+    markdownTable(['编号', '证据来源/数据来源', '关键内容', '对应风险'], riskEvidenceRows(review)),
+    '',
+    '## 附录：内部规则匹配明细',
+    '',
+    '以下内容为系统内部审查依据，用于审计留痕、复核和规则追溯。用户主结论以“风险事项”和“材料缺口”为准。',
+    '',
+    ruleAppendixRows(review).length ? markdownTable(['规则编号', '内部规则', '结果', '关联风险事项', '依据说明'], ruleAppendixRows(review)) : '无明确风险或材料缺口对应的内部规则明细。',
     '',
     '## 报告性质声明',
     '',
@@ -1379,18 +2024,19 @@ export async function generateSuperAgentReport(reviewId) {
   const documentIds = reviewDocumentIds(review)
   const document = documentIds.length ? await loadDocumentBundle(documentIds, { required: false }) : null
   const sourceDocuments = document?.sourceDocuments || review.sourceDocuments || []
-  const failed = failedFindings(review)
-  const failedCount = failed.length
+  const riskItems = reviewRiskItems(review)
+  const itemStats = riskItemStats(riskItems)
+  const failedCount = itemStats.riskItemCount
+  const insufficientCount = itemStats.materialGapCount
+  const passedCount = passedFindings(review).length
   const sections = [
     '审查概述',
-    '交易主体与业务模式解构',
-    '虚假贸易风险特征判定',
-    '四流合一合规性审查',
-    '财务与交易异常量化分析',
-    '税务合规风险提示',
-    '综合结论',
+    '主要风险概览',
+    '重点风险明细',
+    '材料缺口与待核验事项',
     '处置与整改建议',
     '证据索引',
+    '内部规则匹配明细',
 
   ]
   const report = {
@@ -1411,19 +2057,24 @@ export async function generateSuperAgentReport(reviewId) {
       score: review.score,
       ruleCount: review.ruleCount,
       failedCount,
-      passedCount: Math.max(0, review.ruleCount - failedCount),
-      highCount: review.highCount,
-      mediumCount: review.mediumCount,
-      lowCount: review.lowCount,
+      riskCount: failedCount,
+      riskItemCount: itemStats.riskItemCount,
+      insufficientCount,
+      materialGapCount: itemStats.materialGapCount,
+      passedCount,
+      highCount: itemStats.highRiskItemCount,
+      mediumCount: itemStats.mediumRiskItemCount,
+      lowCount: itemStats.lowRiskItemCount,
     },
-    categoryStats: categoryRows(review).map(([category, ruleCount, failedRules, severityStats, mainRisk]) => ({
+    categoryStats: categoryRows(review).map(([category, riskItemsCount, materialGapCount, severityStats, mainRisk]) => ({
       category,
-      ruleCount,
-      failedRules,
+      riskItems: riskItemsCount,
+      materialGaps: materialGapCount,
       severityStats,
       mainRisk,
     })),
-    evidenceCount: evidenceRows(review).length,
+    evidenceCount: riskEvidenceRows(review).length,
+    riskItems,
     findings: review.findings,
     markdown: buildReportMarkdown(review, id, createdAt, document),
   }
@@ -1444,11 +2095,21 @@ function shouldRerunReview(message) {
   return /重新|再次|重跑|再审|重新审查|重新检测/.test(String(message || ''))
 }
 
+function reviewDoneAnswerText(review, documentLabel) {
+  const stats = riskItemStats(reviewRiskItems(review))
+  return `已完成${documentLabel}审查。综合评分 ${review.score} 分，结论：${review.conclusion}
+本次识别主要风险 ${stats.riskItemCount} 项，其中高风险 ${stats.highRiskItemCount} 项、中风险 ${stats.mediumRiskItemCount} 项、低风险 ${stats.lowRiskItemCount} 项；另有 ${stats.materialGapCount} 项材料需补充核验。
+你可以继续追问具体风险、要求生成整改清单，或生成正式检测报告。`
+}
 function rectificationAnswer(review) {
-  const failed = (review.findings || []).filter((item) => !item.passed)
-  if (!failed.length) return `当前检测报告综合评分 ${review.score} 分，未发现未通过规则。建议保留本次审查记录，并按项目流程完成归档。`
-  const lines = failed.map((finding, index) => `${index + 1}. [${finding.severity}] ${finding.ruleName}\n问题：${finding.issue || finding.reason || '未提供'}\n整改动作：${finding.suggestion || '补充事实依据、责任主体、时间要求和验收标准。'}\n验收标准：文档中能够看到对应依据、责任边界和闭环要求。`)
-  return `已基于当前检测报告生成整改清单，共 ${failed.length} 项：\n\n${lines.join('\n\n')}`
+  const risks = riskItemsByType(review, 'risk')
+  if (!risks.length) {
+    const gaps = riskItemsByType(review, 'material_gap')
+    if (gaps.length) return `当前检测报告综合评分 ${review.score} 分，未识别出明确风险事项，但有 ${gaps.length} 项材料需补充核验。建议补充对应合同、订单、资金流水、物流、货权、发票等材料后复核。`
+    return `当前检测报告综合评分 ${review.score} 分，未识别出明确风险事项。建议保留本次审查记录，并按项目流程完成归档。`
+  }
+  const lines = risks.map((item, index) => `${index + 1}. [${item.severity}] ${item.title}\n风险说明：${item.summary || '未提供'}\n整改动作：${item.suggestion || '补充事实依据、责任主体、时间要求和验收标准。'}\n验收标准：能够补充形成对应证据、责任边界和闭环处置记录。`)
+  return `已基于当前检测报告生成整改清单，共 ${risks.length} 项主要风险：\n\n${lines.join('\n\n')}`
 }
 
 export async function handleSuperAgentTurn(payload) {
@@ -1499,7 +2160,8 @@ export async function handleSuperAgentTurn(payload) {
       return completeTurn({
         type: 'review',
         intent,
-        answer: `${documentLabel}已经完成规则审查。综合评分 ${currentReview.score} 分，结论：${currentReview.conclusion}\n高风险 ${currentReview.highCount} 项，中风险 ${currentReview.mediumCount} 项，低风险 ${currentReview.lowCount} 项。\n如需正式检测报告，请点击“生成报告”或输入“生成正式检测报告”。`,
+        answer: `${reviewDoneAnswerText(currentReview, documentLabel)}
+如需正式检测报告，请点击“生成报告”或输入“生成正式检测报告”。`,
         review: currentReview,
         answeredAt: nowText(),
       }, { documentIds, reviewId: currentReview.id, reportId: '' })
@@ -1508,7 +2170,7 @@ export async function handleSuperAgentTurn(payload) {
     return completeTurn({
       type: 'review',
       intent,
-      answer: `已完成${documentLabel}审查。综合评分 ${review.score} 分，结论：${review.conclusion}\n高风险 ${review.highCount} 项，中风险 ${review.mediumCount} 项，低风险 ${review.lowCount} 项。\n你可以继续追问具体风险、要求生成整改清单，或生成正式检测报告。`,
+      answer: reviewDoneAnswerText(review, documentLabel),
       review,
       answeredAt: nowText(),
     }, { documentIds, reviewId: review.id, reportId: '' })
@@ -1516,7 +2178,7 @@ export async function handleSuperAgentTurn(payload) {
 
   if (intent === 'report') {
     if (!reviewId) {
-      return completeTurn({ type: 'report', intent, answer: '生成正式检测报告需要先完成规则审查。请先上传文档并说明审查要求，审查完成后我会生成报告。', answeredAt: nowText() })
+      return completeTurn({ type: 'report', intent, answer: '生成正式检测报告需要先完成文档审查。请先上传文档并说明审查要求，审查完成后我会生成报告。', answeredAt: nowText() })
     }
     const report = await generateSuperAgentReport(reviewId)
     return completeTurn({
@@ -1542,8 +2204,9 @@ export async function handleSuperAgentTurn(payload) {
 
 function reviewContext(review) {
   if (!review) return ''
-  const findings = (review.findings || []).filter((item) => !item.passed).slice(0, 12).map((item, index) => `${index + 1}. [${item.severity}] ${item.ruleName}: ${item.issue || item.reason}\n依据：${item.evidence || '未提供'}\n建议：${item.suggestion || '未提供'}`).join('\n')
-  return `当前审查报告：${review.documentName}\n得分：${review.score}\n结论：${review.conclusion}\n摘要：${review.summary}\n问题：\n${findings || '未发现未通过问题'}`
+  const risks = riskItemsByType(review, 'risk').slice(0, 12).map((item, index) => `${index + 1}. [${item.severity}] ${item.title}: ${item.summary || '存在异常线索'}\n依据：${item.evidence || '未提供'}\n建议：${item.suggestion || '未提供'}`).join('\n')
+  const gaps = riskItemsByType(review, 'material_gap').slice(0, 6).map((item, index) => `${index + 1}. ${item.title}: ${item.evidence || item.summary || '材料不足'}\n建议：${item.suggestion || '补充材料后复核'}`).join('\n')
+  return `当前审查报告：${review.documentName}\n得分：${review.score}\n结论：${review.conclusion}\n摘要：${review.summary}\n主要风险：\n${risks || '未识别出明确风险事项'}\n\n待补充材料：\n${gaps || '无单独材料缺口事项'}`
 }
 
 export async function answerSuperAgentQuestion(payload) {
@@ -1584,7 +2247,7 @@ export function listSuperAgentRules() {
 }
 
 export function superAgentRuntimeInfo() {
-  return { model: getSuperAgentModelName(), rules: publicRules().length, maxUploadBytes, reviewTextLimit, reviewRuleBatchSize, reviewRuleBatchConcurrency }
+  return { model: getSuperAgentModelName(), rules: publicRules().length, maxUploadBytes, reviewTextLimit, quickReviewTextLimit, reviewRuleBatchSize, reviewRuleBatchConcurrency, reviewPrecheckIssueLimit, reviewVerifyHighRiskDuringReview }
 }
 
 

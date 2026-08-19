@@ -1,4 +1,4 @@
-﻿const encoder = new TextEncoder()
+const encoder = new TextEncoder()
 
 const PAGE = {
   width: 11906,
@@ -99,9 +99,17 @@ function xmlEscape(value) {
 function riskTone(value) {
   const text = String(value || '')
   if (/高|重大|严重/.test(text)) return { fill: 'FCE4D6', color: '9C0006' }
-  if (/中/.test(text)) return { fill: 'FFF2CC', color: '9C6500' }
+  if (/中|证据不足|待补证/.test(text)) return { fill: 'FFF2CC', color: '9C6500' }
   if (/低|通过|正常|未命中/.test(text)) return { fill: 'E2F0D9', color: '375623' }
   return { fill: 'EEF2F7', color: '334155' }
+}
+
+function isRiskFinding(item) {
+  return item?.status === 'risk' || (!item?.status && item?.passed === false)
+}
+
+function isInsufficientFinding(item) {
+  return item?.status === 'insufficient'
 }
 
 function run(text, options = {}) {
@@ -171,7 +179,7 @@ function normalizeTableRows(tableLines) {
   const rows = parsed.slice(1)
   const maxColumns = Math.max(headers.length, ...rows.map((row) => row.length))
   if (headers.length === 4 && maxColumns === 5 && headers.join('|').includes('主要风险')) {
-    headers = ['风险维度', '覆盖规则', '命中规则', '等级分布', '主要风险']
+    headers = ['风险维度', '风险事项', '待核验', '等级分布', '主要风险']
   }
   while (headers.length < maxColumns) headers.push('说明')
   return { headers, rows: rows.map((row) => Array.from({ length: maxColumns }, (_, index) => row[index] || '')) }
@@ -186,7 +194,7 @@ function tableWidths(headers, explicit) {
   if (/监管映射|命中模式|风险判断|关键依据/.test(key)) return [2300, 1500, 800, 2500, USABLE_WIDTH - 7100]
   if (/异常项目|量化|复核建议/.test(key)) return [1700, 800, 3900, USABLE_WIDTH - 6400]
   if (/税务风险点|风险说明|证据依据/.test(key)) return [1700, 800, 3300, USABLE_WIDTH - 5800]
-  if (/风险维度|覆盖规则|等级分布|主要风险/.test(key)) return [1900, 1100, 1100, 1800, USABLE_WIDTH - 5900]
+  if (/风险维度|风险事项|待核验|等级分布|主要风险/.test(key)) return [1900, 1100, 1100, 1800, USABLE_WIDTH - 5900]
   if (/优先级|整改动作|责任部门|完成要求/.test(key)) return [600, 1100, 1500, 3300, 1400, USABLE_WIDTH - 7900]
   if (/规则编号|规则名称|结果|说明/.test(key)) return [520, 1150, 1350, 1800, 700, 850, USABLE_WIDTH - 6370]
   if (headers.length === 2) return [2200, USABLE_WIDTH - 2200]
@@ -321,18 +329,37 @@ function sourceDocumentRows(report) {
   return [['1', report?.documentName || '上传材料', '', '已纳入审查']]
 }
 
-function topFindingRows(report) {
-  const failed = (report?.findings || []).filter((item) => !item.passed)
+function reportRiskItems(report) {
+  if (Array.isArray(report?.riskItems) && report.riskItems.length) return report.riskItems
+  const failed = (report?.findings || []).filter(isRiskFinding)
   const order = { 高: 1, 中: 2, 低: 3 }
-  return failed.sort((a, b) => (order[a.severity] || 9) - (order[b.severity] || 9)).slice(0, 8).map((item, index) => [
-    String(index + 1),
-    item.ruleName || item.ruleId || '未命名规则',
-    item.severity || '待研判',
-    item.issue || item.reason || '未提供风险判断',
-    item.suggestion || '补充底层证据并复核。',
-  ])
+  return failed.sort((a, b) => (order[a.severity] || 9) - (order[b.severity] || 9)).slice(0, 8).map((item, index) => ({
+    id: `RISK-FALLBACK-${index + 1}`,
+    type: 'risk',
+    title: item.issue || item.reason || item.ruleName || '风险事项',
+    category: item.category || '综合',
+    severity: item.severity || '中',
+    statusText: `${item.severity || '中'}风险`,
+    summary: item.issue || item.reason || '存在异常线索',
+    evidence: item.evidence || '未提供',
+    suggestion: item.suggestion || '补充底层证据并复核。',
+  }))
 }
 
+function topFindingRows(report) {
+  const order = { 高: 1, 中: 2, 低: 3 }
+  return reportRiskItems(report)
+    .filter((item) => item.type !== 'material_gap')
+    .sort((a, b) => (order[a.severity] || 9) - (order[b.severity] || 9))
+    .slice(0, 8)
+    .map((item, index) => [
+      String(index + 1),
+      item.title || '风险事项',
+      item.severity || '待研判',
+      item.summary || item.evidence || '未提供风险判断',
+      item.suggestion || '补充底层证据并复核。',
+    ])
+}
 function coverSection(report) {
   const stats = report?.riskStats || {}
   const tone = riskTone(report?.riskLevel)
@@ -344,8 +371,7 @@ function coverSection(report) {
       ['报告编号', report?.id || '未生成', '关联审查', report?.reviewId || '未关联'],
       ['审查对象', report?.documentName || '上传材料', '报告日期', report?.createdAt || '未提供'],
       ['风险等级', report?.riskLevel || '待研判', '综合评分', stats.score !== undefined ? `${stats.score} 分` : '未评分'],
-      ['规则覆盖', stats.ruleCount !== undefined ? `${stats.ruleCount} 条` : '未提供', '命中规则', stats.failedCount !== undefined ? `${stats.failedCount} 条` : '未提供'],
-    ]),
+      ['风险事项', stats.riskItemCount !== undefined ? `${stats.riskItemCount} 项` : `${stats.failedCount || 0} 项`, '待核验', stats.materialGapCount !== undefined ? `${stats.materialGapCount} 项` : `${stats.insufficientCount || 0} 项`],    ]),
     callout('综合结论', report?.conclusion || report?.summary || '未提供综合结论', tone),
     paragraph('本报告仅供内部审查、整改闭环和穿透核查辅助使用。', { style: 'Disclaimer', align: 'center', before: 200 }),
     pageBreak(),
@@ -356,22 +382,22 @@ function summarySection(report) {
   const stats = report?.riskStats || {}
   const rows = [
     ['风险等级', report?.riskLevel || '待研判', '综合评分', stats.score !== undefined ? `${stats.score} 分` : '未评分'],
-    ['高风险', `${stats.highCount || 0} 条`, '中风险', `${stats.mediumCount || 0} 条`],
-    ['低风险', `${stats.lowCount || 0} 条`, '通过规则', `${stats.passedCount || 0} 条`],
+    ['风险事项', stats.riskItemCount !== undefined ? `${stats.riskItemCount} 项` : `${stats.failedCount || 0} 项`, '待核验', stats.materialGapCount !== undefined ? `${stats.materialGapCount} 项` : `${stats.insufficientCount || 0} 项`],
+    ['高风险', `${stats.highCount || 0} 项`, '中风险', `${stats.mediumCount || 0} 项`],
+    ['低风险', `${stats.lowCount || 0} 项`, '审查材料', report?.documentCount ? `${report.documentCount} 篇` : '未提供'],
   ]
-  const categoryRows = (report?.categoryStats || []).map((item) => [item.category, item.ruleCount, item.failedRules, item.severityStats, item.mainRisk])
+  const categoryRows = (report?.categoryStats || []).map((item) => [item.category, item.riskItems || item.failedRules || '0 项', item.materialGaps || '0 项', item.severityStats, item.mainRisk])
   const findingRows = topFindingRows(report)
   return [
     paragraph('一页摘要', { style: 'Heading1', keepNext: true }),
     callout('报告摘要', report?.summary || '未提供摘要'),
     fieldTable(rows),
     makeTable(['序号', '材料', '文本量', '解析状态'], sourceDocumentRows(report), { widths: [700, 3600, 1600, USABLE_WIDTH - 5900] }),
-    categoryRows.length ? makeTable(['风险维度', '覆盖规则', '命中规则', '等级分布', '主要风险'], categoryRows) : '',
-    findingRows.length ? makeTable(['序号', '规则名称', '等级', '风险判断', '整改建议'], findingRows) : callout('规则命中情况', '本次审查未发现未通过规则，建议保留审查记录并按业务流程归档。', { fill: 'F0FDF4', color: '15803D' }),
+    categoryRows.length ? makeTable(['风险维度', '风险事项', '待核验', '等级分布', '主要风险'], categoryRows) : '',
+    findingRows.length ? makeTable(['序号', '风险事项', '等级', '风险判断', '整改建议'], findingRows) : callout('风险识别情况', (stats.materialGapCount || stats.insufficientCount || 0) ? `本次审查未识别出明确风险事项，但有 ${stats.materialGapCount || stats.insufficientCount || 0} 项材料需补充核验，建议补证复核。` : '本次审查未识别出明确风险事项，建议保留审查记录并按业务流程归档。', { fill: (stats.materialGapCount || stats.insufficientCount || 0) ? 'FFF2CC' : 'F0FDF4', color: (stats.materialGapCount || stats.insufficientCount || 0) ? '9C6500' : '15803D' }),
     pageBreak(),
   ].join('')
 }
-
 function sectionProperties() {
   return `<w:sectPr><w:footerReference w:type="default" r:id="rId3"/><w:pgSz w:w="${PAGE.width}" w:h="${PAGE.height}"/><w:pgMar w:top="${PAGE.marginTop}" w:right="${PAGE.marginRight}" w:bottom="${PAGE.marginBottom}" w:left="${PAGE.marginLeft}" w:header="720" w:footer="720" w:gutter="0"/><w:cols w:space="425"/></w:sectPr>`
 }
