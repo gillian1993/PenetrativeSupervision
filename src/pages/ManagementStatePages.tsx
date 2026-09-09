@@ -124,7 +124,7 @@ export function OntologyListPage() {
   }
   return <>
     <PageHeader eyebrow="能力中心 / 知识图谱 / 图谱结构" title="图谱结构" description="维护基础图谱结构和领域图谱结构，统一类、属性和关系定义。" actions={<><Button icon="refresh" onClick={() => setToast('图谱结构列表已刷新')}>刷新</Button><Button variant="primary" icon="plus" onClick={() => setToast('请从已发布图谱结构复制草稿，以保留语义继承关系')}>新建图谱结构</Button></>}/>
-    <FilterGrid onReset={() => setKeyword('')} onSearch={() => setToast(`查询完成，共${rows.length}个图谱结构`)}><Field label="关键词"><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="结构名称、编码或领域"/></Field><Field label="状态"><select><option>全部状态</option><option>草稿</option><option>待校验</option><option>已发布</option></select></Field></FilterGrid>
+    <FilterGrid onReset={() => setKeyword('')} onSearch={() => setToast(`查询完成，共${rows.length}个图谱结构`)}><Field label="关键词"><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="结构名称、编码或领域"/></Field><Field label="状态"><select><option>全部状态</option><option>草稿</option><option>已发布</option><option>已下架</option></select></Field></FilterGrid>
     <Panel title="图谱结构列表" subtitle="已发布版本只读，变更必须复制新版本"><div className="table-container"><table><thead><tr><th>结构名称 / 编码</th><th>范围 / 领域</th><th>版本</th><th>类 / 属性 / 关系</th><th>状态</th><th>更新时间</th><th>操作</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/ontology/${item.id}`)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.scope}<small className="cell-sub">{item.domain}</small></td><td>{item.version}</td><td><span className="metrics-inline"><b>{item.classes}</b>类（{Math.max(0, item.classes - item.events)}对象 / {item.events}事件） · <b>{item.properties}</b>属性 · <b>{item.relations}</b>关系</span></td><td><StatusTag>{item.status}</StatusTag></td><td>{item.updatedAt}</td><td><div className="row-actions"><button onClick={() => navigate(`/ontology/${item.id}`)}>{item.status === '已发布' ? '查看' : '编辑'}</button><button onClick={() => setTarget(item)}>{item.status === '已发布' ? '复制版本' : '发布'}</button></div></td></tr>)}</tbody></table></div></Panel>
     <Modal open={!!target} title={target?.status === '已发布' ? '复制图谱结构' : '发布图谱结构'} description={target ? `${target.name} ${target.version}` : ''} onClose={() => setTarget(null)} onConfirm={confirm}><PublishChecklist/></Modal>
   </>
@@ -148,7 +148,7 @@ export function OntologyEditorPage() {
   return <>
     <div className="editor-header"><div><button className="back-button" onClick={() => navigate('/ontology')}>‹ 返回图谱结构列表</button><p className="eyebrow">图谱结构版本编辑 / {item.id}</p><h1>{item.name}</h1><div className="editor-meta"><StatusTag>{item.status}</StatusTag><span>版本 {item.version}</span><span>{item.scope}</span><span>最近保存：{item.updatedAt}</span></div></div><div className="page-actions">{readonly ? <Button variant="primary" onClick={copy}>复制新版本</Button> : <><Button onClick={() => setToast('图谱结构草稿已保存')}>保存草稿</Button><Button onClick={() => setToast('校验完成：0个阻断项')}>校验</Button><Button variant="primary" onClick={publish}>发布</Button></>}</div></div>
     <section className="ontology-editor-layout"><Panel title="类" subtitle={`${item.classes} 个类`} className="class-tree"><input placeholder="搜索名称或编码"/><div className="tree-list">{['组织','人员','主体','供应商','采购项目','合同','审批记录','资金记录','账户','文档/附件','预警','风险事件'].map((name) => <button key={name} className={selected === name ? 'active' : ''} onClick={() => setSelected(name)}><Icon name={name === '人员' ? 'user' : name === '预警' ? 'warning' : 'graph'} size={15}/><span>{name}</span><small>{name === '供应商' ? 'PROC.Supplier' : `BASE.${name}`}</small></button>)}</div><Button icon="plus" onClick={() => setDrawer(true)} disabled={readonly}>新增类</Button></Panel><Panel className="ontology-element-panel"><div className="selected-class-header"><div><p className="eyebrow">当前类</p><h2>{selected}</h2><span>主识别属性：统一社会信用代码 / 主体编码</span></div><Button icon="edit" onClick={() => setDrawer(true)} disabled={readonly}>编辑类定义</Button></div><Tabs value={tab} onChange={setTab} items={[{ key: 'class', label: '类定义' }, { key: 'property', label: '属性', count: 12 }, { key: 'relation', label: '关系', count: 8 }, { key: 'diff', label: '版本差异' }]}/>{tab === 'class' && <KeyValue items={[{ label: '类编码', value: 'PROC.Supplier' }, { label: '中文名称', value: selected }, { label: '别名', value: '供应商、服务商、投标主体' }, { label: '默认敏感等级', value: <StatusTag>内部</StatusTag> }, { label: '主识别属性', value: '统一社会信用代码、供应商编码' }]}/>} {tab === 'property' && <OntologyElements rows={['supplier_code|供应商编码|文本|主标识','credit_code|统一社会信用代码|文本|主标识','supplier_name|供应商名称|文本|必填','contact_phone|联系电话|文本|强敏感']}/>} {tab === 'relation' && <OntologyElements rows={['participate|参与|供应商 → 采购项目|多对多','sign|签订|供应商 → 合同|一对多','controlled_by|受控制于|供应商 → 主体|多对多']}/>} {tab === 'diff' && <VersionTimeline labels={['新增：共同联系方式关系','修改：主标识质量要求','修改：联系电话敏感等级']}/>}</Panel></section>
-    <Drawer open={drawer} title={`${readonly ? '查看' : '编辑'}类：${selected}`} eyebrow="结构元素" onClose={() => setDrawer(false)} footer={<><Button onClick={() => setDrawer(false)}>取消</Button><Button variant="primary" disabled={readonly} onClick={() => { setDrawer(false); setToast('类定义已保存') }}>保存</Button></>}><div className="form-stack"><Field label="类编码"><input defaultValue="PROC.Supplier" disabled/></Field><Field label="中文名称"><input defaultValue={selected} disabled={readonly}/></Field><Field label="别名"><input defaultValue="供应商、服务商、投标主体" disabled={readonly}/></Field><Field label="默认敏感等级"><select defaultValue="内部" disabled={readonly}><option>普通</option><option>内部</option><option>敏感</option><option>强敏感</option></select></Field></div></Drawer>
+    <Drawer open={drawer} title={`${readonly ? '查看' : '编辑'}实体类型：${selected}`} eyebrow="结构定义" onClose={() => setDrawer(false)} footer={<><Button onClick={() => setDrawer(false)}>取消</Button><Button variant="primary" disabled={readonly} onClick={() => { setDrawer(false); setToast('实体类型定义已保存') }}>保存</Button></>}><div className="form-stack"><Field label="实体类型编码"><input defaultValue="PROC.Supplier" disabled/></Field><Field label="中文名称"><input defaultValue={selected} disabled={readonly}/></Field><Field label="别名"><input defaultValue="供应商、服务商、投标主体" disabled={readonly}/></Field><Field label="默认敏感等级"><select defaultValue="内部" disabled={readonly}><option>普通</option><option>内部</option><option>敏感</option><option>强敏感</option></select></Field></div></Drawer>
   </>
 }
 
@@ -159,12 +159,27 @@ function OntologyElements({ rows }: { rows: string[] }) {
 
 const databaseDefaultPorts: Record<string, string> = { MySQL: '3306', Oracle: '1521', PostgreSQL: '5432', 'SQL Server': '1433' }
 const sourceModeOptions = ['数据库接入', '接口接入', '文件导入']
+const sourceDomainCategories = ['合同', '投资', '境外单位', '产权', '采购与供应链', '财务', '军品业务', '会计', '金融风险', '薪酬分配'] as const
+type SourceDomainCategory = typeof sourceDomainCategories[number]
 const defaultAccessConfig = (mode = '数据库接入'): DataSourceAccessConfig => {
   if (mode === '接口接入') return { apiUrl: '', method: 'GET', authType: 'Token', token: '' }
   if (mode === '文件导入') return { fileName: '' }
   return { databaseType: 'MySQL', host: '', port: '3306', databaseName: '', username: '', password: '' }
 }
 const sourceInitial = { name: '', mode: '数据库接入', range: '', owner: '张海', ontologyIds: [] as string[], accessConfig: defaultAccessConfig('数据库接入') }
+const sourceDomainFor = (item: DataSourceItem): SourceDomainCategory => {
+  const text = [item.name, item.id, item.mode, item.range, item.owner, item.status, ...(item.ontologyIds || []), ...(item.ontologyNames || [])].join(' ')
+  if (/合同/.test(text)) return '合同'
+  if (/投资|投后|投前|股权投资/.test(text)) return '投资'
+  if (/境外|海外|外籍|外资|出海|跨境/.test(text)) return '境外单位'
+  if (/产权|股权|股东|工商|司法|实际控制|控制人|受益人|并购|资产评估/.test(text)) return '产权'
+  if (/军品|军工|涉密|型号|装备|科研生产|军贸/.test(text)) return '军品业务'
+  if (/会计|凭证|科目|账套|核算|成本归集|收入确认/.test(text)) return '会计'
+  if (/金融|融资|授信|担保|债务|理财|资金池|保函/.test(text)) return '金融风险'
+  if (/薪酬|工资|奖金|绩效|社保|公积金|个税|福利/.test(text)) return '薪酬分配'
+  if (/财务|资金|付款|收款|银行|流水|司库|预算|发票|对账|报销/.test(text)) return '财务'
+  return '采购与供应链'
+}
 
 function validateSourceAccessConfig(mode: string, config: DataSourceAccessConfig) {
   if (mode === '数据库接入') {
@@ -299,7 +314,15 @@ export function DataAccessPage() {
   const [deleteTarget, setDeleteTarget] = useState<DataSourceItem | null>(null)
   const [searchDraft, setSearchDraft] = useState({ keyword: '', status: '全部' })
   const [filters, setFilters] = useState({ keyword: '', status: '全部' })
+  const [activeDomain, setActiveDomain] = useState<'全部' | SourceDomainCategory>('全部')
   const filteredSources = useMemo(() => { const keyword = filters.keyword.trim().toLowerCase(); return dataSources.filter((item) => { const matchesKeyword = !keyword || [item.name, item.id, item.mode, item.range, item.owner, item.status, ...(item.ontologyIds || []), ...(item.ontologyNames || [])].join(' ').toLowerCase().includes(keyword); const matchesStatus = filters.status === '全部' || item.status === filters.status; return matchesKeyword && matchesStatus }) }, [dataSources, filters])
+  const sourceDomainStats = useMemo(() => {
+    const counts = new Map<SourceDomainCategory, number>(sourceDomainCategories.map((domain) => [domain, 0]))
+    dataSources.forEach((item) => counts.set(sourceDomainFor(item), (counts.get(sourceDomainFor(item)) || 0) + 1))
+    return sourceDomainCategories.map((domain) => ({ domain, count: counts.get(domain) || 0 })).filter((item) => item.count > 0)
+  }, [dataSources])
+  const visibleSources = useMemo(() => activeDomain === '全部' ? filteredSources : filteredSources.filter((item) => sourceDomainFor(item) === activeDomain), [activeDomain, filteredSources])
+  useEffect(() => { if (activeDomain !== '全部' && !dataSources.some((item) => sourceDomainFor(item) === activeDomain)) setActiveDomain('全部') }, [activeDomain, dataSources])
   const load = async () => {
     setLoading(true)
     try {
@@ -319,7 +342,7 @@ export function DataAccessPage() {
   return <>
     <FilterGrid onReset={() => { const value = { keyword: '', status: '全部' }; setSearchDraft(value); setFilters(value) }} onSearch={() => setFilters(searchDraft)} actions={<Button variant="primary" icon="plus" onClick={() => navigate('/graphs/sources/new')}>新建数据源</Button>}><Field label="关键词"><input value={searchDraft.keyword} onChange={(event) => setSearchDraft({ ...searchDraft, keyword: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter') setFilters(searchDraft) }} placeholder="数据源名称、编码、方式或责任人"/></Field><Field label="状态"><select value={searchDraft.status} onChange={(event) => setSearchDraft({ ...searchDraft, status: event.target.value })}><option>全部</option><option>草稿</option><option>启用</option><option>停用</option><option>异常</option></select></Field></FilterGrid>
     <section className="stats-grid four"><article className="mini-stat"><span>数据源总数</span><strong>{dataSources.length}</strong><small>含草稿、启用和停用</small></article><article className="mini-stat"><span>启用数据源</span><strong>{dataSources.filter((item) => item.status === '启用').length}</strong><small>正常参与数据同步</small></article><article className="mini-stat"><span>异常数据源</span><strong>{dataSources.filter((item) => item.status === '异常').length}</strong><small>需要检查连接或结构</small></article><article className="mini-stat"><span>近期处理数据</span><strong>{records.reduce((sum, item) => sum + item.processed, 0).toLocaleString()}</strong><small>全部数据源同步记录</small></article></section>
-    <Panel className="data-access-panel" title="数据源列表" subtitle="数据源可被多个图谱复用，进入详情维护接入配置和字段映射">{loading ? <div className="loading-state"><i/><span>正在加载数据源…</span></div> : filteredSources.length ? <SourceTable data={filteredSources} onSelect={(item) => navigate(`/graphs/sources/${item.id}`)} onTest={test} onToggle={toggle} onDelete={setDeleteTarget}/> : <EmptyState title={dataSources.length ? '未找到数据源' : '暂无数据源'} description={dataSources.length ? '请调整关键词或状态条件。' : '点击“新建数据源”开始配置数据接入。'}/>}</Panel>
+    <Panel className="data-access-panel" title="数据源列表" subtitle={`当前分类：${activeDomain} · ${visibleSources.length} 个数据源`}>{loading ? <div className="loading-state"><i/><span>正在加载数据源…</span></div> : <section className="data-source-catalog-layout"><aside className="data-source-domain-tree" aria-label="数据源分类"><button type="button" className={activeDomain === '全部' ? 'active' : ''} onClick={() => setActiveDomain('全部')}><Icon name="home" size={15}/><span><strong>全部数据源</strong><small>所有已登记来源</small></span><b>{dataSources.length}</b></button>{sourceDomainStats.map((item) => <button type="button" className={activeDomain === item.domain ? 'active' : ''} key={item.domain} onClick={() => setActiveDomain(item.domain)}><Icon name="graph" size={15}/><span><strong>{item.domain}</strong><small>大领域分类</small></span><b>{item.count}</b></button>)}</aside><div className="data-source-list-region">{visibleSources.length ? <SourceTable data={visibleSources} onSelect={(item) => navigate(`/graphs/sources/${item.id}`)} onTest={test} onToggle={toggle} onDelete={setDeleteTarget}/> : <EmptyState title={dataSources.length ? '未找到数据源' : '暂无数据源'} description={dataSources.length ? '请调整关键词、状态或分类条件。' : '点击“新建数据源”开始配置数据接入。'}/>}</div></section>}</Panel>
     <Modal open={!!deleteTarget} title="删除数据源" description={deleteTarget ? `${deleteTarget.name} · ${deleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()}><div className="alert-box danger"><Icon name="warning"/><span>仅未启用且没有同步记录的数据源可以删除，元数据和映射草稿将一并清理。</span></div></Modal>
   </>
 }
@@ -462,7 +485,7 @@ function SourceBasicConfig({ source, currentOntologyId, currentOntologyName, onM
   </>
 }
 function SourceTable({ data, onSelect, onTest, onToggle, onDelete }: { data: DataSourceItem[]; onSelect: (item: DataSourceItem) => void; onTest: (item: DataSourceItem) => void; onToggle: (item: DataSourceItem) => void; onDelete: (item: DataSourceItem) => void }) {
-  return <div className="table-container"><table><thead><tr><th>来源名称 / 编码</th><th>适用图谱结构</th><th>来源方式</th><th>责任人</th><th>最近成功</th><th>状态</th><th>操作</th></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => onSelect(item)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.ontologyNames?.join('、') || item.ontologyIds?.join('、') || '未配置'}</td><td>{item.mode}</td><td>{item.owner}</td><td>{item.lastSuccess}</td><td><StatusTag>{item.status}</StatusTag></td><td><div className="row-actions"><button onClick={() => onSelect(item)}>进入详情</button><button onClick={() => onTest(item)}>测试</button><button onClick={() => onToggle(item)}>{item.status === '启用' ? '停用' : '启用'}</button>{item.status !== '启用' && <button className="danger-link" onClick={() => onDelete(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
+  return <div className="table-container"><table><thead><tr><th>来源名称 / 编码</th><th>领域</th><th>适用图谱结构</th><th>来源方式</th><th>责任人</th><th>状态</th><th>操作</th></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => onSelect(item)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{sourceDomainFor(item)}</td><td>{item.ontologyNames?.join('、') || item.ontologyIds?.join('、') || '未配置'}</td><td>{item.mode}</td><td>{item.owner}</td><td><StatusTag>{item.status}</StatusTag></td><td><div className="row-actions"><button onClick={() => onSelect(item)}>进入详情</button><button onClick={() => onTest(item)}>测试</button><button onClick={() => onToggle(item)}>{item.status === '启用' ? '停用' : '启用'}</button>{item.status !== '启用' && <button className="danger-link" onClick={() => onDelete(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
 }
 
 function SourceMapping({ source, currentOntologyId, metadata, rows, ontologyElements, onParse, onSave }: { source: DataSourceItem; currentOntologyId: string; metadata: SourceMetadataItem[]; rows: MappingItem[]; ontologyElements: OntologyElement[]; onParse: () => void; onSave: (row: MappingItem | null, payload: { targetCode: string; sourceField: string; transform: string }) => Promise<void> }) {
@@ -521,7 +544,7 @@ export function GraphManagementPage() {
   const isSources = tab === 'sources'
 
   return <>
-    <PageHeader eyebrow={`能力中心 / 知识图谱 / ${isSources ? '数据源' : '图谱结构'}`} title={isSources ? '数据源' : '图谱结构'} description={isSources ? '维护数据源接入、来源结构解析和字段映射模板。' : '维护知识图谱中的类、属性和关系定义。'}/>
+    <PageHeader eyebrow={`能力中心 / 知识图谱 / ${isSources ? '数据源' : '图谱结构'}`} title={isSources ? '数据源' : '图谱结构'} description={isSources ? '维护数据源接入、来源结构解析和字段映射模板。' : '维护知识图谱中的实体、属性与关系定义。'}/>
     <Panel className="graph-management-panel">{isSources ? <div className="embedded-data-access"><DataAccessPage/></div> : <div className="embedded-graph-structure"><GraphStructureListPage embedded/></div>}</Panel>
   </>
 }

@@ -25,13 +25,11 @@
 .ontology-canvas-toolbar > div:first-child span { color: #7d899a; font-size: 11px; }
 .ontology-canvas-toolbar > div:last-child { display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
 .ontology-canvas-toolbar .button { min-height: 34px; padding: 0 10px; font-size: 12px; }
-.ontology-canvas-toolbar .button.active-tool { border-color: #176dff; background: #eaf2ff; color: #176dff; box-shadow: inset 0 0 0 1px rgba(23, 109, 255, .08); }
 .ontology-canvas-toolbar select { height: 34px; padding: 0 28px 0 9px; border: 1px solid #d8e2ef; border-radius: 6px; background-color: #fff; color: #344054; font-size: 11px; font-weight: 800; }
 .canvas-zoom { height: 34px; display: inline-flex; align-items: center; overflow: hidden; border: 1px solid #d8e2ef; border-radius: 6px; background: #fff; }
 .canvas-zoom button { width: 30px; height: 32px; border: 0; background: #fff; color: #526071; font-size: 17px; }
 .canvas-zoom button:hover { background: #eef5ff; color: #176dff; }
 .canvas-zoom span { min-width: 48px; color: #596579; font-size: 11px; text-align: center; }
-.connection-guide { display: flex; align-items: center; gap: 7px; padding: 7px 13px; background: #fff8e8; color: #a15c00; font-size: 12px; font-weight: 700; }
 .ontology-canvas-viewport { height: 640px; overflow: auto; background-color: #f8fafd; background-image: radial-gradient(#cbd8e8 1px, transparent 1px), radial-gradient(circle at 50% 42%, rgba(23, 109, 255, .08), transparent 36%); background-size: 20px 20px, 100% 100%; }
 .ontology-canvas-stage { position: relative; transform-origin: left top; transition: transform .15s ease; }
 .ontology-canvas-edges { position: absolute; inset: 0; overflow: visible; z-index: 1; }
@@ -52,7 +50,6 @@
 .ontology-canvas-node.core { background: radial-gradient(circle at 30% 22%, #fff 0, #dbeaff 25%, #67a2ff 62%, #1f64cf 100%); box-shadow: 0 0 0 5px rgba(23, 109, 255, .08), inset -9px -12px 20px rgba(15, 70, 155, .25), inset 8px 8px 15px rgba(255,255,255,.78), 0 16px 34px rgba(23, 85, 174, .28); }
 .ontology-canvas-node.event { border-color: rgba(127, 86, 217, .6); background: radial-gradient(circle at 31% 23%, #fff 0, #f0eaff 28%, #c3a8fb 63%, #8256da 100%); color: #442683; box-shadow: inset -8px -10px 17px rgba(89, 50, 168, .2), inset 7px 7px 14px rgba(255,255,255,.74), 0 12px 27px rgba(102, 69, 175, .2); }
 .ontology-canvas-node.event.selected { border-color: #7f56d9; box-shadow: 0 0 0 6px rgba(127, 86, 217, .14), 0 0 24px rgba(127, 86, 217, .38), inset -8px -10px 17px rgba(89, 50, 168, .2), inset 7px 7px 14px rgba(255,255,255,.74); }
-.ontology-canvas-node.link-source { border-color: #f79009; box-shadow: 0 0 0 7px rgba(247, 144, 9, .2), 0 0 25px rgba(247, 144, 9, .35); }
 .ontology-canvas-node.dimmed { opacity: .18; filter: grayscale(.75); }
 .ontology-canvas-node .node-kind { display: flex; align-items: center; gap: 3px; color: rgba(23, 54, 95, .72); font-size: 9px; font-weight: 900; }
 .ontology-canvas-node.event .node-kind { color: rgba(68, 38, 131, .78); }
@@ -94,13 +91,8 @@
 .inspector-list button small { color: #8491a5; font-size: 9px; }
 .inspector-list p { margin: 0; color: #98a2b3; font-size: 11px; }
 .inspector-list h3 > span { display: flex; align-items: center; gap: 6px; }
-.inspector-list h3 .inspector-add-property { width: auto; padding: 4px 7px; border: 1px solid #b8d1ff; background: #f4f8ff; color: #176dff; font-size: 10px; white-space: nowrap; }
-.inspector-property-row { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: 4px; }
+.inspector-property-row { display: block; }
 .inspector-list .inspector-property-main { min-width: 0; }
-.inspector-property-actions { display: flex; align-items: center; gap: 2px; }
-.inspector-list .inspector-property-actions button { width: auto; padding: 4px; color: #176dff; font-size: 9px; }
-.inspector-list .inspector-property-actions button.danger { color: #d92d20; }
-.ontology-inspector > .button { width: 100%; margin-top: 8px; }
 
 @media (max-width: 1360px) {
   .ontology-modeler { grid-template-columns: 155px minmax(430px, 1fr) 210px; gap: 8px; }

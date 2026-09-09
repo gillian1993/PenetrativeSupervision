@@ -122,7 +122,6 @@ export function ProcurementHomePage() {
   return <>
     <section className="html-home-hero">
       <div className="html-hero-main">
-        <span className="html-hero-kicker"><Icon name="agent" size={16}/>采购管理应用</span>
         <h1><span>AI 驱动采购智能化</span><br/>业务办理与穿透监管统一入口</h1>
         <p>面向采购业务办理与风险监管的一体化智能平台。首页聚焦产品心智和主线选择，智能任务统一进入左侧“超级智能体”菜单处理。</p>
         <div className="page-actions html-hero-actions"><Button variant="primary" onClick={() => navigate('/super-agent')}>进入超级智能体</Button><Button onClick={() => navigate('/procurement')}>采购应用</Button><Button onClick={() => navigate('/workbench')}>穿透式监管</Button></div>

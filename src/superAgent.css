@@ -1182,13 +1182,17 @@
 }
 
 .super-agent-formal-report-actions {
-  flex: 0 0 auto;
+  min-height: 54px;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
   gap: 8px;
+  margin-top: 2px;
+  padding: 14px 0 0;
+  border-top: 1px solid #e7ebf1;
 }
-.super-agent-formal-report-head button {
+.super-agent-formal-report-actions button {
   min-width: 112px;
   height: 38px;
   display: inline-flex;
@@ -1203,7 +1207,13 @@
   font-weight: 800;
 }
 
-.super-agent-formal-report-head .super-agent-svg {
+.super-agent-formal-report-actions button.is-secondary {
+  border: 1px solid #cfd7e3;
+  background: #fff;
+  color: #26344f;
+}
+
+.super-agent-formal-report-actions .super-agent-svg {
   width: 15px;
   height: 15px;
 }

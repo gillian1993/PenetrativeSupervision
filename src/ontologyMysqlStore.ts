@@ -20,6 +20,7 @@ interface OntologyState {
   deleteOntology: (id: string) => Promise<Result>
   copyOntology: (id: string) => Promise<Result>
   publishOntology: (id: string) => Promise<Result>
+  activateOntology: (id: string) => Promise<Result>
   retireOntology: (id: string) => Promise<Result>
   validateOntology: (id: string) => Promise<Result>
   addElement: (id: string, payload: OntologyElementPayload) => Promise<Result>
@@ -81,7 +82,7 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
     try {
       const ontology = await ontologyApi.copy(id)
       set((state) => ({ ontologies: [ontology, ...state.ontologies] }))
-      return { ok: true, message: '图谱结构新草稿版本已复制到MySQL', objectId: ontology.id }
+      return { ok: true, message: '图谱结构新版本已复制到MySQL，当前待发布', objectId: ontology.id }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }
@@ -91,6 +92,15 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
       const ontology = await ontologyApi.publish(id)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
       return { ok: true, message: '图谱结构版本已发布并写入MySQL' }
+    } catch (error) {
+      return { ok: false, message: errorMessage(error) }
+    }
+  },
+  activateOntology: async (id) => {
+    try {
+      const ontology = await ontologyApi.activate(id)
+      set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
+      return { ok: true, message: '图谱结构已重新上架并恢复业务引用' }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }
@@ -108,7 +118,7 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
     try {
       const result = await ontologyApi.validate(id)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, result.ontology) }))
-      return { ok: result.validation.blockers.length === 0, message: result.validation.blockers.length ? `图谱结构校验发现${result.validation.blockers.length}个阻断项` : '图谱结构校验通过，已进入待校验状态' }
+      return { ok: result.validation.blockers.length === 0, message: result.validation.blockers.length ? `图谱结构校验发现${result.validation.blockers.length}个阻断项` : '图谱结构校验通过，当前仍为草稿，可确认发布' }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }
@@ -126,7 +136,7 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
     try {
       const ontology = await ontologyApi.updateElement(id, elementId, payload)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
-      return { ok: true, message: `${payload.name || '结构元素'}已更新到MySQL` }
+      return { ok: true, message: `${payload.name || '结构定义项'}已更新到MySQL` }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }
@@ -136,7 +146,7 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
     try {
       const ontology = await ontologyApi.deleteElement(id, elementId)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
-      return { ok: true, message: `${element?.name || '结构元素'}已从MySQL删除` }
+      return { ok: true, message: `${element?.name || '结构定义项'}已从MySQL删除` }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }

@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { ruleClosureApi } from '../ruleClosureApi'
 import { dataGraphApi } from '../dataGraphApi'
 import { sceneRuleApi } from '../sceneRuleApi'
+import { penetrativeSupervisionRules } from '../penetrativeSupervisionRules'
 import type { AggregateMetric, ConditionGroup, EvidenceElementType, EvidenceRequirement, Logic, OntologyElement, PathHop, PolicyBasis, RuleCondition, RuleItem, TimeCondition, ValidationIssue } from '../sceneRuleTypes'
 import { isConditionGroup } from '../sceneRuleTypes'
 import type { RiskLevel, WarningStage } from '../types'
@@ -41,7 +42,7 @@ type RuleExportState={open:boolean;range:RuleExportRange;format:RuleExportFormat
 
 const RULE_TREE_STORAGE_KEY='ruleAssetTree:v1'
 const RULE_REFERENCE_STORAGE_KEY='ruleAssetReferences:v1'
-const defaultLibraryName='文档审核规则库'
+const defaultLibraryName='穿透式监管规则库'
 const coerceRiskLevel=(value:unknown,fallback:RiskLevel='高'):RiskLevel=>levels.includes(String(value) as RiskLevel)?String(value) as RiskLevel:fallback
 const coerceWarningStage=(value:unknown,fallback:WarningStage='事中'):WarningStage=>ruleStages.includes(String(value) as WarningStage)?String(value) as WarningStage:fallback
 const coerceSceneType=(value:unknown,fallback:SceneType='通用审查'):SceneType=>sceneTypes.includes(String(value) as SceneType)?String(value) as SceneType:fallback
@@ -91,7 +92,18 @@ const defaultRuleTreeState:RuleTreeState={
       treeNode('dir-contract-performance',"履约审查"),
       treeNode('dir-contract-payment',"付款审查"),
     ],
-    穿透式监管规则库:[treeNode('dir-supervision-tender','招投标异常'),treeNode('dir-supervision-contract','合同异常'),treeNode('dir-supervision-supplier','供应商关联'),treeNode('dir-supervision-delivery','资金与交付')],
+    穿透式监管规则库:[
+      treeNode('dir-supervision-project','项目申报与立项'),
+      treeNode('dir-supervision-budget','预算与资金执行'),
+      treeNode('dir-supervision-purchase','采购计划与需求'),
+      treeNode('dir-supervision-bid','招投标与围串标'),
+      treeNode('dir-supervision-contract-performance','合同变更与履约'),
+      treeNode('dir-supervision-execution','项目执行与验收'),
+      treeNode('dir-supervision-payment','付款发票与结算'),
+      treeNode('dir-supervision-finance','财务核算与税务'),
+      treeNode('dir-supervision-credit','供应商工商与信用'),
+      treeNode('dir-supervision-control','内控关联与舞弊'),
+    ],
   },
 }
 const cloneRuleTreeState=(state:RuleTreeState=defaultRuleTreeState):RuleTreeState=>JSON.parse(JSON.stringify(state)) as RuleTreeState
@@ -141,8 +153,25 @@ const findRuleTreeEntry=(nodes:RuleTreeNode[],predicate:(entry:RuleTreeEntry)=>b
 function mergeDefaultRuleTreeState(state:RuleTreeState):RuleTreeState{
   const defaults=cloneRuleTreeState()
   const directories={...state.directories}
+  const mergeNodes=(current:RuleTreeNode[],fallback:RuleTreeNode[]):RuleTreeNode[]=>{
+    const merged=current.map((node)=>{
+      const fallbackNode=fallback.find((item)=>item.id===node.id||item.name===node.name)
+      return fallbackNode&&fallbackNode.children?.length
+        ? {...node,children:mergeNodes(node.children||[],fallbackNode.children)}
+        : node
+    })
+    for(const fallbackNode of fallback){
+      if(!merged.some((node)=>node.id===fallbackNode.id||node.name===fallbackNode.name))merged.push(fallbackNode)
+    }
+    return merged
+  }
+  const libraries=mergeNodes(state.libraries,defaults.libraries)
+  const emptySupervisionDirectories=new Set(['招投标异常','合同异常','供应商关联','资金与交付'])
+  if(directories['穿透式监管规则库']){
+    directories['穿透式监管规则库']=directories['穿透式监管规则库'].filter((node)=>!emptySupervisionDirectories.has(node.name))
+  }
   for(const [library,nodes] of Object.entries(defaults.directories)){
-    if(!(directories[library]||[]).length)directories[library]=nodes
+    directories[library]=mergeNodes(directories[library]||[],nodes)
   }
   const contractScene=defaults.directories["合同审核规则库"]?.find((node)=>node.id==='dir-contract-review')
   if(contractScene){
@@ -150,7 +179,7 @@ function mergeDefaultRuleTreeState(state:RuleTreeState):RuleTreeState{
     const exists=flattenRuleTree(nodes).some((entry)=>entry.node.id===contractScene.id||entry.node.name===contractScene.name)
     if(!exists)directories["合同审核规则库"]=[contractScene,...nodes]
   }
-  return{libraries:state.libraries.length?state.libraries:defaults.libraries,directories}
+  return{libraries,directories}
 }
 const collectTreeNames=(node:RuleTreeNode):string[]=>[node.name,...(node.children||[]).flatMap(collectTreeNames)]
 const treeSiblings=(nodes:RuleTreeNode[],parentId?:string):RuleTreeNode[]=>parentId?(findRuleTreeEntry(nodes,(entry)=>entry.node.id===parentId)?.node.children||[]):nodes
@@ -227,7 +256,7 @@ const initialExpandedMap=(nodes:RuleTreeNode[])=>Object.fromEntries(flattenRuleT
 const ruleLibraryOptions=()=>unique(flattenRuleTree(readRuleTreeState().libraries).map((entry)=>entry.node.name))
 const libraryEntryFor=(library?:string)=>{const normalizedLibrary=library||defaultLibraryName;return flattenRuleTree(readRuleTreeState().libraries).find((entry)=>entry.node.name===normalizedLibrary)||null}
 const directoriesForLibrary=(library:string)=>{const state=readRuleTreeState();const nodes=state.directories[library]||[treeNode(stableTreeId('dir-default',library),'默认目录')];const options=flattenRuleTree(nodes).map(ruleTreePathText);return options.length?options:['默认目录']}
-const defaultDirectoryFor=(library:string)=>directoriesForLibrary(library)[0]||'默认目录'
+const defaultDirectoryFor=(library:string)=>{const options=directoriesForLibrary(library);return library==='穿透式监管规则库'&&options.includes('项目申报与立项')?'项目申报与立项':options[0]||'默认目录'}
 const directoryEntryFor=(library?:string,directory?:string)=>{const normalizedLibrary=library||defaultLibraryName;const normalizedDirectory=directory||defaultDirectoryFor(normalizedLibrary);const state=readRuleTreeState();const nodes=state.directories[normalizedLibrary]||[treeNode(stableTreeId('dir-default',normalizedLibrary),'默认目录')];return flattenRuleTree(nodes).find((entry)=>ruleTreePathText(entry)===normalizedDirectory)||null}
 const sceneEntryForDirectory=(library?:string,directory?:string)=>{const normalizedLibrary=library||defaultLibraryName;const normalizedDirectory=directory||defaultDirectoryFor(normalizedLibrary);const state=readRuleTreeState();const nodes=state.directories[normalizedLibrary]||[treeNode(stableTreeId('dir-default',normalizedLibrary),'默认目录')];const entries=flattenRuleTree(nodes);const selected=entries.find((entry)=>ruleTreePathText(entry)===normalizedDirectory)||entries[0]||null;return selected?entries.find((entry)=>entry.depth===0&&entry.node.name===selected.path[0])||selected:null}
 const sceneTypeForNode=(node?:RuleTreeNode|null,library=defaultLibraryName)=>coerceSceneType(node?.sceneType,defaultSceneTypeForLibrary(library))
@@ -370,7 +399,7 @@ function makeReviewDemoRule(suffix:string,name:string,directoryName:string,level
     conditions:{id:`DEMO-COND-${suffix}`,logic:'AND',items:[],detectionInput:detectionText,detectionText,expression,expressionLanguage:'DSL'},
     pathConfig:{hops:[],logic:'AND',constraints:[]},timeConfig:{baseline:'runtime',logic:'AND',conditions:[],eventCode:'',windowValue:30,windowUnit:'天',direction:'之前'},aggregateConfig:{logic:'AND',metrics:[],function:'COUNT',fieldCode:'',groupBy:'',operator:'大于等于',threshold:0},
     exceptions:{enabled:false,description:'',whitelist:[]},outputs:outputsForRuleType('高级表达式'),evidence:evidenceRequirements.map((item)=>item.name),policy:{name:'',version:'',clause:''},failureStrategy:'进入人工复核队列',summary:detectionText,lockVersion:1,updatedAt:'2026-07-30T09:30:00+08:00',
-    policies,evidenceRequirements,domain:'通用',libraryName:defaultLibraryName,directoryName,description:detectionText,bindingCount:0,catalogBindingCount:0,graphVersion:'',ontologyId:'',
+    policies,evidenceRequirements,domain:'通用',libraryName:'文档审核规则库',directoryName,description:detectionText,bindingCount:0,catalogBindingCount:0,graphVersion:'',ontologyId:'',
   }
 }
 const reviewDemoRules:RuleItem[]=[
@@ -381,9 +410,23 @@ const reviewDemoRules:RuleItem[]=[
   makeReviewDemoRule('005','投标文件相似度异常审查','投标文件审核 / 相似性审查','高','识别同一项目下不同投标文件正文、报价说明或附件元数据相似度异常偏高的情况。','SIMILARITY("投标文件正文", "其他投标文件正文") >= 0.82\nAND COUNT("相似段落") >= 3',[],[{id:'EVI-DOC-005',name:'相似段落与附件元数据',source:'投标文件',sourceField:'正文片段、附件Hash、作者信息',entityName:'投标文件',fieldName:'正文片段、附件Hash、作者信息',description:'用于复核相似性异常。'}]),
   makeReviewDemoRule('006','合同关键条款缺失审查','合同文本审核 / 关键条款','中','识别合同文本中履约期限、验收标准、违约责任或争议解决等关键条款缺失的情况。','AI_REVIEW("合同关键条款", "履约期限、验收标准、违约责任或争议解决缺失") == true',[{id:'POL-DOC-006',name:'合同管理办法',version:'集团制度V3',clause:'第十八条',text:'合同文本应明确履约、验收、付款、违约责任及争议解决条款。'}],[{id:'EVI-DOC-006',name:'合同文本关键条款',source:'合同',sourceField:'合同正文、条款抽取结果',entityName:'合同',fieldName:'合同正文、条款抽取结果',description:'用于支撑合同文本审核。'}]),
 ]
-const isDemoRule=(rule:RuleItem)=>rule.versionId.startsWith('DEMO-DOC-RULE-')
+const isStaticSeedRule=(rule:RuleItem)=>rule.versionId.startsWith('SEED-SUP-')
+const isDemoRule=(rule:RuleItem)=>rule.versionId.startsWith('DEMO-DOC-RULE-')||isStaticSeedRule(rule)
 const ruleMatchesKeyword=(rule:RuleItem,keyword:string)=>{const value=keyword.trim().toLowerCase();return !value||`${rule.name}${rule.code}${rule.libraryName||''}${rule.directoryName||''}${rule.description||''}${rule.summary||''}`.toLowerCase().includes(value)}
 const ruleDirectoryInScope=(ruleDirectory:string,directory:string)=>ruleDirectory===directory||ruleDirectory.startsWith(`${directory} / `)
+const pruneEmptySupervisionDirectories=(state:RuleTreeState,rules:RuleItem[]):RuleTreeState=>{
+  const supervisionLibrary='穿透式监管规则库'
+  const hasRule=(directory:string)=>rules.some((rule)=>rule.libraryName===supervisionLibrary&&ruleDirectoryInScope(rule.directoryName||'',directory))
+  const prune=(nodes:RuleTreeNode[],path:string[]=[]):RuleTreeNode[]=>nodes.flatMap((node)=>{
+    const nextPath=[...path,node.name]
+    const directory=nextPath.join(' / ')
+    const children=prune(node.children||[],nextPath)
+    return hasRule(directory)?[{...node,children}]:[]
+  })
+  const nodes=state.directories[supervisionLibrary]
+  if(!nodes)return state
+  return{...state,directories:{...state.directories,[supervisionLibrary]:prune(nodes)}}
+}
 const isReferenceRule=(rule:RuleItem|DisplayRuleItem):rule is DisplayRuleItem&{reference:RuleReference}=>Boolean((rule as DisplayRuleItem).reference)
 const sourceRuleVersionId=(rule:RuleItem|DisplayRuleItem)=>isReferenceRule(rule)?rule.reference.sourceRuleVersionId:rule.versionId
 const ruleRowIdentity=(rule:DisplayRuleItem)=>isReferenceRule(rule)?rule.reference.id:rule.versionId
@@ -614,16 +657,15 @@ export function RuleAssetManagementPage(){
   const [importingDocument,setImportingDocument]=useState(false)
   const [exportDialog,setExportDialog]=useState<RuleExportState>({open:false,range:'directory',format:'csv',includeDetail:true})
 
-  const load=async(nextKeyword=keyword)=>{setLoading(true);setError('');try{const [ruleRows,graphRows]=await Promise.all([ruleClosureApi.listRules(nextKeyword),dataGraphApi.listGraphs('已发布')]);setRows(ruleRows);setGraphs(graphRows.map((item)=>({id:item.id,status:item.status,ontologyId:item.ontologyId,graphName:item.graphName,ontologyVersion:item.ontologyVersion})))}catch(err){setError(messageOf(err))}finally{setLoading(false)}}
+  const load=async(nextKeyword=keyword)=>{setLoading(true);setError('');try{const [ruleRows,graphRows]=await Promise.all([ruleClosureApi.listRules(nextKeyword),dataGraphApi.listGraphs('已发布')]);const knownCodes=new Set(ruleRows.map((item)=>item.code));const localRows=penetrativeSupervisionRules.filter((item)=>!knownCodes.has(item.code)&&ruleMatchesKeyword(item,nextKeyword));setRows([...ruleRows,...localRows]);setGraphs(graphRows.map((item)=>({id:item.id,status:item.status,ontologyId:item.ontologyId,graphName:item.graphName,ontologyVersion:item.ontologyVersion})))}catch(err){setRows(penetrativeSupervisionRules.filter((item)=>ruleMatchesKeyword(item,nextKeyword)));setError(messageOf(err))}finally{setLoading(false)}}
   useEffect(()=>{const params=routeParams();if(params.get('create')==='1'){const sceneId=params.get('sceneId')||'';navigate('/rules/new'+(sceneId?'?sceneId='+encodeURIComponent(sceneId):''),{replace:true})}},[navigate])
   useEffect(()=>{const params=routeParams();const nextLibrary=params.get('library');const nextDirectory=params.get('directory');if(nextLibrary&&nextLibrary!==activeLibrary)setActiveLibrary(nextLibrary);if(nextDirectory&&nextDirectory!==activeDirectory)setActiveDirectory(nextDirectory)},[location.search])
   useEffect(()=>{void load('')},[])
   useEffect(()=>saveRuleTreeState(treeState),[treeState])
   useEffect(()=>saveRuleReferences(references),[references])
-  useEffect(()=>{setTreeState((value)=>{const next=ensureTreeHasRuleRows(value,[...rows,...reviewDemoRules]);return JSON.stringify(next)===JSON.stringify(value)?value:next})},[rows])
+  useEffect(()=>{setTreeState((value)=>{const next=pruneEmptySupervisionDirectories(ensureTreeHasRuleRows(value,[...rows,...reviewDemoRules]),[...rows,...reviewDemoRules]);return JSON.stringify(next)===JSON.stringify(value)?value:next})},[rows])
   const demoRows=reviewDemoRules.filter((rule)=>ruleMatchesKeyword(rule,keyword))
   const allRows=[...rows,...demoRows]
-  const treeWithRules=ensureTreeHasRuleRows(treeState,allRows)
   const ruleLibrary=(rule:RuleItem|DisplayRuleItem)=>rule.libraryName||'穿透式监管规则库'
   const ruleDirectory=(rule:RuleItem|DisplayRuleItem)=>rule.directoryName||defaultDirectoryFor(ruleLibrary(rule))
   const sourceRuleMap=new Map(allRows.map((rule)=>[rule.versionId,rule]))
@@ -635,6 +677,7 @@ export function RuleAssetManagementPage(){
     return{...source,id:`${source.id}-${reference.id}`,libraryName:reference.targetLibraryName,directoryName:reference.targetDirectoryName,enabled:source.enabled&&reference.enabled,sourceLibraryName:sourceLibrary,sourceDirectoryName:sourceDirectory,reference} as DisplayRuleItem
   }).filter((rule):rule is DisplayRuleItem=>Boolean(rule))
   const displayRows:DisplayRuleItem[]=[...allRows,...referencedRows]
+  const treeWithRules=pruneEmptySupervisionDirectories(ensureTreeHasRuleRows(treeState,displayRows),displayRows)
   const libraryEntries=flattenRuleTree(treeWithRules.libraries)
   const currentLibraryEntry=libraryEntries.find((entry)=>entry.node.name===activeLibrary)||libraryEntries.find((entry)=>entry.node.name===defaultLibraryName)||firstRuleTreeEntry(treeWithRules.libraries)
   const currentLibrary=currentLibraryEntry?.node.name||defaultLibraryName
@@ -673,7 +716,7 @@ export function RuleAssetManagementPage(){
   useEffect(()=>{if(activeDirectory!==currentDirectory)setActiveDirectory(currentDirectory)},[activeDirectory,currentDirectory])
   useEffect(()=>{const identity=selectedRule?ruleRowIdentity(selectedRule):'';if(identity&&identity!==selectedRuleId)setSelectedRuleId(identity);if(!identity&&selectedRuleId)setSelectedRuleId('')},[selectedRule&&ruleRowIdentity(selectedRule),selectedRuleId])
 
-  const remove=async(rule:DisplayRuleItem)=>{if(isDemoRule(rule)){setToast('文档审核样例不写入数据库，不能在这里删除');return}const bindingCount=Number(rule.bindingCount||0);const hint=bindingCount?`删除后会同步从 ${bindingCount} 个引用关系中移出。`:'';if(!window.confirm(`确认删除规则草稿“${rule.name}”？${hint}删除后不可恢复。`))return;try{const result=await ruleClosureApi.deleteRule(rule.versionId);setToast(result.message||'规则草稿已删除');await load()}catch(err){setToast(messageOf(err))}}
+  const remove=async(rule:DisplayRuleItem)=>{if(isDemoRule(rule)){setToast(isStaticSeedRule(rule)?'本地导入规则需先完成数据库同步后才能编辑或删除':'文档审核样例不写入数据库，不能在这里删除');return}const bindingCount=Number(rule.bindingCount||0);const hint=bindingCount?`删除后会同步从 ${bindingCount} 个引用关系中移出。`:'';if(!window.confirm(`确认删除规则草稿“${rule.name}”？${hint}删除后不可恢复。`))return;try{const result=await ruleClosureApi.deleteRule(rule.versionId);setToast(result.message||'规则草稿已删除');await load()}catch(err){setToast(messageOf(err))}}
   const toggleLibrary=(id:string)=>setLibraryExpanded((value)=>({...value,[id]:!value[id]}))
   const openTreeEditor=(kind:TreeEditorState['kind'],entry?:RuleTreeEntry)=>{const draft=defaultDirectoryDraft(entry?.node.name||currentLibrary);setTreeEditor({kind,parentId:entry?.node.id,parentPath:entry?.path,name:'',...draft,status:kind==='directory'?"启用":draft.status})}
   const openLibraryEditor=(entry:RuleTreeEntry)=>{const draft=defaultDirectoryDraft(entry.node.name);const parent=parentEntryForPath(treeState.libraries,entry.path);setTreeEditor({kind:'library',editId:entry.node.id,parentId:parent?.node.id,parentPath:entry.path.slice(0,-1),name:entry.node.name,sceneCode:entry.node.sceneCode||'',sceneVersion:entry.node.sceneVersion||draft.sceneVersion,sceneType:sceneTypeForNode(entry.node,entry.node.name),stage:stageForSceneNode(entry.node),domain:entry.node.domain||draft.domain,level:entry.node.level||draft.level,score:entry.node.score===undefined?'':String(entry.node.score),description:entry.node.description||'',status:directoryStatus(entry.node),warningOwnerId:entry.node.warningOwnerId||''})}
@@ -946,7 +989,7 @@ export function RuleAssetManagementPage(){
   </Modal>
   const ruleListPanel=<section className="rule-list-panel">
     {loading&&allRows.length===0?<div className="loading-state"><i/><span>正在加载规则库…</span></div>:<>
-      {error&&<div className="rule-inline-warning"><Icon name="warning"/><span>规则服务暂未连接，当前展示文档审核样例和本地目录结构。</span><Button onClick={()=>void load()}>重试</Button></div>}
+      {error&&<div className="rule-inline-warning"><Icon name="warning"/><span>规则服务暂未连接，当前展示本地导入的穿透式监管规则和文档审核样例。</span><Button onClick={()=>void load()}>重试</Button></div>}
       <div className="rule-list-toolbar">
         <div><h2>{currentDirectoryEntry?.node.name||"当前目录"}</h2><span>{currentLibraryPath} / {currentDirectoryPath} · {visibleRules.length} 条规则条目</span></div>
         <div className="rule-list-actions">
@@ -968,7 +1011,7 @@ export function RuleAssetManagementPage(){
           const demo=isDemoRule(rule)
           const readonly=['已发布','已停用'].includes(displayStatus(rule))
           const canDelete=!readonly&&!demo
-          const deleteReason=demo?'文档审核样例只在前端展示，不会写入或删除旧规则数据':readonly?'已发布或已停用规则不可删除':(rule.bindingCount||0)>0||(rule.catalogBindingCount||0)>0?`删除后会同步解除 ${rule.bindingCount||0} 个业务流程引用、${rule.catalogBindingCount||0} 个业务目录引用`:'删除规则'
+          const deleteReason=isStaticSeedRule(rule)?'本地导入规则需先完成数据库同步':demo?'文档审核样例只在前端展示，不会写入或删除旧规则数据':readonly?'已发布或已停用规则不可删除':(rule.bindingCount||0)>0||(rule.catalogBindingCount||0)>0?`删除后会同步解除 ${rule.bindingCount||0} 个业务流程引用、${rule.catalogBindingCount||0} 个业务目录引用`:'删除规则'
           return <article className={[ruleRowIdentity(rule)===selectedRuleId?'active':'',referenced?'referenced':'',referenced&&!rule.reference.enabled?'reference-disabled':'','rule-list-table-row'].filter(Boolean).join(' ')} key={ruleRowIdentity(rule)} role="button" tabIndex={0} onClick={()=>openRuleDetail(rule)} onKeyDown={(event)=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openRuleDetail(rule)}}}>
             <div className="rule-list-title"><div className="rule-title-line"><strong>{rule.name}</strong>{referenced&&<span className="rule-origin-tags"><StatusTag>引用</StatusTag><small>源：{rule.sourceLibraryName} / {rule.sourceDirectoryName}</small></span>}</div><small>{rule.code} · {rule.version}</small><p>{rule.description||rule.summary||'暂无规则说明'}</p></div>
             {rule.levelMode==='inherit'?<span className="rule-inherit-level">继承规则库</span>:<RiskTag level={riskLevelValue(rule.defaultLevel||rule.level)}/>}<StatusTag>{status}</StatusTag><span className="rule-list-counts">{rule.policies?.length||0} 条制度依据<br/>{rule.evidenceRequirements?.length||rule.evidence.length} 项证据要求</span><span className="rule-list-time">{dateText(rule.updatedAt)}</span>
@@ -1403,7 +1446,7 @@ function AdvancedExpressionEditor({expression,elements,readonly,compact=false,on
   const append=(token:string)=>onChange(`${expression}${expression.trim()?'\nAND ':''}${token}`)
   const functionToken=(name:string)=>name==='AI_REVIEW'?`AI_REVIEW("风险名称", "审查要求") == true`:name==='EVENT_COUNT'?`EVENT_COUNT("", 30, "DAY", "BEFORE")`:name==='EXISTS_PATH'?`EXISTS_PATH("")`:name==='DATE_DIFF'?`DATE_DIFF("", "")`:name==='ABS'?`ABS()`:`${name}("", 30, "DAY", "BEFORE")`
   return <div className={`advanced-expression-editor${compact?' compact':''}`}>
-    <header><div><strong>{compact?'表达式':'高级表达式'}</strong><span>{compact?'系统生成的表达式可直接修改，保存前会自动校验基础语法。':'仅支持当前结构元素和白名单函数，不允许 SQL、JavaScript 或外部调用'}</span></div><b>DSL</b></header>
+    <header><div><strong>{compact?'表达式':'高级表达式'}</strong><span>{compact?'系统生成的表达式可直接修改，保存前会自动校验基础语法。':'仅支持当前图谱结构中的实体类型、属性字段、关系类型和白名单函数，不允许 SQL、JavaScript 或外部调用'}</span></div><b>DSL</b></header>
     <textarea value={expression} disabled={readonly} maxLength={2000} spellCheck={false} onChange={(event)=>onChange(event.target.value)} placeholder={'例如：\nPROC.Supplier.status == "异常"\nAND EVENT_COUNT("PROC.BidConfirmed", 30, "DAY", "BEFORE") > 0'}/>
     <div className={`expression-validation ${issue?'error':'valid'}`}><Icon name={issue?'warning':'check'} size={14}/><span>{issue||'表达式基础语法检查通过'}</span><small>{expression.length}/2000</small></div>
     {!readonly&&!compact&&<div className="expression-palette">

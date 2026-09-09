@@ -69,6 +69,9 @@ function desiredRuleFields(rule) {
   return {
     name: rule.name,
     domain: rule.domain,
+    library_name: rule.libraryName || '穿透式监管规则库',
+    directory_name: rule.directoryName || '招投标异常',
+    description: rule.description || rule.logicDescription || '',
     object_code: rule.objectCode,
     object_name: rule.objectName,
     event_code: rule.eventCode,
@@ -99,6 +102,9 @@ function ruleInsertValues(rule) {
     'v0.1',
     desired.name,
     desired.domain,
+    desired.library_name,
+    desired.directory_name,
+    desired.description,
     desired.object_code,
     desired.object_name,
     desired.event_code,
@@ -125,6 +131,9 @@ function ruleInsertValues(rule) {
 const scalarColumns = [
   'name',
   'domain',
+  'library_name',
+  'directory_name',
+  'description',
   'object_code',
   'object_name',
   'event_code',
@@ -211,7 +220,7 @@ async function main() {
           const values = ruleInsertValues(rule)
           await pool.query("INSERT INTO rule_assets (id,code,current_version_id,status,created_by) VALUES (?,?,?,'草稿',?)", [rule.code, rule.code, ruleVersionId(rule.code), process.env.RULE_CATALOG_OPERATOR || '尹晨阳'])
           await pool.query(
-            `INSERT INTO rule_asset_versions (id,rule_id,version,name,domain,object_code,object_name,event_code,event_name,ontology_id,graph_version,rule_type,risk_level,stage,status,condition_json,path_json,time_json,aggregate_json,exception_json,output_json,evidence_json,policy_json,failure_strategy,summary) VALUES (${values.map(() => '?').join(',')})`,
+            `INSERT INTO rule_asset_versions (id,rule_id,version,name,domain,library_name,directory_name,description,object_code,object_name,event_code,event_name,ontology_id,graph_version,rule_type,risk_level,stage,status,condition_json,path_json,time_json,aggregate_json,exception_json,output_json,evidence_json,policy_json,failure_strategy,summary) VALUES (${values.map(() => '?').join(',')})`,
             values,
           )
           const modeCodes = modeCodesByRule.get(rule.code) || []
@@ -248,7 +257,7 @@ async function main() {
       })
       if (!apply) continue
       await pool.query(
-        `UPDATE rule_asset_versions SET name=?,domain=?,object_code=?,object_name=?,event_code=?,event_name=?,ontology_id=?,graph_version=?,rule_type=?,risk_level=?,stage=?,condition_json=?,path_json=?,time_json=?,aggregate_json=?,exception_json=?,output_json=?,evidence_json=?,policy_json=?,failure_strategy=?,summary=?,lock_version=lock_version+1 WHERE id=?`,
+        `UPDATE rule_asset_versions SET name=?,domain=?,library_name=?,directory_name=?,description=?,object_code=?,object_name=?,event_code=?,event_name=?,ontology_id=?,graph_version=?,rule_type=?,risk_level=?,stage=?,condition_json=?,path_json=?,time_json=?,aggregate_json=?,exception_json=?,output_json=?,evidence_json=?,policy_json=?,failure_strategy=?,summary=?,lock_version=lock_version+1 WHERE id=?`,
         [
           desired.name,
           desired.domain,

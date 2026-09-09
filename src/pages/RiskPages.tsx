@@ -666,7 +666,7 @@ function DatabaseNodeDetail({ node, detail }: { node: DemoWarningDetail['graph']
   const propertyRows = Object.entries(node.properties).map(([propertyKey, value]) => ({ propertyKey, value, definition: ontologyPropertyDefinition(detail, node, propertyKey) }))
   const renderRows = (rows: typeof propertyRows) => <div className="database-property-list compact">{rows.map((row) => <div key={row.propertyKey}><div><strong>{row.definition?.name || row.propertyKey}</strong><small>{row.definition?.code || `${node.classCode}.${row.propertyKey}`}{row.definition?.dataType ? ` · ${row.definition.dataType}` : ' · 来源字段'}</small></div><span>{databasePropertyValue(row.value)}</span></div>)}</div>
   return <>
-    <KeyValue items={[{ label: '元素类型', value: '类' }, { label: '元素编码', value: node.classCode }, { label: '中文名称', value: classDefinition?.name || node.name }, { label: '来源系统', value: node.sourceSystem }]}/>
+    <KeyValue items={[{ label: '定义类型', value: '实体类型' }, { label: '实体类型编码', value: node.classCode }, { label: '中文名称', value: classDefinition?.name || node.name }, { label: '来源系统', value: node.sourceSystem }]}/>
     <Panel title={`属性信息 · ${propertyRows.length}项`} className="drawer-section compact-drawer-section">{propertyRows.length ? renderRows(propertyRows) : <p className="drawer-note">当前节点暂无属性信息。</p>}</Panel>
   </>
 }

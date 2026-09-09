@@ -20,7 +20,7 @@ interface NavChild { label: string; path: string; permission: PermissionCode }
 interface NavItem { id: string; label: string; icon: IconName; permission?: PermissionCode; path?: string; children?: NavChild[] }
 interface NavSection { id: string; title: string; items: NavItem[] }
 
-const platformTabs = ['应用开发平台', '采购管理应用', '模型开发平台', '本体构建与运营平台', '全模态数据智能平台', '多模态视觉平台'] as const
+const platformTabs = ['情报舆情分析应用', '全模态数据智能平台', '应用开发平台', '模型开发平台', '多模态视觉平台', '本体构建与运营平台', '基础管控平台', '战场情报快判AI系统', '国军标智能编审应用', '采购管理应用', '业务系统公共模块'] as const
 const currentPlatformTab = '采购管理应用'
 
 const navSections: NavSection[] = [
@@ -256,7 +256,7 @@ function AppEnhanced() {
     if (path === '/risk/events') return { page: '风险事件', guide: '这里管理由预警升级形成的风险事件，并跟踪整改、复核和关闭过程。', next: '建议优先处理逾期和待复核事件，再检查核查整改中的事项。', data: `当前共有${riskEvents.length}个风险事件，其中${riskEvents.filter((item) => item.overdue && item.status !== '已关闭').length}个已逾期。` }
     if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里先按规则库维护规则目录，进入目录后再查看或配置风险规则。', next: '建议先选择规则库，再进入具体规则目录维护规则；规则表达式为必填，制度依据和证据要求按需填写。', data: '规则库承载分类，规则目录承载场景上下文，风险规则从目录继承领域等信息。' }
 
-    if (path.startsWith('/ontology')) return { page: '图谱结构', guide: '这里维护知识图谱中的实体类型、属性字段和关系类型定义。', next: '需要表达带时间的业务记录时，为对应实体类型配置标识、发生时间属性字段及关联对象关系类型。', data: '图谱结构版本会影响规则配置、字段映射和图谱构建，请在发布前确认影响范围。' }
+    if (path.startsWith('/ontology')) return { page: '图谱结构', guide: '这里维护知识图谱中的实体类型、属性字段和关系类型定义。', next: '需要表达带时间属性的事实或事件时，为对应实体类型配置标识、发生时间属性字段及关联对象关系类型。', data: '图谱结构版本会影响规则配置、字段映射和图谱构建，请在发布前确认影响范围。' }
     if (path.startsWith('/graphs')) return { page: '知识图谱', guide: '这里维护图谱结构、数据源、字段映射和知识图谱发布状态。', next: '建议先确认数据源和图谱结构，再检查映射模板和发布条件。', data: '知识图谱用于证据关联和风险穿透分析，发布后会被后续规则运行引用。' }
     if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
     if (path.startsWith('/system/roles')) return { page: '角色与权限', guide: '这里维护角色、数据范围、菜单权限和高危操作权限。', next: '建议先确认角色使用人数，再调整权限并检查敏感操作影响。', data: `当前共有${roles.length}个角色，权限调整会影响菜单、数据范围和可执行操作。` }
@@ -347,7 +347,7 @@ function AppEnhanced() {
 
   return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''} ${superAgentPage ? 'super-agent-embedded-shell' : ''}`} onClick={(event) => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false); const target = event.target as Element; if (agentOpen && !target.closest('.agent-popover') && !target.closest('.agent-fab')) setAgentOpen(false) }}>
     <header className="topbar">
-      <button className="brand" onClick={() => navigate(firstAccessiblePath)} aria-label="返回采购管理应用"><img className="brand-logo" src={cloudLogo} alt="中国电子云"/><em/><span>采购管理应用</span></button>
+      <button className="brand" onClick={() => navigate(firstAccessiblePath)} aria-label="返回采购管理应用"><img className="brand-logo" src={cloudLogo} alt="中国电子云"/><em/><span>AI平台</span></button>
       <nav className="platform-nav" aria-label="平台切换">{platformTabs.map((tab) => <button key={tab} className={tab === currentPlatformTab ? 'active' : ''} onClick={() => tab === currentPlatformTab ? navigate(firstAccessiblePath) : setToast(`${tab}暂未进入，当前选择采购管理应用`)}>{tab}</button>)}</nav>
       <div className="top-tools">
         <div className="global-search-wrap"><label className="global-search"><Icon name="search" size={17}/><input value={search} onFocus={() => setSearchOpen(true)} onChange={(event) => { setSearch(event.target.value); setSearchOpen(true) }} onKeyDown={(event) => { if (event.key === 'Enter' && searchResults[0]) openSearchResult(searchResults[0].path); if (event.key === 'Escape') setSearchOpen(false) }} placeholder="搜索采购任务、预警、风险事件、规则、用户"/></label>{searchOpen && search && <div className="global-search-results">{searchResults.length ? <>{searchResults.map((item) => <button key={`${item.type}-${item.id}`} onClick={() => openSearchResult(item.path)}><span><b>{item.type}</b><strong>{item.title}</strong></span><small>{item.id} · {item.meta}</small></button>)}<div className="search-result-footer">共显示 {searchResults.length} 条最相关结果</div></> : <div className="search-empty"><Icon name="search"/><span>未找到“{search}”相关内容</span></div>}</div>}</div>

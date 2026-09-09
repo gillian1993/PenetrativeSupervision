@@ -1025,7 +1025,6 @@ function ReportPanel({ report, onExportReport, onExportReportWord }: { report: S
         <strong>{report.title}</strong>
         <small>{report.id} · {report.createdAt}</small>
       </div>
-      <div className="super-agent-formal-report-actions"><button type="button" onClick={onExportReport}><AgentIcon name="download"/>导出MD</button><button type="button" onClick={onExportReportWord}><AgentIcon name="download"/>导出Word</button></div>
     </header>
     <div className="super-agent-formal-report-stats">
       <div><span>风险等级</span><strong>{report.riskLevel}</strong></div>
@@ -1041,6 +1040,10 @@ function ReportPanel({ report, onExportReport, onExportReportWord }: { report: S
       <section className="super-agent-markdown-report" aria-label="正式报告正文">
         {renderReportMarkdown(report.markdown)}
       </section>
+    </div>
+    <div className="super-agent-formal-report-actions" aria-label="报告下载">
+      <button className="is-secondary" type="button" onClick={onExportReport}><AgentIcon name="download"/>导出 MD</button>
+      <button type="button" onClick={onExportReportWord}><AgentIcon name="download"/>导出 Word</button>
     </div>
   </article>
 }

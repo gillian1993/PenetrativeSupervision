@@ -114,7 +114,7 @@ export interface OntologyItem {
   properties: number
   relations: number
   events: number
-  status: '草稿' | '待校验' | '已发布' | '已下架' | '已删除' | '已废止'
+  status: '草稿' | '已发布' | '已下架' | '已删除'
   updatedAt: string
 }
 

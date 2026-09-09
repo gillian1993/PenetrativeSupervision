@@ -1,10 +1,18 @@
 const json=(value)=>JSON.stringify(value??null)
 const parseJson=(value,fallback)=>{if(value===null||value===undefined||value==='')return fallback;if(typeof value==='object')return value;try{return JSON.parse(value)}catch{return fallback}}
 const formatTime=(value)=>value instanceof Date?value.toLocaleString('zh-CN',{hour12:false}).replaceAll('/','-'):String(value||'')
+const simplifyVersionText=(value)=>String(value||'').replace(/\bv(\d+)(?:\.\d+)?\b/gi,(_,major)=>`V${Math.max(1,Number(major)||1)}`).replace(/草稿/g,'待发布')
 
 async function ensureColumn(pool,table,column,definition){
   const [rows]=await pool.query('SELECT COUNT(*) AS total FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?',[table,column])
   if(!Number(rows[0].total))await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN ${definition}`)
+}
+async function normalizeGraphOntologyVersions(pool){
+  const [rows]=await pool.query('SELECT id,ontology_version FROM graph_versions')
+  for(const row of rows){
+    const next=simplifyVersionText(row.ontology_version)
+    if(next&&next!==row.ontology_version)await pool.query('UPDATE graph_versions SET ontology_version=? WHERE id=?',[next,row.id])
+  }
 }
 
 const seedSources=[
@@ -14,9 +22,9 @@ const seedSources=[
   ['SRC-EXTERNAL','工商司法外部数据','接口接入','主体、股东、司法风险','陈洁','增量','昨天 23:00','异常'],
 ]
 const seedGraphs=[
-  ['GRAPH-20260717.2','ONT-PROC','BASE v1.6 / PROC v2.2','MAP v3.4','2026-01-01 至 2026-07-17',176752,309861,0,0,8,'已发布','2026-07-17 08:45:00'],
-  ['GRAPH-20260717.3','ONT-PROC','BASE v1.6 / PROC v2.2','MAP v3.5','2026-01-01 至 2026-07-17',177741,311202,0,0,3,'待发布',null],
-  ['GRAPH-20260716.4','ONT-FIN','BASE v1.6 / FIN v1.0','MAP v2.8','2025-01-01 至 2026-07-16',138017,206871,0,2,12,'失败',null],
+  ['GRAPH-20260717.2','ONT-PROC','BASE V1 / PROC V3','MAP v3.4','2026-01-01 至 2026-07-17',176752,309861,0,0,8,'已发布','2026-07-17 08:45:00'],
+  ['GRAPH-20260717.3','ONT-PROC','BASE V1 / PROC V3','MAP v3.5','2026-01-01 至 2026-07-17',177741,311202,0,0,3,'待发布',null],
+  ['GRAPH-20260716.4','ONT-FIN','BASE V1 / FIN 待发布','MAP v2.8','2025-01-01 至 2026-07-16',138017,206871,0,2,12,'失败',null],
 ]
 
 function splitList(value){return String(value||'').split(',').map((item)=>item.trim()).filter(Boolean)}
@@ -48,8 +56,10 @@ async function backfillGraphMappingSnapshots(pool){const [links]=await pool.quer
 
 async function seedMetadata(pool,sourceId){
   const rows=sourceId==='SRC-ERP'?
-    [['purchase_project','采购项目视图',32,'项目、预算、采购方式、组织与时间字段'],['supplier_master','供应商主数据',28,'供应商主体、证照、联系方式字段'],['purchase_order','采购订单',41,'订单、金额、合同与明细字段'],['bid_event','招投标事件',18,'报名、评审、中标确认事件字段']]:
-    [['source_object','来源对象',16,'自动解析的来源对象与字段'],['source_event','来源事件',12,'自动解析的业务事件字段']]
+    [['purchase_project','采购项目视图',32,'项目、预算、采购方式、组织与时间字段'],['supplier_master','供应商主数据',28,'供应商主体、证照、联系方式字段'],['supplier_qualification','供应商资质与绩效',24,'军工/涉密资质、体系认证、有效期与绩效字段'],['product_master','物料与品类主数据',36,'物料、SKU、UNSPSC品类、供应商物料与价格字段'],['purchase_order','采购订单',41,'订单、金额、合同与明细字段'],['sourcing_event','寻源与报价',30,'询价、供应商报价、评审、授标字段'],['bid_event','招投标事件',18,'报名、评审、中标确认事件字段'],['warehouse_inventory','仓储库存与批次',46,'仓库、库位、库存余额、库存移动、批次序列号字段'],['receipt_settlement','到货、入库与结算',38,'到货签收、质检、入库、结算和退货字段'],['invoice_payment','发票付款与对账',32,'采购发票、付款、核销、供应商对账字段']]:
+    sourceId==='SRC-OA'?
+      [['approval_workflow','采购审批流程',22,'采购申请、订单、合同和付款审批节点与意见'],['approval_task','审批任务事件',16,'审批人、审批状态、处理时间与留痕字段'],['risk_event','监管风险事件',18,'风险等级、证据引用、整改状态与复核结果']]:
+      [['source_object','来源对象',16,'自动解析的来源对象与字段'],['source_event','来源事件',12,'自动解析的业务事件字段']]
   for(const row of rows)await pool.query('INSERT IGNORE INTO data_source_metadata (source_id,table_name,display_name,field_count,summary) VALUES (?,?,?,?,?)',[sourceId,...row])
 }
 async function seedMappings(pool,sourceId){
@@ -76,6 +86,13 @@ async function seedOntologyMappings(pool,sourceId,ontologyId='ONT-PROC'){
     ['关系','phone + reviewer_id','哈希关联',relations[1]||relations[0]||'',92,'待校验'],
     ['节点实例','event_id','直接映射',occurrenceProperty||'',99,'待校验'],
   ].filter((row)=>row[3])
+  // 为新增的采购与供应链标准属性补齐可配置的默认映射，避免扩展本体后
+  // 字段映射页只显示旧的风险对象字段。实际接入时可在页面逐项替换来源字段。
+  const mappedTargets=new Set(rows.map((row)=>row[3]))
+  for(const code of properties){
+    if(mappedTargets.has(code))continue
+    rows.push(['节点实例',code.replace(/^PROC\./,'').replaceAll('.','_'),'标准化字段映射',code,90,'待校验'])
+  }
   for(const row of rows)await pool.query('INSERT IGNORE INTO semantic_mappings (source_id,ontology_id,mapping_type,source_field,transform_rule,target_code,confidence,status) VALUES (?,?,?,?,?,?,?,?)',[sourceId,ontologyId,...row])
 }
 export async function initializeDataGraphDatabase(pool){
@@ -107,6 +124,9 @@ export async function initializeDataGraphDatabase(pool){
   await pool.query("INSERT IGNORE INTO data_source_structures (source_id,ontology_id) SELECT id,'ONT-PROC' FROM data_sources")
   await pool.query("INSERT IGNORE INTO data_source_structures (source_id,ontology_id) VALUES ('SRC-TREASURY','ONT-FIN')")
   for(const item of seedGraphs)await pool.query('INSERT IGNORE INTO graph_versions (id,ontology_id,ontology_version,mapping_version,data_range,entity_count,relation_count,event_count,blockers,warnings,status,published_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',item)
+  await pool.query("UPDATE graph_versions SET ontology_version='BASE V1 / PROC V3' WHERE ontology_version='BASE v1.6 / PROC v2.2'")
+  await pool.query("UPDATE graph_versions SET ontology_version='BASE V1 / FIN 待发布' WHERE ontology_version='BASE v1.6 / FIN v1.0'")
+  await normalizeGraphOntologyVersions(pool)
   await pool.query("DELETE FROM semantic_mappings WHERE source_field='record_id + occurred_at + related_id' AND transform_rule='节点标识、发生时间与关联对象'")
   for(const item of seedSources){await seedMetadata(pool,item[0]);await seedOntologyMappings(pool,item[0])}
   await pool.query('UPDATE graph_versions SET entity_count=entity_count+event_count,event_count=0 WHERE event_count<>0')
@@ -234,7 +254,7 @@ async function deleteSourceWithReferences(pool,id){const source=await getSource(
 async function syncSource(pool,id){const source=await getSource(pool,id);if(!source)throw Object.assign(new Error('数据源不存在'),{status:404});if(source.status!=='启用')throw Object.assign(new Error('请先完成映射校验并启用数据源'),{status:409});const recordId='SYNC-'+Date.now().toString(36).toUpperCase();await pool.query('INSERT INTO sync_records (id,source_id,source_name,sync_mode,started_at,processed_count,error_count,duration_text,result) VALUES (?,?,?,?,NOW(),?,?,?,?)',[recordId,id,source.name,source.sync_mode,Math.floor(300+Math.random()*6000),0,'12秒','成功']);await pool.query("UPDATE data_sources SET last_success='刚刚' WHERE id=?",[id]);return{recordId,message:'同步完成，已写入同步记录'}}
 async function listSync(pool,sourceId=''){const params=[];let where='';if(sourceId){where='WHERE source_id=?';params.push(sourceId)}const [rows]=await pool.query(`SELECT * FROM sync_records ${where} ORDER BY started_at DESC LIMIT 30`,params);return rows.map(mapSync)}
 async function listGraphs(pool,url){const status=String(url.searchParams.get('status')||'');const params=[];let where='';if(status){where='WHERE status=?';params.push(status)}const [rows]=await pool.query(`SELECT * FROM graph_versions ${where} ORDER BY updated_at DESC,id DESC`,params);return rows.map(mapGraph)}
-async function createGraph(pool,payload){const id=String(payload.id||`GRAPH-${new Date().toISOString().slice(0,10).replaceAll('-','')}.${Math.floor(Math.random()*9)+1}`).trim().toUpperCase();await pool.query('INSERT INTO graph_versions (id,ontology_id,ontology_version,mapping_version,data_range,entity_count,relation_count,event_count,blockers,warnings,status) VALUES (?,?,?,?,?,?,?,0,?,?,?)',[id,payload.ontologyId||'ONT-PROC',payload.ontologyVersion||'BASE v1.6 / PROC v2.2',payload.mappingVersion||'MAP v3.6',payload.range||'2026-01-01 至今',Number(payload.entities||129000)+Number(payload.events||0),Number(payload.relations||311000),Number(payload.blockers||0),Number(payload.warnings||0),'待发布']);return mapGraph((await pool.query('SELECT * FROM graph_versions WHERE id=?',[id]))[0][0])}
+async function createGraph(pool,payload){const id=String(payload.id||`GRAPH-${new Date().toISOString().slice(0,10).replaceAll('-','')}.${Math.floor(Math.random()*9)+1}`).trim().toUpperCase();await pool.query('INSERT INTO graph_versions (id,ontology_id,ontology_version,mapping_version,data_range,entity_count,relation_count,event_count,blockers,warnings,status) VALUES (?,?,?,?,?,?,?,0,?,?,?)',[id,payload.ontologyId||'ONT-PROC',payload.ontologyVersion||'BASE V1 / PROC V3',payload.mappingVersion||'MAP v3.6',payload.range||'2026-01-01 至今',Number(payload.entities||129000)+Number(payload.events||0),Number(payload.relations||311000),Number(payload.blockers||0),Number(payload.warnings||0),'待发布']);return mapGraph((await pool.query('SELECT * FROM graph_versions WHERE id=?',[id]))[0][0])}
 async function publishGraph(pool,id){const connection=await pool.getConnection();try{await connection.beginTransaction();const [rows]=await connection.query('SELECT * FROM graph_versions WHERE id=? FOR UPDATE',[id]);if(!rows.length)throw Object.assign(new Error('知识图谱生成结果不存在'),{status:404});const graph=rows[0];if(Number(graph.blockers)>0)throw Object.assign(new Error(`存在${graph.blockers}个阻断问题，不能发布`),{status:409});if(graph.status!=='待发布')throw Object.assign(new Error('只有待发布知识图谱可以发布'),{status:409});await connection.query("UPDATE graph_versions SET status='已归档' WHERE status='已发布'");await connection.query("UPDATE graph_versions SET status='已发布',published_at=NOW() WHERE id=?",[id]);await connection.commit();return mapGraph((await pool.query('SELECT * FROM graph_versions WHERE id=?',[id]))[0][0])}catch(error){await connection.rollback();throw error}finally{connection.release()}}
 async function resolveIssue(pool,graphId,issueId){await pool.query("UPDATE graph_quality_issues SET status='已处理' WHERE graph_id=? AND id=?",[graphId,issueId]);return{ok:true,message:'生成检查项已处理'}}
 async function govern(pool,graphId,taskId,payload){if(!String(payload.reason||'').trim())throw Object.assign(new Error('处理原因不能为空'),{status:400});await pool.query("UPDATE graph_governance_tasks SET status='已处理',result=?,reason=? WHERE graph_id=? AND id=?",[payload.result||'合并',payload.reason,graphId,taskId]);return{ok:true,message:`实例${payload.result||'合并'}完成，影响记录已生成`}}
