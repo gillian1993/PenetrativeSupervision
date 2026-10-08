@@ -3,7 +3,7 @@ export type PermissionCode = string
 export interface PermissionCatalogItem {
   code: PermissionCode
   label: string
-  group: '统一入口' | '采购应用' | '穿透式监管' | '能力中心' | '系统管理' | '高危操作'
+  group: '统一入口' | '采购应用' | '穿透式监管' | '模型管理' | '规则管理' | '知识图谱' | '能力中心' | '系统管理' | '高危操作'
 }
 
 export const MENU_PERMISSION_CATALOG: PermissionCatalogItem[] = [
@@ -18,12 +18,13 @@ export const MENU_PERMISSION_CATALOG: PermissionCatalogItem[] = [
   { code: 'menu.supervision.situation', label: '穿透式监管 / 监管态势', group: '穿透式监管' },
   { code: 'menu.supervision.risk.warnings', label: '穿透式监管 / 风险监管 / 统一预警', group: '穿透式监管' },
   { code: 'menu.supervision.risk.events', label: '穿透式监管 / 风险监管 / 风险事件', group: '穿透式监管' },
-  { code: 'menu.supervision.scene.rules', label: '能力中心 / 规则管理', group: '能力中心' },
-  { code: 'menu.supervision.ontology.structures', label: '能力中心 / 知识图谱 / 图谱结构', group: '能力中心' },
-  { code: 'menu.supervision.ontology.sources', label: '能力中心 / 知识图谱 / 数据源', group: '能力中心' },
+  { code: 'menu.supervision.scene.rules', label: '规则管理', group: '规则管理' },
+  { code: 'menu.supervision.ontology.structures', label: '知识图谱 / 图谱模型', group: '知识图谱' },
+  { code: 'menu.supervision.ontology.sources', label: '知识图谱 / 数据源', group: '知识图谱' },
+  { code: 'menu.supervision.ontology.graphs', label: '知识图谱 / 知识图谱', group: '知识图谱' },
   { code: 'menu.system.users', label: '系统管理 / 用户与组织', group: '系统管理' },
   { code: 'menu.system.roles', label: '系统管理 / 角色与权限', group: '系统管理' },
-  { code: 'menu.system.models', label: '能力中心 / 模型管理', group: '能力中心' },
+  { code: 'menu.system.models', label: '模型管理', group: '模型管理' },
   { code: 'menu.system.audit', label: '系统管理 / 审计日志', group: '系统管理' },
 ]
 
@@ -58,7 +59,8 @@ const legacyPermissionMap: Record<string, PermissionCode[]> = {
   规则试跑: ['menu.supervision.scene.rules'],
   规则发布: ['menu.supervision.scene.rules', 'action.scene.publish'],
   图谱结构: ['menu.supervision.ontology.structures'],
-  数据管理员: ['menu.supervision.ontology.sources'],
+  知识图谱: ['menu.supervision.ontology.graphs'],
+  数据管理员: ['menu.supervision.ontology.sources', 'menu.supervision.ontology.graphs'],
   管理用户: ['menu.system.users'],
   调整角色权限: ['menu.system.roles', 'action.role.adjust'],
   垂类模型管理: ['menu.system.models'],
@@ -127,12 +129,14 @@ export const ROLE_PERMISSION_PRESETS: Record<string, PermissionCode[]> = {
   图谱结构员: [
     'menu.supervision.workbench',
     'menu.supervision.ontology.structures',
+    'menu.supervision.ontology.graphs',
     'menu.system.audit',
     'action.graph.structure.publish',
   ],
   数据管理员: [
     'menu.supervision.workbench',
     'menu.supervision.ontology.sources',
+    'menu.supervision.ontology.graphs',
     'menu.system.audit',
     'action.graph.publish',
     'action.graph.entity_govern',
@@ -141,7 +145,8 @@ export const ROLE_PERMISSION_PRESETS: Record<string, PermissionCode[]> = {
 }
 
 export function resolveRolePermissionCodes(roleName: string, storedPermissions?: string[]) {
-  const source = storedPermissions === undefined ? ROLE_PERMISSION_PRESETS[roleName] || [] : storedPermissions
+  const presetPermissions = ROLE_PERMISSION_PRESETS[roleName] || []
+  const source = storedPermissions === undefined || !presetPermissions.length ? storedPermissions || presetPermissions : [...presetPermissions, ...storedPermissions]
   return new Set(normalizePermissionCodes(source))
 }
 

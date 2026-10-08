@@ -1,10 +1,9 @@
-import type { OntologyElement, OntologyRecord, OntologyValidation } from './ontologyLocalStore'
+import type { OntologyElement, OntologyRecord } from './ontologyLocalStore'
 
 export type OntologyCreatePayload = Pick<OntologyRecord, 'id' | 'name' | 'scope' | 'domain' | 'description'>
 export type OntologyUpdatePayload = Partial<Pick<OntologyRecord, 'name' | 'scope' | 'domain' | 'description'>>
 export type OntologyElementPayload = Omit<OntologyElement, 'id'>
 
-export type OntologyValidateResponse = { ontology: OntologyRecord; validation: OntologyValidation }
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
     ...init,
@@ -21,11 +20,12 @@ export const ontologyApi = {
   update: (id: string, payload: OntologyUpdatePayload) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) }),
   delete: (id: string) => request<{ ok: boolean; message: string }>(`/api/ontologies/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   copy: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/copy`, { method: 'POST' }),
-  publish: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/publish`, { method: 'POST' }),
-  activate: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/activate`, { method: 'POST' }),
-  retire: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/retire`, { method: 'POST' }),
-  validate: (id: string) => request<OntologyValidateResponse>(`/api/ontologies/${encodeURIComponent(id)}/validate`, { method: 'POST' }),
+  enable: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/enable`, { method: 'POST' }),
+  disable: (id: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/disable`, { method: 'POST' }),
   addElement: (id: string, payload: OntologyElementPayload) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/elements`, { method: 'POST', body: JSON.stringify(payload) }),
   deleteElement: (id: string, elementId: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/elements/${encodeURIComponent(elementId)}`, { method: 'DELETE' }),
   updateElement: (id: string, elementId: string, payload: Partial<OntologyElementPayload>) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/elements/${encodeURIComponent(elementId)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  createGroup: (id: string, name: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/groups`, { method: 'POST', body: JSON.stringify({ name }) }),
+  renameGroup: (id: string, currentName: string, name: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/groups/${encodeURIComponent(currentName)}`, { method: 'PUT', body: JSON.stringify({ name }) }),
+  deleteGroup: (id: string, name: string) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/groups/${encodeURIComponent(name)}`, { method: 'DELETE' }),
 }

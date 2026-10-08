@@ -114,7 +114,7 @@ export interface OntologyItem {
   properties: number
   relations: number
   events: number
-  status: '草稿' | '已发布' | '已下架' | '已删除'
+  status: '草稿' | '启用' | '停用' | '已删除' | '已启用' | '已停用' | '已发布' | '已下架'
   updatedAt: string
 }
 
@@ -139,17 +139,37 @@ export interface DataSourceItem {
   mode: string
   range: string
   owner: string
-  ontologyIds: string[]
+  ontologyIds?: string[]
   ontologyNames?: string[]
   accessConfig?: DataSourceAccessConfig
+  fileCount?: number
   lastSuccess: string
+  connectionStatus?: '正常' | '异常' | '未测试' | '无需测试' | string
+  lastTestedAt?: string
+  connectionMessage?: string
   status: '草稿' | '启用' | '停用' | '异常'
+}
+
+export type GraphStructureElementType = 'class' | 'property' | 'relation'
+
+export interface GraphStructureElement {
+  id: string
+  type: GraphStructureElementType
+  code: string
+  name: string
+  ownerCode?: string
+  targetCode?: string
+  dataType: string
+  constraint: string
+  description: string
+  sourceType?: 'model' | 'custom' | 'modified'
 }
 
 export interface GraphVersion {
   id: string
   graphCode: string
   graphName: string
+  tag: string
   ontologyId: string
   ontologyVersion: string
   mappingVersion: string
@@ -161,8 +181,16 @@ export interface GraphVersion {
   events: number
   blockers: number
   warnings: number
-  status: '校验中' | '待发布' | '已发布' | '失败' | '已归档'
+  status: '草稿' | '待发布' | '已发布'
+  generationFailed?: boolean
   publishedAt: string
+  structureElements?: GraphStructureElement[]
+  instanceDataset?: {
+    nodes: Array<{ id: string; name: string; typeCode: string; typeName: string; identifier: string; sourceName: string; x: number; y: number; properties: Array<{ label: string; value: string }> }>
+    relations: Array<{ id: string; name: string; typeCode: string; sourceId: string; targetId: string; sourceName: string; properties: Array<{ label: string; value: string }> }>
+  }
+  sourceStats?: Array<{ sourceId: string; sourceName: string; rows: number; entities: number }>
+  syncedAt?: string
 }
 
 export interface UserItem {

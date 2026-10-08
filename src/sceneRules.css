@@ -10,3 +10,28 @@
 @media(max-width:1260px){.rule-editor-shell{grid-template-columns:220px minmax(520px,1fr)}.rule-inspector{grid-column:1/-1;position:static;grid-template-columns:repeat(3,1fr);max-height:none}.rule-inspector>.panel:last-child{grid-column:1/-1}.workflow-steps{padding-inline:12px}}
 @media(max-width:980px){.rule-editor-shell{grid-template-columns:1fr}.rule-side-panel{position:static;max-height:none}.ontology-palette{order:2}.rule-canvas{order:1}.rule-inspector{order:3;grid-template-columns:1fr}.scene-editor-head,.rule-editor-head,.editor-action-bar{align-items:stretch;flex-direction:column}.dynamic-condition-row{grid-template-columns:1fr 1fr}.dynamic-condition-row>button{grid-column:2}.trial-summary{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:981px){.app-shell:has(.editor-action-bar) .help-fab{bottom:150px}.app-shell:has(.editor-action-bar) .agent-popover{bottom:150px}}
+
+/* Ontology model creation keeps one clear form path and one primary action. */
+.ontology-create-page{min-width:0;padding-bottom:18px}
+.ontology-create-page .simple-rule-header{margin:0 -4px 22px;padding:0 4px 18px;border-bottom:1px solid #e5ebf3}
+.ontology-create-page .simple-rule-header h1{margin:10px 0 0;color:#101828;font-size:25px;line-height:34px}
+.ontology-create-page .simple-rule-header .back-button{margin:0;color:#176dff;font-size:12px}
+.ontology-create-content{max-width:900px;margin:0 auto;padding-bottom:94px}
+.ontology-create-panel{min-height:0!important;border:1px solid #dce5f1;box-shadow:none}
+.ontology-create-panel .panel-header{padding:20px 24px 0}
+.ontology-create-panel .panel-header h2{font-size:17px}
+.ontology-create-panel .panel-header p{max-width:640px;margin-top:5px;line-height:1.6}
+.ontology-create-form{display:grid;gap:20px;padding:22px 24px 28px}
+.ontology-create-form .field{display:grid;grid-template-columns:112px minmax(0,640px);align-items:start;gap:16px}
+.ontology-create-form .field>span{min-height:38px;display:flex;align-items:center;color:#344054;font-size:13px;font-weight:800}
+.ontology-create-form .field>div{min-width:0;display:grid;gap:6px}
+.ontology-create-form .field input,.ontology-create-form .field select{min-height:38px}
+.ontology-create-form .field textarea{min-height:108px;padding-top:9px}
+.ontology-create-form .input-error{border-color:#d92d20;background:#fff}
+.ontology-create-form .input-error:focus{border-color:#d92d20;box-shadow:0 0 0 3px rgba(217,45,32,.1)}
+.ontology-create-form .field-error{color:#d92d20;font-size:11px;line-height:1.5}
+.ontology-create-action-bar{justify-content:flex-start;margin:0 -4px;padding:12px 18px}
+.ontology-create-action-bar .ontology-create-actions{display:flex;align-items:center;gap:8px}
+.ontology-create-action-bar .ontology-create-actions .button.primary{order:0}
+.ontology-create-action-bar .ontology-create-actions .button:not(.primary){order:1}
+@media(max-width:900px){.ontology-create-content{max-width:none}.ontology-create-form .field{grid-template-columns:1fr;gap:6px}.ontology-create-form .field>span{min-height:0}.ontology-create-page .simple-rule-header{padding-bottom:14px}}

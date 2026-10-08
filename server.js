@@ -27,10 +27,10 @@ if(!/^[a-zA-Z0-9_]+$/.test(database))throw new Error('MYSQL_DATABASE只能包含
 const connectionConfig={host:process.env.MYSQL_HOST||'127.0.0.1',port:Number(process.env.MYSQL_PORT||3306),user:process.env.MYSQL_USER||'root',password:process.env.MYSQL_PASSWORD||''}
 
 const initialOntologies=[
-  ['ONT-BASE','平台基础图谱结构','基础图谱结构','通用','V1',14,126,28,32,'已发布','统一组织、人员、主体、账户、文档、预警和风险事件的基础语义。'],
-  ['ONT-PROC','采购与供应链合规监管图谱','领域图谱结构','采购与供应链','V3',12,94,21,18,'已发布','覆盖采购与供应链主数据、寻源、订单、到货入库、库存、质量、结算付款、风险与来源追溯的标准对象和关系。'],
-  ['ONT-CONTRACT','合同合规监管图谱','领域图谱结构','合同','V2',8,67,16,0,'已发布','覆盖合同主档、版本条款、审批签署、履约交付、验收结算、变更续签、风险争议和文档血缘。'],
-['ONT-FIN','财务资金扩展图谱结构','领域图谱结构','财务','待发布',10,88,19,21,'草稿','覆盖付款、账户、资金流水、融资和担保关系。'],
+  ['ONT-BASE','平台基础图谱结构','基础图谱结构','通用','V1',14,126,28,32,'启用','统一组织、人员、主体、账户、文档、预警和风险事件的基础语义。'],
+  ['ONT-PROC','采购与供应链合规监管图谱','领域图谱结构','采购与供应链','V3',12,94,21,18,'启用','覆盖采购与供应链主数据、寻源、订单、到货入库、库存、质量、结算付款、风险与来源追溯的标准对象和关系。'],
+  ['ONT-CONTRACT','合同合规监管图谱','领域图谱结构','合同','V2',8,67,16,0,'启用','覆盖合同主档、版本条款、审批签署、履约交付、验收结算、变更续签、风险争议和文档血缘。'],
+['ONT-FIN','财务资金扩展图谱结构','领域图谱结构','财务','待启用',10,88,19,21,'草稿','覆盖付款、账户、资金流水、融资和担保关系。'],
 ]
 const initialElements=[
   ['ONT-PROC','class','PROC.Supplier','供应商','实体类型','统一社会信用代码为主标识','参与采购、合同或服务活动的业务主体。'],
@@ -558,6 +558,110 @@ async function ensureColumn(table,column,definition){
   if(!Number(rows[0].total))await pool.query(`ALTER TABLE \`${table}\` ADD COLUMN ${definition}`)
 }
 
+const legacyEntityGroupOrder=['组织与供应商','物料与价格','仓储与库存','寻源与采购','项目与合同','履约与到货','质量与退货','结算与付款','合同主档与模板','条款与版本','审批与签署','合同履约与交付','合同商务与订单','合同变更与终止','合同风险与争议','合同文档与追溯','合同分析事实','治理与追溯']
+function legacyEntityGroupLabel(code=''){
+  if(/CONTRACT\.(Company|LegalEntity|BusinessUnit|User|Party|PartyRole|Contact|Address|ContractType|ContractCategory)/.test(code))return '组织与供应商'
+  if(/CONTRACT\.(Contract|ContractTemplate)/.test(code))return '合同主档与模板'
+  if(/CONTRACT\.(ContractVersion|ContractSection|ContractClause|ClauseVersion)/.test(code))return '条款与版本'
+  if(/CONTRACT\.(ApprovalTask|ApprovalRecord|SignatureRecord|SignatureEvidence)/.test(code))return '审批与签署'
+  if(/CONTRACT\.(ContractObligation|ContractRight|ContractDeliverable|Milestone|Acceptance|AcceptanceLine|ServiceLevelAgreement|SLACommitment|Project|Task|Timesheet|Delivery)/.test(code))return '合同履约与交付'
+  if(/CONTRACT\.(Opportunity|Quotation|PurchaseAgreement|SalesOrder|PurchaseOrder|OrderLine)/.test(code))return '合同商务与订单'
+  if(/CONTRACT\.(ContractChange|Renewal|Suspension|Termination|Closeout)/.test(code))return '合同变更与终止'
+  if(/CONTRACT\.(RiskEvent|BreachEvent|Claim|Dispute|CorrectiveAction)/.test(code))return '合同风险与争议'
+  if(/CONTRACT\.(Document|DocumentVersion|Communication|SourceSystem|SourceRecord)/.test(code))return '合同文档与追溯'
+  if(/CONTRACT\.(ContractValueFact|ObligationPerformanceFact|RenewalForecast|PaymentExposure)/.test(code))return '合同分析事实'
+  if(/CONTRACT\.(Invoice|Bill|PaymentPlan|Payment|PaymentAllocation)/.test(code))return '结算与付款'
+  if(/PROC\.(Company|LegalEntity|BusinessUnit|User|Role|Address|BankAccount|Supplier|SupplierSite|SupplierQualification|SupplierRiskProfile|SupplierPerformance|Reviewer|Contact)/.test(code))return '组织与供应商'
+  if(/PROC\.(Product|ProductIdentifier|ProductCategory|ProductAttribute|ProductVariant|ProductPackage|SupplierProduct|ApprovedSupplierList|ProductPrice|PriceHistory)/.test(code))return '物料与价格'
+  if(/PROC\.(Warehouse|Location|StockBalance|InventoryLedger|StockMove|StockMoveLine|InventoryOwner|InventoryOperation|InventoryOperationLine|InventoryTransfer|InventoryCount|InventoryAdjustment|StockReservation|OwnershipTransfer|LotSerial|LogisticUnit)/.test(code))return '仓储与库存'
+  if(/PROC\.(PurchaseRequest|SourcingEvent|RFQ|RFQLine|RFQSupplier|SupplierQuotation|SupplierQuotationLine|BidEvaluation|AwardDecision|PurchaseAgreement|PurchaseAgreementLine|PurchaseOrder|PurchaseOrderLine)/.test(code))return '寻源与采购'
+  if(/PROC\.(PaymentPlan|PaymentPlanLine|OrderSchedule|ChangeOrder|AdvanceShipmentNotice|ASNLine|PurchaseArrival|PurchaseArrivalLine|PurchaseReceipt|PurchaseReceiptLine)/.test(code))return '履约与到货'
+  if(/PROC\.(QualityInspection|QualityInspectionLine|NonConformance|CorrectiveAction|PurchaseReturn|PurchaseReturnLine)/.test(code))return '质量与退货'
+  if(/PROC\.(PurchaseSettlement|PurchaseSettlementLine|PurchaseInvoice|PurchaseInvoiceLine|SupplierReconciliation|SupplierReconciliationLine|Payment|PaymentAllocation|AccountJournal)/.test(code))return '结算与付款'
+  return '治理与追溯'
+}
+
+const seededEntityGroupOverrides={
+  'ONT-PROC':{
+    '物料与价格':['SupplierProduct'],
+    '寻源与采购':['SupplierQuotation','SupplierQuotationLine','BidConfirmed'],
+    '项目与合同':['PurchaseProject','PurchaseCreated','Contract','ContractChanged'],
+    '结算与付款':['SupplierReconciliation','SupplierReconciliationLine','PaymentPlan','PaymentPlanLine'],
+  },
+  'ONT-CONTRACT':{
+    '合同主档与模板':['ContractType','ContractCategory'],
+    '条款与版本':['ContractVersion','ContractSection','ContractClause'],
+    '合同履约与交付':['ContractObligation','ContractRight','ContractDeliverable'],
+    '合同变更与终止':['ContractChange'],
+    '合同分析事实':['ContractValueFact','RenewalForecast'],
+  },
+  'ONT-PROC-DEMO':{
+    '组织与供应商':['Organization','Department','Person','Supplier','BankAccount','Contact','Address','Customer'],
+    '物料与价格':['TradeItem'],
+    '仓储与库存':['Warehouse'],
+    '寻源与采购':['ProcurementDemand','ProcurementPlan','BudgetApproval','TenderAnnouncement','Bid','BidDocument','ReviewPanel','Award','BidEvaluation','PurchaseOrder','DemandCreated','BudgetApproved','PlanApproved','ProcurementMethodChosen','TenderPublished','BidSubmitted','BidOpened','PanelSelected','EvaluationCompleted','BidConfirmed','EvaluationScored','OrderIssued'],
+    '项目与合同':['PurchaseProject','Contract','ContractChange','ContractSigned','ContractChanged'],
+    '履约与到货':['LogisticsRecord','GoodsReceipt','InspectionRecord','GoodsDispatched','GoodsReceived','InspectionAccepted'],
+    '结算与付款':['Invoice','Payment','PaymentExecuted','InvoiceIssued','FundTransferred','Receivable','Prepayment','CollectionReceived','ReceivableRecorded','PrepaymentRecorded'],
+    '治理与追溯':['IPAddress','Device','RiskWarning','WarningGenerated'],
+  },
+}
+function seededEntityGroupLabel(ontologyId,code){
+  const groups=seededEntityGroupOverrides[ontologyId]
+  if(groups){
+    const prefix=ontologyId==='ONT-CONTRACT'?'CONTRACT.':'PROC.'
+    if(code.startsWith(prefix)){
+      const suffix=code.slice(prefix.length)
+      for(const [name,codes] of Object.entries(groups))if(codes.includes(suffix))return name
+    }
+  }
+  return legacyEntityGroupLabel(code)
+}
+
+async function migrateOntologyGroups(){
+  const [ontologies]=await pool.query('SELECT id FROM ontologies')
+  for(const ontology of ontologies){
+    const [classes]=await pool.query("SELECT element_id,code,group_name FROM ontology_elements WHERE ontology_id=? AND element_type='class' ORDER BY element_id",[ontology.id])
+    for(const entity of classes){
+      const groupName=String(entity.group_name||'').trim()||seededEntityGroupLabel(ontology.id,entity.code)
+      if(!entity.group_name)await pool.query('UPDATE ontology_elements SET group_name=? WHERE element_id=?',[groupName,entity.element_id])
+      await pool.query('INSERT IGNORE INTO ontology_entity_groups (ontology_id,name,sort_order) VALUES (?,?,?)',[ontology.id,groupName,Math.max(0,legacyEntityGroupOrder.indexOf(groupName))])
+    }
+    await pool.query("INSERT IGNORE INTO ontology_entity_groups (ontology_id,name,sort_order) VALUES (?,'未分组',999)",[ontology.id])
+  }
+}
+
+async function regroupSeedOntologyEntities(){
+  for(const id of Object.keys(seededEntityGroupOverrides)){
+    const connection=await pool.getConnection()
+    try{
+      await connection.beginTransaction()
+      const [ontologies]=await connection.query('SELECT id FROM ontologies WHERE id=? FOR UPDATE',[id])
+      if(!ontologies.length){await connection.rollback();continue}
+      const [audits]=await connection.query("SELECT audit_id FROM ontology_audits WHERE ontology_id=? AND action='整理存量实体分组V2' LIMIT 1",[id])
+      if(audits.length){await connection.rollback();continue}
+      const [classes]=await connection.query("SELECT element_id,code,group_name FROM ontology_elements WHERE ontology_id=? AND element_type='class' FOR UPDATE",[id])
+      const previousGroups=new Set()
+      let changed=0
+      for(const entity of classes){
+        const next=seededEntityGroupLabel(id,entity.code)
+        if(next===entity.group_name||entity.group_name!==legacyEntityGroupLabel(entity.code))continue
+        await connection.query('INSERT IGNORE INTO ontology_entity_groups (ontology_id,name,sort_order) VALUES (?,?,?)',[id,next,legacyEntityGroupOrder.indexOf(next)])
+        await connection.query('UPDATE ontology_elements SET group_name=? WHERE element_id=?',[next,entity.element_id])
+        previousGroups.add(entity.group_name)
+        changed++
+      }
+      for(const name of previousGroups){
+        if(name==='未分组')continue
+        await connection.query("DELETE FROM ontology_entity_groups WHERE ontology_id=? AND name=? AND NOT EXISTS (SELECT 1 FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND group_name=?)",[id,name,id,name])
+      }
+      if(changed)await resetOntologyDraft(connection,id)
+      await ontologyAudit(connection,id,'整理存量实体分组V2',`按业务阶段整理 ${changed} 个实体类型`)
+      await connection.commit()
+    }catch(error){await connection.rollback();throw error}finally{connection.release()}
+  }
+}
+
 async function columnExists(table,column){
   const [rows]=await pool.query('SELECT COUNT(*) AS total FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=? AND TABLE_NAME=? AND COLUMN_NAME=?',[database,table,column])
   return Number(rows[0].total)>0
@@ -589,6 +693,11 @@ async function initializeDatabase(){
     name VARCHAR(160) NOT NULL,data_type VARCHAR(120) NOT NULL DEFAULT '',constraint_desc VARCHAR(240) NOT NULL DEFAULT '',description TEXT NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_ontology_element (ontology_id,element_type,code),CONSTRAINT fk_element_ontology FOREIGN KEY (ontology_id) REFERENCES ontologies(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+  await pool.query(`CREATE TABLE IF NOT EXISTS ontology_entity_groups (
+    group_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,ontology_id VARCHAR(64) NOT NULL,name VARCHAR(120) NOT NULL,sort_order INT NOT NULL DEFAULT 1000,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uk_ontology_entity_group (ontology_id,name),KEY idx_ontology_entity_group_order (ontology_id,sort_order,group_id),
+    CONSTRAINT fk_entity_group_ontology FOREIGN KEY (ontology_id) REFERENCES ontologies(id) ON DELETE CASCADE
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await pool.query(`CREATE TABLE IF NOT EXISTS ontology_audits (
     audit_id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,ontology_id VARCHAR(64) NOT NULL,action VARCHAR(80) NOT NULL,summary VARCHAR(500) NOT NULL,
     operator_name VARCHAR(80) NOT NULL DEFAULT '尹晨阳',created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,KEY idx_ontology_audit (ontology_id,created_at)
@@ -598,6 +707,7 @@ async function initializeDatabase(){
   await ensureColumn('ontologies','published_at','published_at TIMESTAMP NULL AFTER validation_json')
   await ensureColumn('ontology_elements','owner_code','owner_code VARCHAR(120) NOT NULL DEFAULT \'\' AFTER name')
   await ensureColumn('ontology_elements','target_code','target_code VARCHAR(120) NOT NULL DEFAULT \'\' AFTER owner_code')
+  await ensureColumn('ontology_elements','group_name','group_name VARCHAR(120) NOT NULL DEFAULT \'\' AFTER name')
   await pool.query("UPDATE ontology_elements SET element_type='class',owner_code='',target_code='',data_type='实体类型' WHERE element_type='event'")
   await pool.query("UPDATE ontology_elements SET data_type='实体类型' WHERE element_type='class'")
   await pool.query("UPDATE ontology_elements SET constraint_desc='发生时间必填' WHERE element_type='class' AND constraint_desc IN ('起始事件','前置事件','目标事件','履约事件','结算事件','事后事件','监管事件','评标事件')")
@@ -619,14 +729,17 @@ async function initializeDatabase(){
   for(const [code,owner,target] of [...elementReferences, ...standardProcurementProperties.map(([code]) => [code, code.split('.').slice(0,2).join('.'), '']), ...standardProcurementRelations.map(([code,,owner,target]) => [code, owner, target])])await pool.query("UPDATE ontology_elements SET owner_code=IF(owner_code='',?,owner_code),target_code=IF(target_code='',?,target_code) WHERE ontology_id='ONT-PROC' AND code=?",[owner,target,code])
   for(const [code] of standardContractProperties)await pool.query("UPDATE ontology_elements SET owner_code=IF(owner_code='',?,owner_code) WHERE ontology_id='ONT-CONTRACT' AND code=?",[code.split('.').slice(0,2).join('.'),code])
   for(const [code,,owner,target] of standardContractRelations)await pool.query("UPDATE ontology_elements SET owner_code=IF(owner_code='',?,owner_code),target_code=IF(target_code='',?,target_code) WHERE ontology_id='ONT-CONTRACT' AND code=?",[owner,target,code])
+  await migrateOntologyGroups()
+  await regroupSeedOntologyEntities()
   await pool.query("UPDATE ontologies SET name='合同合规监管图谱',domain='合同',version='V2',description='覆盖合同主档、版本条款、审批签署、履约交付、验收结算、变更续签、风险争议和文档血缘。' WHERE id='ONT-CONTRACT'")
   await pool.query("UPDATE ontologies SET name='采购与供应链合规监管图谱',domain='采购与供应链',version='V3',description='覆盖采购与供应链主数据、寻源、订单、到货入库、库存、质量、结算付款、风险与来源追溯的标准对象和关系。' WHERE id='ONT-PROC'")
   await pool.query("UPDATE ontologies SET name='采购与供应链监管图谱（历史版本）',domain='采购与供应链' WHERE id='ONT-PROC-DEMO' OR name='采购与供应链监管演示图谱结构'")
-  await pool.query("UPDATE ontologies SET status='已下架' WHERE status='已废止'")
+  await pool.query("UPDATE ontologies SET status='停用' WHERE status IN ('已下架','已废止','已停用')")
+  await pool.query("UPDATE ontologies SET status='启用' WHERE status IN ('已发布','已启用')")
   await pool.query("UPDATE ontologies SET status='草稿' WHERE status='待校验'")
   await normalizeStoredOntologyVersions()
   await syncOntologyCounts()
-  await pool.query("UPDATE ontologies SET status='草稿',validation_json=NULL,published_at=NULL WHERE status='已发布' AND class_count=0")
+  await pool.query("UPDATE ontologies SET status='草稿',validation_json=NULL,published_at=NULL WHERE status='启用' AND class_count=0")
   await initializeSceneRuleDatabase(pool)
   await initializeRuleCatalogDatabase(pool)
   await initializeDataGraphDatabase(pool)
@@ -635,8 +748,8 @@ async function initializeDatabase(){
 const formatTime=(value)=>value instanceof Date?value.toLocaleString('zh-CN',{hour12:false}).replaceAll('/','-'):String(value||'')
 const parseJson=(value,fallback)=>{if(value===null||value===undefined||value==='')return fallback;if(typeof value==='object')return value;try{return JSON.parse(value)}catch{return fallback}}
 const toJson=(value)=>JSON.stringify(value??null)
-const mapElement=(row)=>({id:String(row.element_id),type:row.element_type,code:row.code,name:row.name,ownerCode:row.owner_code||'',targetCode:row.target_code||'',dataType:row.element_type==='class'?'实体类型':row.data_type,constraint:row.constraint_desc,description:row.description})
-const normalizeOntologyStatus=(status)=>status==='已废止'?'已下架':status==='待校验'?'草稿':status
+const mapElement=(row)=>({id:String(row.element_id),type:row.element_type,code:row.code,name:row.name,groupName:row.group_name||'',ownerCode:row.owner_code||'',targetCode:row.target_code||'',dataType:row.element_type==='class'?'实体类型':row.data_type,constraint:row.constraint_desc,description:row.description})
+const normalizeOntologyStatus=(status)=>['已废止','已下架','已停用'].includes(status)?'停用':['已发布','已启用'].includes(status)?'启用':status==='待校验'?'草稿':status
 const baseOntologyId=(id='')=>String(id||'').replace(/-DRAFT-[A-Z0-9]+$/,'')
 const officialVersionNumber=(version='')=>{
   const text=String(version||'').trim()
@@ -662,7 +775,7 @@ async function normalizeStoredOntologyVersions(){
     const status=normalizeOntologyStatus(row.status)
     let nextVersion=String(row.version||'').trim()
     if(status==='草稿'){
-      nextVersion='待发布'
+      nextVersion='待启用'
     }else{
       const label=officialVersionLabel(nextVersion)
       if(label)nextVersion=label
@@ -670,17 +783,16 @@ async function normalizeStoredOntologyVersions(){
     if(nextVersion&&nextVersion!==row.version)await pool.query('UPDATE ontologies SET version=? WHERE id=?',[nextVersion,row.id])
   }
 }
-const mapOntology=(row,elements=[])=>{
+const mapOntology=(row,elements=[],groups=[])=>{
   const count=(type)=>elements.filter((item)=>item.type===type).length
-  return {id:row.id,name:row.name,scope:row.scope,domain:row.domain,version:row.version,sourceVersionId:row.source_version_id||'',classes:count('class'),properties:count('property'),relations:count('relation'),events:0,status:normalizeOntologyStatus(row.status),description:row.description,validation:parseJson(row.validation_json,{blockers:[],warnings:[],validatedAt:''}),publishedAt:formatTime(row.published_at),updatedAt:formatTime(row.updated_at),elements}
+  return {id:row.id,name:row.name,scope:row.scope,domain:row.domain,version:row.version,sourceVersionId:row.source_version_id||'',classes:count('class'),properties:count('property'),relations:count('relation'),events:0,status:normalizeOntologyStatus(row.status),description:row.description,validation:parseJson(row.validation_json,{blockers:[],warnings:[],validatedAt:''}),publishedAt:formatTime(row.published_at),updatedAt:formatTime(row.updated_at),elements,groups}
 }
 
-async function getOntology(id,connection=pool){const [rows]=await connection.query('SELECT * FROM ontologies WHERE id=?',[id]);if(!rows.length)return null;const [elements]=await connection.query('SELECT * FROM ontology_elements WHERE ontology_id=? ORDER BY element_type,element_id',[id]);return mapOntology(rows[0],elements.map(mapElement))}
-async function listOntologies(){const [rows]=await pool.query("SELECT * FROM ontologies WHERE status<>'已删除' ORDER BY updated_at DESC,id ASC");const [elements]=await pool.query('SELECT * FROM ontology_elements ORDER BY element_type,element_id');const grouped=new Map();for(const element of elements){if(!grouped.has(element.ontology_id))grouped.set(element.ontology_id,[]);grouped.get(element.ontology_id).push(mapElement(element))}return rows.map((row)=>mapOntology(row,grouped.get(row.id)||[]))}
+async function getOntology(id,connection=pool){const [rows]=await connection.query('SELECT * FROM ontologies WHERE id=?',[id]);if(!rows.length)return null;const [elements]=await connection.query('SELECT * FROM ontology_elements WHERE ontology_id=? ORDER BY element_type,element_id',[id]);const [groups]=await connection.query('SELECT name FROM ontology_entity_groups WHERE ontology_id=? ORDER BY sort_order,group_id',[id]);return mapOntology(rows[0],elements.map(mapElement),groups.map((group)=>group.name))}
+async function listOntologies(){const [rows]=await pool.query("SELECT * FROM ontologies WHERE status<>'已删除' ORDER BY updated_at DESC,id ASC");const [elements]=await pool.query('SELECT * FROM ontology_elements ORDER BY element_type,element_id');const [groups]=await pool.query('SELECT ontology_id,name FROM ontology_entity_groups ORDER BY sort_order,group_id');const grouped=new Map();const groupedGroups=new Map();for(const element of elements){if(!grouped.has(element.ontology_id))grouped.set(element.ontology_id,[]);grouped.get(element.ontology_id).push(mapElement(element))}for(const group of groups){if(!groupedGroups.has(group.ontology_id))groupedGroups.set(group.ontology_id,[]);groupedGroups.get(group.ontology_id).push(group.name)}return rows.map((row)=>mapOntology(row,grouped.get(row.id)||[],groupedGroups.get(row.id)||[]))}
 async function ontologyAudit(connection,id,action,summary){await connection.query('INSERT INTO ontology_audits (ontology_id,action,summary) VALUES (?,?,?)',[id,action,summary])}
-const lockedOntologyStatuses=new Set(['已发布','已下架','已删除'])
-function isLockedOntologyStatus(status){return lockedOntologyStatuses.has(status)}
-function lockedOntologyMessage(status,action){return status==='已下架'?`已下架图谱结构不可${action}，请复制新版本`:status==='已删除'?`已删除图谱结构不可${action}`:`已发布图谱结构不可${action}，请复制新版本`}
+function isLockedOntologyStatus(status){return status!=='草稿'}
+function lockedOntologyMessage(status,action){return status==='已删除'?`已删除图谱模型不可${action}`:`只有草稿图谱模型可以${action}，请复制为草稿后修改`}
 async function ontologyReferenceSummary(connection,id){
   const checks=[
     {label:'数据源',sql:'SELECT COUNT(DISTINCT source_id) AS total FROM data_source_structures WHERE ontology_id=?'},
@@ -700,6 +812,7 @@ function normalizeElementPayload(payload,typeFallback=''){
     type,
     code:String(payload.code||'').trim(),
     name:String(payload.name||'').trim(),
+    groupName:String(payload.groupName||'').trim(),
     ownerCode:String(payload.ownerCode||'').trim(),
     targetCode:String(payload.targetCode||'').trim(),
     dataType:String(payload.dataType||'').trim(),
@@ -729,13 +842,13 @@ function validateOntologyRecord(ontology){
   return {blockers,warnings,validatedAt:new Date().toISOString()}
 }
 async function resetOntologyDraft(connection,id){
-  await connection.query("UPDATE ontologies SET status='草稿',validation_json=NULL,published_at=NULL WHERE id=?",[id])
+  await connection.query("UPDATE ontologies SET validation_json=NULL,updated_at=NOW() WHERE id=?",[id])
 }
 async function validateOntologyVersion(connection,id){
   const ontology=await getOntology(id,connection);if(!ontology)return null
   const validation=validateOntologyRecord(ontology)
-  await connection.query("UPDATE ontologies SET validation_json=?,status='草稿' WHERE id=?",[toJson(validation),id])
-  await ontologyAudit(connection,id,'校验图谱结构版本',`${validation.blockers.length}个阻断项，${validation.warnings.length}个提示项`)
+  await connection.query("UPDATE ontologies SET validation_json=? WHERE id=?",[toJson(validation),id])
+  await ontologyAudit(connection,id,'校验图谱模型',`${validation.blockers.length}个阻断项，${validation.warnings.length}个提示项`)
   return {ontology:await getOntology(id,connection),validation}
 }
 async function rejectReferencedClass(connection,id,elementId,code){
@@ -753,11 +866,11 @@ async function createOntology(req,res){
   const domainCode={通用:'BASE',采购:'PROC',合同:'CONTRACT',财务:'FIN',投资:'INVEST'}[domain]||domain.toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'')||'CUSTOM'
   const id=String(payload.id||`ONT-${domainCode}-${Date.now().toString(36).toUpperCase()}`).trim().toUpperCase()
   if(!/^[A-Z0-9_-]{3,64}$/.test(id))return sendJson(res,400,{message:'结构编码只能包含大写字母、数字、下划线和中划线'})
-  try{await pool.query(`INSERT INTO ontologies (id,name,scope,domain,version,status,description) VALUES (?,?,?,?,?,'草稿',?)`,[id,name,payload.scope||'领域图谱结构',domain,'待发布',String(payload.description||'')]);await ontologyAudit(pool,id,'新建图谱结构',`${name} / ${domain}`);sendJson(res,201,await getOntology(id))}catch(error){if(error?.code==='ER_DUP_ENTRY')return sendJson(res,409,{message:`结构编码 ${id} 已存在`});throw error}
+  try{await pool.query(`INSERT INTO ontologies (id,name,scope,domain,version,status,description) VALUES (?,?,?,?,?,'草稿',?)`,[id,name,payload.scope||'领域图谱结构',domain,'待启用',String(payload.description||'')]);await pool.query("INSERT INTO ontology_entity_groups (ontology_id,name,sort_order) VALUES (?,'未分组',999)",[id]);await ontologyAudit(pool,id,'新建图谱结构',`${name} / ${domain}`);sendJson(res,201,await getOntology(id))}catch(error){if(error?.code==='ER_DUP_ENTRY')return sendJson(res,409,{message:`结构编码 ${id} 已存在`});throw error}
 }
 async function updateOntology(req,res,id){const payload=await readBody(req);const current=await getOntology(id);if(!current)return sendJson(res,404,{message:'图谱结构不存在'});if(isLockedOntologyStatus(current.status))return sendJson(res,409,{message:lockedOntologyMessage(current.status,'直接修改')});if(payload.name!==undefined&&!String(payload.name).trim())return sendJson(res,400,{message:'结构名称不能为空'});await pool.query('UPDATE ontologies SET name=?,scope=?,domain=?,description=? WHERE id=?',[payload.name??current.name,payload.scope??current.scope,payload.domain??current.domain,payload.description??current.description,id]);await ontologyAudit(pool,id,'保存图谱结构草稿','更新基本信息');sendJson(res,200,await getOntology(id))}
-async function copyOntology(res,id){const connection=await pool.getConnection();try{await connection.beginTransaction();const [rows]=await connection.query('SELECT * FROM ontologies WHERE id=? FOR UPDATE',[id]);if(!rows.length){await connection.rollback();return sendJson(res,404,{message:'图谱结构不存在'})}const source=rows[0];const base=baseOntologyId(id);const nextId=`${base}-DRAFT-${Date.now().toString(36).toUpperCase()}`;await connection.query(`INSERT INTO ontologies (id,name,scope,domain,version,source_version_id,class_count,property_count,relation_count,event_count,status,description) VALUES (?,?,?,?,?,?,?,?,?,?,'草稿',?)`,[nextId,source.name,source.scope,source.domain,'待发布',id,source.class_count,source.property_count,source.relation_count,source.event_count,source.description]);await connection.query(`INSERT INTO ontology_elements (ontology_id,element_type,code,name,data_type,constraint_desc,description) SELECT ?,element_type,code,name,data_type,constraint_desc,description FROM ontology_elements WHERE ontology_id=?`,[nextId,id]);await ontologyAudit(connection,nextId,'复制图谱结构版本',`${id} → ${nextId}`);await connection.commit();sendJson(res,201,await getOntology(nextId))}catch(error){await connection.rollback();throw error}finally{connection.release()}}
-async function publishOntology(res,id){const current=await getOntology(id);if(!current)return sendJson(res,404,{message:'图谱结构不存在'});if(current.classes<1)return sendJson(res,409,{message:'图谱结构至少需要一个实体类型才能发布'});const nextVersion=await nextOntologyPublishVersion(pool,current);await pool.query("UPDATE ontologies SET version=?,status='已发布' WHERE id=?",[nextVersion,id]);await ontologyAudit(pool,id,'发布图谱结构版本',`${current.name} ${nextVersion}`);sendJson(res,200,await getOntology(id))}
+async function copyOntology(res,id){const connection=await pool.getConnection();try{await connection.beginTransaction();const [rows]=await connection.query('SELECT * FROM ontologies WHERE id=? FOR UPDATE',[id]);if(!rows.length){await connection.rollback();return sendJson(res,404,{message:'图谱结构不存在'})}const source=rows[0];const base=baseOntologyId(id);const nextId=`${base}-DRAFT-${Date.now().toString(36).toUpperCase()}`;await connection.query(`INSERT INTO ontologies (id,name,scope,domain,version,source_version_id,class_count,property_count,relation_count,event_count,status,description) VALUES (?,?,?,?,?,?,?,?,?,?,'草稿',?)`,[nextId,source.name,source.scope,source.domain,'待启用',id,source.class_count,source.property_count,source.relation_count,source.event_count,source.description]);await connection.query(`INSERT INTO ontology_elements (ontology_id,element_type,code,name,data_type,constraint_desc,description) SELECT ?,element_type,code,name,data_type,constraint_desc,description FROM ontology_elements WHERE ontology_id=?`,[nextId,id]);await ontologyAudit(connection,nextId,'复制图谱结构版本',`${id} → ${nextId}`);await connection.commit();sendJson(res,201,await getOntology(nextId))}catch(error){await connection.rollback();throw error}finally{connection.release()}}
+ async function publishOntology(res,id){const current=await getOntology(id);if(!current)return sendJson(res,404,{message:'图谱结构不存在'});if(current.classes<1)return sendJson(res,409,{message:'图谱结构至少需要一个实体类型才能启用'});const nextVersion=await nextOntologyPublishVersion(pool,current);await pool.query("UPDATE ontologies SET version=?,status='启用' WHERE id=?",[nextVersion,id]);await ontologyAudit(pool,id,'启用图谱结构版本',`${current.name} ${nextVersion}`);sendJson(res,200,await getOntology(id))}
 
 const countColumns={class:'class_count',property:'property_count',relation:'relation_count'}
 async function addElement(req,res,id){const payload=await readBody(req);const current=await getOntology(id);if(!current)return sendJson(res,404,{message:'图谱结构不存在'});if(isLockedOntologyStatus(current.status))return sendJson(res,409,{message:lockedOntologyMessage(current.status,'新增结构定义项')});if(!countColumns[payload.type])return sendJson(res,400,{message:'结构定义类型无效'});if(!String(payload.code||'').trim()||!String(payload.name||'').trim())return sendJson(res,400,{message:'结构定义项编码和名称不能为空'});const connection=await pool.getConnection();try{await connection.beginTransaction();await connection.query('INSERT INTO ontology_elements (ontology_id,element_type,code,name,data_type,constraint_desc,description) VALUES (?,?,?,?,?,?,?)',[id,payload.type,String(payload.code).trim(),String(payload.name).trim(),String(payload.dataType||''),String(payload.constraint||''),String(payload.description||'')]);const column=countColumns[payload.type];await connection.query(`UPDATE ontologies SET ${column}=${column}+1 WHERE id=?`,[id]);await ontologyAudit(connection,id,'新增结构定义项',`${payload.type} / ${payload.code}`);await connection.commit();sendJson(res,201,await getOntology(id))}catch(error){await connection.rollback();if(error?.code==='ER_DUP_ENTRY')return sendJson(res,409,{message:'同类型结构定义项编码已存在'});throw error}finally{connection.release()}}
@@ -768,8 +881,8 @@ async function updateOntologyV2(req,res,id){
   if(!current)return sendJson(res,404,{message:'图谱结构不存在'})
   if(isLockedOntologyStatus(current.status))return sendJson(res,409,{message:lockedOntologyMessage(current.status,'直接修改')})
   if(payload.name!==undefined&&!String(payload.name).trim())return sendJson(res,400,{message:'结构名称不能为空'})
-  await pool.query("UPDATE ontologies SET name=?,scope=?,domain=?,description=?,status='草稿',validation_json=NULL WHERE id=?",[payload.name??current.name,payload.scope??current.scope,payload.domain??current.domain,payload.description??current.description,id])
-  await ontologyAudit(pool,id,'保存图谱结构草稿','更新基本信息')
+  await pool.query("UPDATE ontologies SET name=?,scope=?,domain=?,description=?,validation_json=NULL WHERE id=?",[payload.name??current.name,payload.scope??current.scope,payload.domain??current.domain,payload.description??current.description,id])
+  await ontologyAudit(pool,id,'保存图谱模型','更新基本信息')
   sendJson(res,200,await getOntology(id))
 }
 
@@ -783,8 +896,9 @@ async function copyOntologyV2(res,id){
     if(source.status==='已删除'){await connection.rollback();return sendJson(res,404,{message:'图谱结构不存在'})}
     const base=baseOntologyId(id)
     const nextId=`${base}-DRAFT-${Date.now().toString(36).toUpperCase()}`
-    await connection.query(`INSERT INTO ontologies (id,name,scope,domain,version,source_version_id,class_count,property_count,relation_count,event_count,status,description) VALUES (?,?,?,?,?,?,?,?,?,?,'草稿',?)`,[nextId,source.name,source.scope,source.domain,'待发布',id,source.class_count,source.property_count,source.relation_count,source.event_count,source.description])
-    await connection.query('INSERT INTO ontology_elements (ontology_id,element_type,code,name,owner_code,target_code,data_type,constraint_desc,description) SELECT ?,element_type,code,name,owner_code,target_code,data_type,constraint_desc,description FROM ontology_elements WHERE ontology_id=?',[nextId,id])
+     await connection.query(`INSERT INTO ontologies (id,name,scope,domain,version,source_version_id,class_count,property_count,relation_count,event_count,status,description) VALUES (?,?,?,?,?,?,?,?,?,?,'草稿',?)`,[nextId,source.name,source.scope,source.domain,'待启用',id,source.class_count,source.property_count,source.relation_count,source.event_count,source.description])
+    await connection.query('INSERT INTO ontology_elements (ontology_id,element_type,code,name,group_name,owner_code,target_code,data_type,constraint_desc,description) SELECT ?,element_type,code,name,group_name,owner_code,target_code,data_type,constraint_desc,description FROM ontology_elements WHERE ontology_id=?',[nextId,id])
+    await connection.query('INSERT INTO ontology_entity_groups (ontology_id,name,sort_order) SELECT ?,name,sort_order FROM ontology_entity_groups WHERE ontology_id=?',[nextId,id])
     await syncOntologyCounts(connection,nextId)
     await ontologyAudit(connection,nextId,'复制图谱结构版本',`${id} → ${nextId}`)
     await connection.commit()
@@ -795,22 +909,21 @@ async function copyOntologyV2(res,id){
 async function validateOntologyV2(res,id){
   const current=await getOntology(id)
   if(!current)return sendJson(res,404,{message:'图谱结构不存在'})
-  if(current.status!=='草稿')return sendJson(res,409,{message:'只有草稿图谱结构可以发起校验'})
+   if(!['草稿','启用'].includes(current.status))return sendJson(res,409,{message:'只有可用图谱模型可以发起校验'})
   const result=await validateOntologyVersion(pool,id)
   sendJson(res,200,result)
 }
 async function publishOntologyV2(res,id){
   const current=await getOntology(id)
   if(!current)return sendJson(res,404,{message:'图谱结构不存在'})
-  if(current.status!=='草稿')return sendJson(res,409,{message:'只有草稿图谱结构可以发布'})
+   if(current.status!=='草稿')return sendJson(res,409,{message:'只有草稿图谱结构可以启用'})
   const validation=validateOntologyRecord(current)
   if(validation.blockers.length){
     await pool.query("UPDATE ontologies SET status='草稿',validation_json=? WHERE id=?",[toJson(validation),id])
-    return sendJson(res,409,{message:'图谱结构校验未通过，不能发布',validation})
+     return sendJson(res,409,{message:'图谱模型结构不完整，不能启用',validation})
   }
-  const nextVersion=await nextOntologyPublishVersion(pool,current)
-  await pool.query("UPDATE ontologies SET version=?,status='已发布',validation_json=?,published_at=NOW() WHERE id=?",[nextVersion,toJson(validation),id])
-  await ontologyAudit(pool,id,'发布图谱结构版本',`${current.name} ${nextVersion}`)
+   await pool.query("UPDATE ontologies SET status='启用',validation_json=?,published_at=NOW() WHERE id=?",[toJson(validation),id])
+   await ontologyAudit(pool,id,'启用图谱模型',current.name)
   sendJson(res,200,await getOntology(id))
 }
 
@@ -824,10 +937,16 @@ async function addElementV2(req,res,id){
   const owner=payload.type==='class'?'':payload.ownerCode
   const dataType=payload.type==='class'?'实体类型':payload.dataType
   const target=payload.type==='relation'?payload.targetCode:''
+  const groupName=payload.type==='class'?(payload.groupName||'未分组'):''
+  if(payload.type==='class'&&!(current.groups||[]).includes(groupName))return sendJson(res,400,{message:'请选择当前图谱模型中的实体分组'})
   const connection=await pool.getConnection()
   try{
     await connection.beginTransaction()
-    await connection.query('INSERT INTO ontology_elements (ontology_id,element_type,code,name,owner_code,target_code,data_type,constraint_desc,description) VALUES (?,?,?,?,?,?,?,?,?)',[id,payload.type,payload.code,payload.name,owner,target,dataType,payload.constraint,payload.description])
+    if(payload.type==='class'){
+      const [groups]=await connection.query('SELECT group_id FROM ontology_entity_groups WHERE ontology_id=? AND name=? FOR UPDATE',[id,groupName])
+      if(!groups.length){await connection.rollback();return sendJson(res,400,{message:'请选择当前图谱模型中的实体分组'})}
+    }
+    await connection.query('INSERT INTO ontology_elements (ontology_id,element_type,code,name,group_name,owner_code,target_code,data_type,constraint_desc,description) VALUES (?,?,?,?,?,?,?,?,?,?)',[id,payload.type,payload.code,payload.name,groupName,owner,target,dataType,payload.constraint,payload.description])
     await resetOntologyDraft(connection,id)
     await syncOntologyCounts(connection,id)
     await ontologyAudit(connection,id,'新增结构定义项',`${payload.type} / ${payload.code}`)
@@ -848,16 +967,83 @@ async function updateElementV2(req,res,id,elementId){
     if(!rows.length){await connection.rollback();return sendJson(res,404,{message:'结构定义项不存在'})}
     const row=rows[0]
     if(payload.type&&payload.type!==row.element_type){await connection.rollback();return sendJson(res,400,{message:'定义类型不可修改，请删除后重新新增'})}
-    const next=normalizeElementPayload({type:row.element_type,code:payload.code??row.code,name:payload.name??row.name,ownerCode:payload.ownerCode??row.owner_code,targetCode:payload.targetCode??row.target_code,dataType:payload.dataType??row.data_type,constraint:payload.constraint??row.constraint_desc,description:payload.description??row.description},row.element_type)
+    const next=normalizeElementPayload({type:row.element_type,code:payload.code??row.code,name:payload.name??row.name,groupName:payload.groupName??row.group_name??'未分组',ownerCode:payload.ownerCode??row.owner_code,targetCode:payload.targetCode??row.target_code,dataType:payload.dataType??row.data_type,constraint:payload.constraint??row.constraint_desc,description:payload.description??row.description},row.element_type)
     if(!next.code||!next.name){await connection.rollback();return sendJson(res,400,{message:'结构定义项编码和名称不能为空'})}
+    if(row.element_type==='class'&&!(current.groups||[]).includes(next.groupName)){await connection.rollback();return sendJson(res,400,{message:'请选择当前图谱模型中的实体分组'})}
+    if(row.element_type==='class'){
+      const [groups]=await connection.query('SELECT group_id FROM ontology_entity_groups WHERE ontology_id=? AND name=? FOR UPDATE',[id,next.groupName])
+      if(!groups.length){await connection.rollback();return sendJson(res,400,{message:'请选择当前图谱模型中的实体分组'})}
+    }
     if(row.element_type==='class'&&next.code!==row.code)await rejectReferencedClass(connection,id,elementId,row.code)
-    await connection.query('UPDATE ontology_elements SET code=?,name=?,owner_code=?,target_code=?,data_type=?,constraint_desc=?,description=? WHERE ontology_id=? AND element_id=?',[next.code,next.name,row.element_type==='class'?'':next.ownerCode,row.element_type==='relation'?next.targetCode:'',row.element_type==='class'?'实体类型':next.dataType,next.constraint,next.description,id,elementId])
+    await connection.query('UPDATE ontology_elements SET code=?,name=?,group_name=?,owner_code=?,target_code=?,data_type=?,constraint_desc=?,description=? WHERE ontology_id=? AND element_id=?',[next.code,next.name,row.element_type==='class'?next.groupName:'',row.element_type==='class'?'':next.ownerCode,row.element_type==='relation'?next.targetCode:'',row.element_type==='class'?'实体类型':next.dataType,next.constraint,next.description,id,elementId])
     await resetOntologyDraft(connection,id)
     await syncOntologyCounts(connection,id)
     await ontologyAudit(connection,id,'编辑结构定义项',`${row.element_type} / ${next.code}`)
     await connection.commit()
     sendJson(res,200,await getOntology(id))
   }catch(error){await connection.rollback();if(error?.code==='ER_DUP_ENTRY')return sendJson(res,409,{message:'同类型结构定义项编码已存在'});throw error}finally{connection.release()}
+}
+
+async function createOntologyGroup(req,res,id){
+  const payload=await readBody(req);const name=String(payload.name||'').trim()
+  if(!name)return sendJson(res,400,{message:'分组名称不能为空'})
+  if(name.length>120)return sendJson(res,400,{message:'分组名称不能超过120个字符'})
+  const current=await getOntology(id)
+  if(!current)return sendJson(res,404,{message:'图谱结构不存在'})
+  if(isLockedOntologyStatus(current.status))return sendJson(res,409,{message:lockedOntologyMessage(current.status,'新增实体分组')})
+  const connection=await pool.getConnection()
+  try{
+    await connection.beginTransaction()
+    const [rows]=await connection.query('SELECT COALESCE(MAX(sort_order),0)+1 AS next_order FROM ontology_entity_groups WHERE ontology_id=?',[id])
+    await connection.query('INSERT INTO ontology_entity_groups (ontology_id,name,sort_order) VALUES (?,?,?)',[id,name,Number(rows[0].next_order||1000)])
+    await resetOntologyDraft(connection,id)
+    await ontologyAudit(connection,id,'新增实体分组',name)
+    await connection.commit()
+    sendJson(res,201,await getOntology(id))
+  }catch(error){await connection.rollback();if(error?.code==='ER_DUP_ENTRY')return sendJson(res,409,{message:'该分组名称已存在'});throw error}finally{connection.release()}
+}
+
+async function renameOntologyGroup(req,res,id,currentName){
+  const payload=await readBody(req);const name=String(payload.name||'').trim()
+  if(currentName==='未分组')return sendJson(res,409,{message:'系统分组“未分组”不可重命名'})
+  if(!name)return sendJson(res,400,{message:'分组名称不能为空'})
+  if(name.length>120)return sendJson(res,400,{message:'分组名称不能超过120个字符'})
+  const current=await getOntology(id)
+  if(!current)return sendJson(res,404,{message:'图谱结构不存在'})
+  if(isLockedOntologyStatus(current.status))return sendJson(res,409,{message:lockedOntologyMessage(current.status,'重命名实体分组')})
+  const connection=await pool.getConnection()
+  try{
+    await connection.beginTransaction()
+    const [groups]=await connection.query('SELECT group_id FROM ontology_entity_groups WHERE ontology_id=? AND name=? FOR UPDATE',[id,currentName])
+    if(!groups.length){await connection.rollback();return sendJson(res,404,{message:'实体分组不存在'})}
+    await connection.query('UPDATE ontology_entity_groups SET name=? WHERE group_id=?',[name,groups[0].group_id])
+    await connection.query("UPDATE ontology_elements SET group_name=? WHERE ontology_id=? AND element_type='class' AND group_name=?",[name,id,currentName])
+    await resetOntologyDraft(connection,id)
+    await ontologyAudit(connection,id,'重命名实体分组',`${currentName} → ${name}`)
+    await connection.commit()
+    sendJson(res,200,await getOntology(id))
+  }catch(error){await connection.rollback();if(error?.code==='ER_DUP_ENTRY')return sendJson(res,409,{message:'该分组名称已存在'});throw error}finally{connection.release()}
+}
+
+async function deleteOntologyGroup(res,id,name){
+  if(name==='未分组')return sendJson(res,409,{message:'系统分组“未分组”不可删除'})
+  const current=await getOntology(id)
+  if(!current)return sendJson(res,404,{message:'图谱结构不存在'})
+  if(isLockedOntologyStatus(current.status))return sendJson(res,409,{message:lockedOntologyMessage(current.status,'删除实体分组')})
+  const connection=await pool.getConnection()
+  try{
+    await connection.beginTransaction()
+    const [groups]=await connection.query('SELECT group_id FROM ontology_entity_groups WHERE ontology_id=? AND name=? FOR UPDATE',[id,name])
+    if(!groups.length){await connection.rollback();return sendJson(res,404,{message:'实体分组不存在'})}
+    const [members]=await connection.query("SELECT COUNT(*) AS total FROM ontology_elements WHERE ontology_id=? AND element_type='class' AND group_name=?",[id,name])
+    await connection.query("INSERT IGNORE INTO ontology_entity_groups (ontology_id,name,sort_order) VALUES (?,'未分组',999)",[id])
+    await connection.query("UPDATE ontology_elements SET group_name='未分组' WHERE ontology_id=? AND element_type='class' AND group_name=?",[id,name])
+    await connection.query('DELETE FROM ontology_entity_groups WHERE group_id=?',[groups[0].group_id])
+    await resetOntologyDraft(connection,id)
+    await ontologyAudit(connection,id,'删除实体分组',`${name}；${members[0].total}个实体类型移至未分组`)
+    await connection.commit()
+    sendJson(res,200,await getOntology(id))
+  }catch(error){await connection.rollback();throw error}finally{connection.release()}
 }
 
 async function deleteElementV2(res,id,elementId){
@@ -879,38 +1065,34 @@ async function deleteElementV2(res,id,elementId){
   }catch(error){await connection.rollback();throw error}finally{connection.release()}
 }
 
-async function retireOntologyV2(res,id){
+ async function disableOntologyV2(res,id){
   const current=await getOntology(id)
   if(!current||current.status==='已删除')return sendJson(res,404,{message:'图谱结构不存在'})
-  if(current.status!=='已发布')return sendJson(res,409,{message:'只有已发布图谱结构可以下架'})
-  await pool.query("UPDATE ontologies SET status='已下架' WHERE id=?",[id])
-  await ontologyAudit(pool,id,'下架图谱结构',`${current.name} ${current.version}`)
+   if(current.status!=='启用')return sendJson(res,409,{message:'只有启用状态的图谱结构可以停用'})
+   await pool.query("UPDATE ontologies SET status='停用' WHERE id=?",[id])
+   await ontologyAudit(pool,id,'停用图谱模型',current.name)
   sendJson(res,200,await getOntology(id))
 }
 
-async function activateOntologyV2(res,id){
+async function enableOntologyV2(res,id){
   const current=await getOntology(id)
   if(!current||current.status==='已删除')return sendJson(res,404,{message:'图谱结构不存在'})
-  if(current.status!=='已下架')return sendJson(res,409,{message:'只有已下架图谱结构可以上架'})
+  if(!['草稿','停用'].includes(current.status))return sendJson(res,409,{message:'只有草稿或停用状态的图谱模型可以启用'})
   const validation=validateOntologyRecord(current)
-  if(validation.blockers.length)return sendJson(res,409,{message:'图谱结构当前校验未通过，不能上架',validation})
-  await pool.query("UPDATE ontologies SET status='已发布',validation_json=?,published_at=NOW() WHERE id=?",[toJson(validation),id])
-  await ontologyAudit(pool,id,'重新上架图谱结构版本',`${current.name} ${current.version}`)
+  if(validation.blockers.length)return sendJson(res,409,{message:'图谱模型结构不完整，不能启用',validation})
+  const version=current.status==='草稿'?await nextOntologyPublishVersion(pool,current):current.version
+  await pool.query("UPDATE ontologies SET version=?,status='启用',validation_json=?,published_at=NOW() WHERE id=?",[version,toJson(validation),id])
+  await ontologyAudit(pool,id,current.status==='草稿'?'启用图谱模型':'重新启用图谱模型',current.name)
   sendJson(res,200,await getOntology(id))
 }
 
 async function deleteOntologyV2(res,id){
   const current=await getOntology(id)
   if(!current||current.status==='已删除')return sendJson(res,404,{message:'图谱结构不存在'})
-  if(current.status==='已发布')return sendJson(res,409,{message:'已发布图谱结构不能直接删除，请先下架后再删除'})
+   if(current.status!=='草稿')return sendJson(res,409,{message:'只有草稿图谱模型可以删除；停用模型需保留历史版本'})
   const references=await ontologyReferenceSummary(pool,id)
-  if(current.status==='已下架'){
-    await pool.query("UPDATE ontologies SET status='已删除' WHERE id=?",[id])
-    await ontologyAudit(pool,id,'删除图谱结构',`${current.name} ${current.version} / ${current.status} → 已删除`)
-    return sendJson(res,200,{ok:true,message:'图谱结构已删除，历史引用和审计记录仍保留'})
-  }
   if(references.total>0)return sendJson(res,409,{message:`该图谱结构仍被${references.summary}引用，不能删除`})
-  await ontologyAudit(pool,id,'删除图谱结构草稿',`${current.name} ${current.version}`)
+  await ontologyAudit(pool,id,'删除图谱模型草稿',current.name)
   await pool.query('DELETE FROM ontologies WHERE id=?',[id])
   sendJson(res,200,{ok:true,message:'图谱结构草稿已删除'})
 }
@@ -923,8 +1105,9 @@ async function handleApi(req,res,url){
   if(await handleDataGraphApi(req,res,url,{pool,sendJson,readBody}))return
   if(url.pathname==='/api/ontologies'&&req.method==='GET')return sendJson(res,200,await listOntologies())
   if(url.pathname==='/api/ontologies'&&req.method==='POST')return createOntology(req,res)
+  const group=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/groups(?:\/([^/]+))?$/);if(group){const id=decodeURIComponent(group[1]);if(req.method==='POST'&&!group[2])return createOntologyGroup(req,res,id);if(req.method==='PUT'&&group[2])return renameOntologyGroup(req,res,id,decodeURIComponent(group[2]));if(req.method==='DELETE'&&group[2])return deleteOntologyGroup(res,id,decodeURIComponent(group[2]))}
   const element=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/elements(?:\/([^/]+))?$/);if(element){const id=decodeURIComponent(element[1]);if(req.method==='POST'&&!element[2])return addElementV2(req,res,id);if(req.method==='PUT'&&element[2])return updateElementV2(req,res,id,decodeURIComponent(element[2]));if(req.method==='DELETE'&&element[2])return deleteElementV2(res,id,decodeURIComponent(element[2]))}
-  const action=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/(copy|publish|validate|retire|activate)$/);if(action&&req.method==='POST')return action[2]==='copy'?copyOntologyV2(res,decodeURIComponent(action[1])):action[2]==='validate'?validateOntologyV2(res,decodeURIComponent(action[1])):action[2]==='retire'?retireOntologyV2(res,decodeURIComponent(action[1])):action[2]==='activate'?activateOntologyV2(res,decodeURIComponent(action[1])):publishOntologyV2(res,decodeURIComponent(action[1]))
+   const action=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/(copy|enable|disable|validate|publish|retire|activate)$/);if(action&&req.method==='POST'){const actionName=action[2];if(actionName==='copy')return copyOntologyV2(res,decodeURIComponent(action[1]));if(actionName==='validate')return validateOntologyV2(res,decodeURIComponent(action[1]));if(actionName==='disable'||actionName==='retire')return disableOntologyV2(res,decodeURIComponent(action[1]));if(actionName==='enable'||actionName==='activate')return enableOntologyV2(res,decodeURIComponent(action[1]));return publishOntologyV2(res,decodeURIComponent(action[1]))}
   const item=url.pathname.match(/^\/api\/ontologies\/([^/]+)$/);if(item){const id=decodeURIComponent(item[1]);if(req.method==='GET'){const result=await getOntology(id);return sendJson(res,result&&result.status!=='已删除'?200:404,result&&result.status!=='已删除'?result:{message:'图谱结构不存在'})}if(req.method==='PUT')return updateOntologyV2(req,res,id);if(req.method==='DELETE')return deleteOntologyV2(res,id)}
   sendJson(res,404,{message:'接口不存在'})
 }
@@ -933,7 +1116,7 @@ const mimeTypes={'.html':'text/html; charset=utf-8','.js':'text/javascript; char
 function serveProduction(res,url){const dist=resolve(root,'dist');const relative=decodeURIComponent(url.pathname).replace(/^\/+/, '')||'index.html';let file=resolve(dist,relative);if(!file.startsWith(dist)||!existsSync(file))file=resolve(dist,'index.html');res.writeHead(200,{'Content-Type':mimeTypes[extname(file)]||'application/octet-stream'});createReadStream(file).pipe(res)}
 
 await initializeDatabase()
-const devMode=process.argv.includes('--dev');const vite=devMode?await(await import('vite')).createServer({server:{middlewareMode:true},appType:'spa'}):null;const port=Number(process.env.APP_PORT||4173)
+const devMode=process.argv.includes('--dev');const port=Number(process.env.APP_PORT||4173);const vite=devMode?await(await import('vite')).createServer({server:{middlewareMode:true,hmr:{port:port+20505}},appType:'spa'}):null
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url||'/',`http://${req.headers.host||'127.0.0.1'}`);try{if(url.pathname.startsWith('/api/'))return await handleApi(req,res,url);if(vite)return vite.middlewares(req,res,()=>sendJson(res,404,{message:'页面不存在'}));serveProduction(res,url)}catch(error){console.error('[request-error]',error?.message||error);if(!res.headersSent)sendJson(res,Number(error?.status)||500,{message:error?.message||'服务处理失败，请检查数据库连接或请求内容'});else res.end()}})
 server.listen(port,'127.0.0.1',()=>{console.log(`穿透式监管服务已启动：http://127.0.0.1:${port}`);console.log(`MySQL业务库已就绪：${database}`)})
 async function shutdown(){await vite?.close();await pool?.end();server.close(()=>process.exit(0))}

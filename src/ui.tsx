@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import type { RiskLevel } from './types'
 import { graphEdges, graphNodes } from './data'
 
-export type IconName = 'workbench' | 'situation' | 'shield' | 'rules' | 'graph' | 'system' | 'bell' | 'agent' | 'search' | 'refresh' | 'chevron' | 'eye' | 'edit' | 'user' | 'audit' | 'clock' | 'check' | 'warning' | 'close' | 'plus' | 'link' | 'file' | 'lock' | 'menu' | 'more' | 'home' | 'copy' | 'trash' | 'play' | 'pause'
+export type IconName = 'workbench' | 'situation' | 'shield' | 'rules' | 'graph' | 'system' | 'bell' | 'agent' | 'search' | 'refresh' | 'filter' | 'chevron' | 'eye' | 'edit' | 'user' | 'audit' | 'clock' | 'check' | 'warning' | 'close' | 'plus' | 'link' | 'file' | 'lock' | 'menu' | 'more' | 'home' | 'copy' | 'trash' | 'play' | 'pause'
 
 const iconPaths: Record<IconName, ReactNode> = {
   workbench: <><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>,
@@ -15,6 +15,7 @@ const iconPaths: Record<IconName, ReactNode> = {
   agent: <><rect x="4" y="6" width="16" height="13" rx="4"/><path d="M9 2h6M12 2v4M8 19v3l4-3"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><path d="M9 16h6"/></>,
   search: <><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></>,
   refresh: <><path d="M20 6v5h-5"/><path d="M4 18v-5h5"/><path d="M18.5 9A7 7 0 0 0 6 6.5L4 11M5.5 15A7 7 0 0 0 18 17.5l2-4.5"/></>,
+  filter: <path d="M4 5h16l-6.5 7.2V19l-3 1.5v-8.3Z"/>,
   chevron: <path d="m9 18 6-6-6-6"/>,
   eye: <><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>,
   edit: <><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/></>,
@@ -56,8 +57,59 @@ export function RiskTag({ level }: { level: RiskLevel }) {
 
 export function StatusTag({ children }: { children: ReactNode }) {
   const text = String(children)
-  const tone = text.includes('已发布') || text.includes('已关闭') || text.includes('已解除') || text.includes('启用') || text.includes('完整') || text.includes('成功') ? 'success' : text.includes('异常') || text.includes('失败') || text.includes('逾期') || text.includes('重大') ? 'danger' : text.includes('待') || text.includes('核查') || text.includes('整改') || text.includes('观察') || text.includes('校验') ? 'warning' : 'info'
+  const tone = text.includes('已发布') || text.includes('已关闭') || text.includes('已解除') || text.includes('启用') || text.includes('完整') || text.includes('已完成') || text.includes('成功') ? 'success' : text.includes('异常') || text.includes('失败') || text.includes('逾期') || text.includes('重大') ? 'danger' : text.includes('待') || text.includes('核查') || text.includes('整改') || text.includes('观察') || text.includes('校验') ? 'warning' : 'info'
   return <span className={`tag ${tone}`}>{children}</span>
+}
+
+export function ListStatus({ children }: { children: ReactNode }) {
+  const text = String(children)
+  const tone = text.includes('异常') || text.includes('失败')
+    ? 'danger'
+    : text.includes('待') || text.includes('草稿') || text.includes('未测试')
+      ? 'warning'
+      : text.includes('启用') || text.includes('已发布') || text.includes('正常') || text.includes('成功')
+        ? 'success'
+        : 'neutral'
+  return <span className={`list-status ${tone}`}><i/>{children}</span>
+}
+
+export function ListToolbar({ keyword, placeholder, onKeywordChange, onSearch, onRefresh, primaryAction }: {
+  keyword: string
+  placeholder: string
+  onKeywordChange: (value: string) => void
+  onSearch?: () => void
+  onRefresh?: () => void
+  primaryAction?: ReactNode
+}) {
+  return <div className="list-toolbar">
+    <div className="list-toolbar-left">
+      <div className="list-search">
+        <input value={keyword} onChange={(event) => onKeywordChange(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') onSearch?.() }} placeholder={placeholder}/>
+        <button type="button" aria-label="搜索" title="搜索" onClick={onSearch}><Icon name="search" size={16}/></button>
+      </div>
+      {onRefresh && <button type="button" className="list-refresh" aria-label="刷新" title="刷新" onClick={onRefresh}><Icon name="refresh" size={16}/></button>}
+    </div>
+    {primaryAction && <div className="list-toolbar-primary">{primaryAction}</div>}
+  </div>
+}
+
+export function ListPagination({ total, page, pageSize, onChange }: {
+  total: number
+  page: number
+  pageSize: number
+  onChange: (page: number, pageSize: number) => void
+}) {
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const visiblePages = Array.from({ length: pageCount }, (_, index) => index + 1).filter((item) => pageCount <= 7 || item === 1 || item === pageCount || Math.abs(item - page) <= 1)
+  return <div className="list-pagination">
+    <span>共 {total} 条</span>
+    <div className="list-pagination-controls">
+      <button type="button" aria-label="上一页" disabled={page <= 1} onClick={() => onChange(page - 1, pageSize)}>‹</button>
+      {visiblePages.map((item, index) => <span className="pagination-page-wrap" key={item}>{index > 0 && item - visiblePages[index - 1] > 1 && <i>…</i>}<button type="button" className={item === page ? 'active' : ''} onClick={() => onChange(item, pageSize)}>{item}</button></span>)}
+      <button type="button" aria-label="下一页" disabled={page >= pageCount} onClick={() => onChange(page + 1, pageSize)}>›</button>
+      <select aria-label="每页条数" value={pageSize} onChange={(event) => onChange(1, Number(event.target.value))}><option value={10}>10 条/页</option><option value={20}>20 条/页</option><option value={50}>50 条/页</option></select>
+    </div>
+  </div>
 }
 
 export function StatCard({ label, value, helper, tone = 'blue', icon, active, onClick }: { label: string; value: string | number; helper: string; tone?: 'blue' | 'purple' | 'red' | 'orange' | 'green'; icon?: IconName; active?: boolean; onClick?: () => void }) {
@@ -87,7 +139,7 @@ export function Modal({ open, title, description, children, confirmText = '确�
 }
 
 export function Drawer({ open, title, eyebrow = '详情', children, onClose, footer, modal = true, className = '' }: { open: boolean; title: string; eyebrow?: string; children: ReactNode; onClose: () => void; footer?: ReactNode; modal?: boolean; className?: string }) {
-  return <>{modal && <div className={`drawer-mask ${open ? 'show' : ''}`} onClick={onClose}/>}<aside className={`drawer ${className} ${open ? 'show' : ''}`}><header><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div><button className="icon-button" onClick={onClose}><Icon name="close"/></button></header><div className="drawer-content">{children}</div>{footer && <footer>{footer}</footer>}</aside></>
+  return <>{modal && <div className={`drawer-mask ${open ? 'show' : ''}`} onClick={onClose}/>}<aside className={`drawer ${className} ${open ? 'show' : ''}`} aria-hidden={!open} inert={!open}><header><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div><button className="icon-button" onClick={onClose}><Icon name="close"/></button></header><div className="drawer-content">{children}</div>{footer && <footer>{footer}</footer>}</aside></>
 }
 
 export function KeyValue({ items }: { items: { label: string; value: ReactNode }[] }) {

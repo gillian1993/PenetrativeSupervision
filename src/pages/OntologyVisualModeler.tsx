@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react'
-import { type OntologyElement, type OntologyElementType, type OntologyValidation } from '../ontologyLocalStore'
+import { type OntologyElement, type OntologyElementType } from '../ontologyLocalStore'
 import { Button, EmptyState, Icon } from '../ui'
 import '../ontologyVisualModeler.css'
 
@@ -12,7 +12,6 @@ interface VisualModelerProps {
   ontologyId: string
   status: string
   elements: OntologyElement[]
-  validation?: OntologyValidation
   onCreate: (type: OntologyElementType, position?: CanvasPosition, defaults?: CreateDefaults) => void
   onEdit: (type: OntologyElementType, element: OntologyElement) => void
 }
@@ -107,8 +106,8 @@ function buildLayout(mode: Exclude<LayoutMode, 'free'>, nodes: OntologyElement[]
   return smartLayout(nodes, relations)
 }
 
-export function OntologyVisualModeler({ ontologyId, status, elements, validation, onCreate, onEdit }: VisualModelerProps) {
-  const readonly = status === '已发布' || status === '已下架' || status === '已删除'
+export function OntologyVisualModeler({ ontologyId, status, elements, onCreate, onEdit }: VisualModelerProps) {
+  const readonly = status !== '草稿'
   const nodes = useMemo(() => elements.filter((item) => item.type === 'class'), [elements])
   const relations = useMemo(() => elements.filter((item) => item.type === 'relation'), [elements])
   const properties = useMemo(() => elements.filter((item) => item.type === 'property'), [elements])
@@ -153,7 +152,6 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
   const selectedNode = nodes.find((item) => item.code === selectedCode)
   const selectedProperties = selected?.type === 'class' ? properties.filter((item) => item.ownerCode === selected.code) : []
   const selectedRelations = selected?.type === 'class' ? relations.filter((item) => item.ownerCode === selected.code || item.targetCode === selected.code) : []
-  const unlinkedRelations = relations.filter((item) => !item.ownerCode || !item.targetCode).length
   const arrowId = `ontology-arrow-${ontologyId.replace(/[^a-zA-Z0-9]/g, '')}`
   const classCount = nodes.length
 
@@ -172,7 +170,7 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
   }, [selected, relations, nodes])
 
   const disabledReason = (type: OntologyElementType) => {
-    if (readonly) return '当前版本只读，请先复制新版本'
+    if (readonly) return '只有草稿图谱模型可以编辑，请复制为草稿后修改'
     if (type === 'property' && classCount < 1) return '请先新增至少一个实体类型'
     if (type === 'relation' && classCount < 2) return '请先新增至少两个实体类型'
     return ''
@@ -250,13 +248,13 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
 
   return <div className="ontology-modeler">
     <aside className="ontology-model-palette">
-      <header><span>实体类型</span><small>点击或拖入画布</small></header>
-      <div className="ontology-palette-items">{palette.map((item) => {
+      <header><span>实体类型</span>{!readonly && <small>点击或拖入画布</small>}</header>
+      {!readonly && <div className="ontology-palette-items">{palette.map((item) => {
         const reason = disabledReason(item.type)
         return <button type="button" key={item.type} draggable={!reason} disabled={Boolean(reason)} title={reason || undefined} onDragStart={(event) => { event.dataTransfer.setData('application/x-ontology-element', item.type); event.dataTransfer.effectAllowed = 'copy' }} onClick={() => onCreate(item.type)}><Icon name={item.icon}/><span><strong>{item.title}</strong><small>{reason || item.description}</small></span></button>
-      })}</div>
+      })}</div>}
       <div className="ontology-model-summary"><span>模型元素</span><strong>{elements.length}</strong><small>{classCount} 个实体类型 · {properties.length} 个属性字段 · {relations.length} 条关系类型</small></div>
-      {readonly && <div className="ontology-readonly-note"><Icon name="lock"/><span>当前版本只读，画布可查看和调整本机布局；修改语义请先复制新版本。</span></div>}
+      {readonly && <div className="ontology-readonly-note"><Icon name="lock"/><span>当前模型为只读状态，可查看结构并调整本机布局；如需修改，请复制为草稿。</span></div>}
     </aside>
 
     <section className="ontology-canvas-panel">
@@ -280,10 +278,9 @@ export function OntologyVisualModeler({ ontologyId, status, elements, validation
             return <button type="button" title={`${element.name} · ${element.code}`} className={`ontology-canvas-node class ${size > 90 ? 'core' : ''} ${selectedCode === element.code ? 'selected' : ''} ${dimmed ? 'dimmed' : ''}`} style={{ left: position.x, top: position.y, width: size, height: size }} key={element.id} onPointerDown={(event) => startDrag(event, element)} onPointerMove={(event) => moveNode(event, element)} onPointerUp={(event) => stopDrag(event, element)} onClick={() => selectNode(element)}><strong>{element.name}</strong><small>{element.code.split('.').pop()}</small><em>{propertyCount}</em></button>
           })}
           {selectedNode && !readonly && positions[selectedNode.code] && <div className="ontology-node-actions" style={{ left: Math.min(canvasWidth - 138, positions[selectedNode.code].x + nodeSize(selectedNode) + 10), top: positions[selectedNode.code].y + 3 }}><button onClick={() => onEdit(selectedNode.type, selectedNode)}><Icon name="edit" size={13}/>编辑</button><button onClick={() => onCreate('property', undefined, { ownerCode: selectedNode.code })}><Icon name="file" size={13}/>属性字段</button><button disabled={classCount < 2} title={disabledReason('relation') || undefined} onClick={() => onCreate('relation', undefined, { ownerCode: selectedNode.code })}><Icon name="link" size={13}/>关系类型</button></div>}
-          {!nodes.length && <div className="ontology-canvas-empty"><EmptyState title="画布中还没有实体类型" description={readonly ? '当前版本没有可展示的实体类型。' : '从左侧拖入实体类型开始建模。'}/></div>}
+          {!nodes.length && <div className="ontology-canvas-empty"><EmptyState title="画布中还没有实体类型" description={readonly ? '当前图谱模型没有可展示的实体类型。' : '从左侧拖入实体类型开始建模。'}/></div>}
         </div>
       </div>
-      <footer className="ontology-validation-bar"><div><Icon name={(validation?.blockers.length || unlinkedRelations) ? 'warning' : 'check'}/><span>模型校验</span><strong>{validation?.blockers.length || 0} 个阻断</strong><strong>{validation?.warnings.length || 0} 个提示</strong>{unlinkedRelations > 0 && <strong>{unlinkedRelations} 条关系未连接</strong>}</div><small>{layoutMode === 'free' ? '自由布局已保存到本机' : `当前：${layoutMode === 'smart' ? '智能分组' : layoutMode === 'ring' ? '环形布局' : '层级布局'}`} · 不改变图谱结构语义</small></footer>
     </section>
 
     <aside className="ontology-inspector">

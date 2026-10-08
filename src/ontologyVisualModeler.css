@@ -63,11 +63,6 @@
 .ontology-node-actions button:hover { background: #edf4ff; color: #176dff; }
 .ontology-node-actions button:disabled { color: #98a2b3; background: transparent; }
 .ontology-canvas-empty { width: 420px; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); }
-.ontology-validation-bar { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 13px; border-top: 1px solid #e7edf5; background: #fff; }
-.ontology-validation-bar > div { display: flex; align-items: center; gap: 8px; color: #596579; font-size: 11px; }
-.ontology-validation-bar > div span { color: #344054; font-weight: 900; }
-.ontology-validation-bar > div strong { padding: 3px 7px; border-radius: 99px; background: #f2f4f7; font-size: 10px; }
-.ontology-validation-bar small { color: #8491a5; font-size: 10px; text-align: right; }
 .ontology-inspector { overflow: auto; }
 .inspector-identity { display: flex; align-items: center; gap: 9px; margin: 14px 0; padding: 11px; border: 1px solid #dbe5f1; border-radius: 9px; background: #f8fbff; }
 .inspector-identity.event { background: #faf7ff; }

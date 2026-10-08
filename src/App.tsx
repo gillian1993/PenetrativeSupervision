@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
-import { AuditPage, DataSourceCreatePage, DataSourceDetailPage, GraphManagementPage, ModelManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
+import { AuditPage, DataSourceCreatePage, DataSourceDetailPage, GraphManagementPage, GraphResultDetailPage, ModelManagementPage, RolesPage, UsersPage } from './pages/ManagementStatePages'
 import { ProcurementHomePage, ProcurementModulePage, ProcurementOverviewPage } from './pages/ProcurementApplicationPages'
 import { SuperAgentPage } from './pages/SuperAgentPage'
 import { GraphCreatePage } from './pages/GraphCreateWizard'
@@ -19,6 +19,7 @@ import { createReturnState, locationPath } from './navigation'
 interface NavChild { label: string; path: string; permission: PermissionCode }
 interface NavItem { id: string; label: string; icon: IconName; permission?: PermissionCode; path?: string; children?: NavChild[] }
 interface NavSection { id: string; title: string; items: NavItem[] }
+interface RailNavItem { id: string; label: string; icon: IconName; path?: string; permission?: PermissionCode; sectionId?: string }
 
 const platformTabs = ['情报舆情分析应用', '全模态数据智能平台', '应用开发平台', '模型开发平台', '多模态视觉平台', '本体构建与运营平台', '基础管控平台', '战场情报快判AI系统', '国军标智能编审应用', '采购管理应用', '业务系统公共模块'] as const
 const currentPlatformTab = '采购管理应用'
@@ -34,31 +35,41 @@ const navSections: NavSection[] = [
   },
   {
     id: 'procurement',
-    title: '采购应用',
+    title: '采购',
     items: [
-      { id: 'procurementOverview', label: '采购应用总览', icon: 'agent', path: '/procurement', permission: 'menu.procurement.overview' },
-      { id: 'tender', label: '招投标', icon: 'file', permission: 'menu.procurement.tender', children: [
-        { label: '招投标书撰写', path: '/procurement/tender/bid-writing', permission: 'menu.procurement.tender' },
-        { label: '供应商资格审查', path: '/procurement/tender/qualification', permission: 'menu.procurement.tender' },
-        { label: '围串标识别', path: '/procurement/tender/collusion', permission: 'menu.procurement.tender' },
-        { label: '智能评标', path: '/procurement/tender/evaluation', permission: 'menu.procurement.tender' },
-      ] },
-      { id: 'contract', label: '合同', icon: 'file', permission: 'menu.procurement.contract', children: [
-        { label: '合同撰写', path: '/procurement/contract/writing', permission: 'menu.procurement.contract' },
-        { label: '合同抽取', path: '/procurement/contract/extraction', permission: 'menu.procurement.contract' },
-        { label: '合同归档', path: '/procurement/contract/archive', permission: 'menu.procurement.contract' },
-        { label: '合同对比', path: '/procurement/contract/compare', permission: 'menu.procurement.contract' },
-        { label: '智能审查', path: '/procurement/contract/review', permission: 'menu.procurement.contract' },
-      ] },
-      { id: 'review', label: '审查', icon: 'check', permission: 'menu.procurement.review', children: [
-        { label: '文档审查', path: '/procurement/review/document', permission: 'menu.procurement.review' },
-        { label: '单据审查', path: '/procurement/review/receipt', permission: 'menu.procurement.review' },
-      ] },
-      { id: 'purchase', label: '采购', icon: 'workbench', permission: 'menu.procurement.purchase', children: [
-        { label: '采购方案撰写', path: '/procurement/purchase/plan', permission: 'menu.procurement.purchase' },
-        { label: '智能预算', path: '/procurement/purchase/budget', permission: 'menu.procurement.purchase' },
-        { label: '采购单撰写', path: '/procurement/purchase/order', permission: 'menu.procurement.purchase' },
-      ] },
+      { id: 'procurementOverview', label: '采购总览', icon: 'home', path: '/procurement', permission: 'menu.procurement.overview' },
+      { id: 'purchasePlan', label: '采购方案撰写', icon: 'edit', path: '/procurement/purchase/plan', permission: 'menu.procurement.purchase' },
+      { id: 'purchaseBudget', label: '智能预算', icon: 'workbench', path: '/procurement/purchase/budget', permission: 'menu.procurement.purchase' },
+      { id: 'purchaseOrder', label: '采购单撰写', icon: 'file', path: '/procurement/purchase/order', permission: 'menu.procurement.purchase' },
+    ],
+  },
+  {
+    id: 'tender',
+    title: '招投标',
+    items: [
+      { id: 'bidWriting', label: '招投标书撰写', icon: 'edit', path: '/procurement/tender/bid-writing', permission: 'menu.procurement.tender' },
+      { id: 'qualification', label: '供应商资格审查', icon: 'user', path: '/procurement/tender/qualification', permission: 'menu.procurement.tender' },
+      { id: 'collusion', label: '围串标识别', icon: 'graph', path: '/procurement/tender/collusion', permission: 'menu.procurement.tender' },
+      { id: 'evaluation', label: '智能评标', icon: 'check', path: '/procurement/tender/evaluation', permission: 'menu.procurement.tender' },
+    ],
+  },
+  {
+    id: 'contract',
+    title: '合同',
+    items: [
+      { id: 'contractWriting', label: '合同撰写', icon: 'edit', path: '/procurement/contract/writing', permission: 'menu.procurement.contract' },
+      { id: 'contractExtraction', label: '合同抽取', icon: 'file', path: '/procurement/contract/extraction', permission: 'menu.procurement.contract' },
+      { id: 'contractArchive', label: '合同归档', icon: 'audit', path: '/procurement/contract/archive', permission: 'menu.procurement.contract' },
+      { id: 'contractCompare', label: '合同对比', icon: 'copy', path: '/procurement/contract/compare', permission: 'menu.procurement.contract' },
+      { id: 'contractReview', label: '智能审查', icon: 'check', path: '/procurement/contract/review', permission: 'menu.procurement.contract' },
+    ],
+  },
+  {
+    id: 'review',
+    title: '审查',
+    items: [
+      { id: 'documentReview', label: '文档审查', icon: 'file', path: '/procurement/review/document', permission: 'menu.procurement.review' },
+      { id: 'receiptReview', label: '单据审查', icon: 'audit', path: '/procurement/review/receipt', permission: 'menu.procurement.review' },
     ],
   },
   {
@@ -74,15 +85,12 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    id: 'ability',
-    title: '能力中心',
+    id: 'knowledgeGraph',
+    title: '知识图谱',
     items: [
-      { id: 'abilityModels', label: '模型管理', icon: 'agent', path: '/system/models', permission: 'menu.system.models' },
-      { id: 'ruleManagement', label: '规则管理', icon: 'rules', path: '/rules', permission: 'menu.supervision.scene.rules' },
-      { id: 'ontology', label: '知识图谱', icon: 'graph', children: [
-        { label: '图谱结构', path: '/graphs/structures', permission: 'menu.supervision.ontology.structures' },
-        { label: '数据源', path: '/graphs/sources', permission: 'menu.supervision.ontology.sources' },
-      ] },
+      { id: 'graphModels', label: '图谱模型', icon: 'graph', path: '/graphs/structures', permission: 'menu.supervision.ontology.structures' },
+      { id: 'graphSources', label: '数据源', icon: 'link', path: '/graphs/sources', permission: 'menu.supervision.ontology.sources' },
+      { id: 'graphResults', label: '知识图谱', icon: 'graph', path: '/graphs/results', permission: 'menu.supervision.ontology.graphs' },
     ],
   },
   {
@@ -94,6 +102,20 @@ const navSections: NavSection[] = [
       { id: 'systemAudit', label: '审计日志', icon: 'audit', path: '/system/audit', permission: 'menu.system.audit' },
     ],
   },
+]
+
+const railNavItems: RailNavItem[] = [
+  { id: 'home', label: '首页', icon: 'home', path: '/home', permission: 'menu.unified.home' },
+  { id: 'superAgent', label: '智能体', icon: 'agent', path: '/super-agent', permission: 'menu.unified.super_agent' },
+  { id: 'procurement', label: '采购', icon: 'workbench', sectionId: 'procurement' },
+  { id: 'tender', label: '招投标', icon: 'rules', sectionId: 'tender' },
+  { id: 'contract', label: '合同', icon: 'file', sectionId: 'contract' },
+  { id: 'review', label: '审查', icon: 'check', sectionId: 'review' },
+  { id: 'supervision', label: '监管', icon: 'situation', sectionId: 'supervision' },
+  { id: 'modelManagement', label: '模型管理', icon: 'agent', path: '/system/models', permission: 'menu.system.models' },
+  { id: 'ruleManagement', label: '规则管理', icon: 'rules', path: '/rules', permission: 'menu.supervision.scene.rules' },
+  { id: 'knowledgeGraph', label: '知识图谱', icon: 'graph', sectionId: 'knowledgeGraph' },
+  { id: 'system', label: '系统', icon: 'system', sectionId: 'system' },
 ]
 
 const filterNavSections = (permissions: Set<string>): NavSection[] => navSections.map((section) => {
@@ -110,8 +132,13 @@ const filterNavSections = (permissions: Set<string>): NavSection[] => navSection
 const firstPathForItem = (item: NavItem) => item.path || item.children?.[0]?.path || '/no-access'
 const firstPathForSection = (section: NavSection) => section.items[0] ? firstPathForItem(section.items[0]) : '/no-access'
 const getFirstAccessiblePath = (permissions: Set<string>) => {
-  const section = filterNavSections(permissions)[0]
-  return section ? firstPathForSection(section) : '/no-access'
+  const sections = filterNavSections(permissions)
+  for (const item of railNavItems) {
+    if (item.permission && item.path && permissions.has(item.permission)) return item.path
+    const section = sections.find((candidate) => candidate.id === item.sectionId)
+    if (section) return firstPathForSection(section)
+  }
+  return '/no-access'
 }
 
 const permissionsForPath = (path: string): PermissionCode[] => {
@@ -130,8 +157,9 @@ const permissionsForPath = (path: string): PermissionCode[] => {
   if (path.startsWith('/scenes')) return ['menu.supervision.scene.rules']
   if (path.startsWith('/rules')) return ['menu.supervision.scene.rules']
 
+  if (path.startsWith('/graphs/results') || path === '/graphs/new' || /^\/graphs\/[^/]+\/edit$/.test(path)) return ['menu.supervision.ontology.graphs']
   if (path.startsWith('/graphs/sources') || path.startsWith('/data-access')) return ['menu.supervision.ontology.sources']
-  if (path === '/graphs') return ['menu.supervision.ontology.structures', 'menu.supervision.ontology.sources']
+  if (path === '/graphs') return ['menu.supervision.ontology.structures', 'menu.supervision.ontology.sources', 'menu.supervision.ontology.graphs']
   if (path.startsWith('/graphs') || path.startsWith('/ontology')) return ['menu.supervision.ontology.structures']
   if (path.startsWith('/system/users')) return ['menu.system.users']
   if (path.startsWith('/system/roles')) return ['menu.system.roles']
@@ -179,7 +207,7 @@ function AppEnhanced() {
   const [searchOpen, setSearchOpen] = useState(false)
   const [scopeOpen, setScopeOpen] = useState(false)
   const [roleOpen, setRoleOpen] = useState(false)
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ tender: true, contract: true, review: true, purchase: true, risk: true, ontology: true, system: true })
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ risk: true })
   const [agentOpen, setAgentOpen] = useState(false)
   const [agentInput, setAgentInput] = useState('')
   const [agentMessages, setAgentMessages] = useState<AgentMessage[]>([])
@@ -217,6 +245,26 @@ function AppEnhanced() {
   const effectivePermissions = useMemo(() => resolveRolePermissionCodes(currentRole, rolePermissions), [currentRole, rolePermissions])
   const visibleNavSections = useMemo(() => filterNavSections(effectivePermissions), [effectivePermissions])
   const firstAccessiblePath = useMemo(() => getFirstAccessiblePath(effectivePermissions), [effectivePermissions])
+  const activeRailId = useMemo(() => {
+    const path = location.pathname
+    if (path === '/home') return 'home'
+    if (path.startsWith('/super-agent')) return 'superAgent'
+    if (path.startsWith('/procurement/tender')) return 'tender'
+    if (path.startsWith('/procurement/contract')) return 'contract'
+    if (path.startsWith('/procurement/review')) return 'review'
+    if (path === '/procurement' || path.startsWith('/procurement/purchase')) return 'procurement'
+    if (path.startsWith('/workbench') || path.startsWith('/situation') || path.startsWith('/risk/')) return 'supervision'
+    if (path.startsWith('/system/models') || path.startsWith('/system/vertical-models')) return 'modelManagement'
+    if (path.startsWith('/rules')) return 'ruleManagement'
+    if (path.startsWith('/graphs') || path.startsWith('/ontology')) return 'knowledgeGraph'
+    if (path.startsWith('/system/')) return 'system'
+    return 'home'
+  }, [location.pathname])
+  const visibleRailItems = useMemo(() => railNavItems.filter((item) => {
+    if (item.permission) return effectivePermissions.has(item.permission)
+    return visibleNavSections.some((section) => section.id === item.sectionId)
+  }), [effectivePermissions, visibleNavSections])
+  const activeRailSection = useMemo(() => visibleNavSections.find((section) => section.id === activeRailId), [activeRailId, visibleNavSections])
 
   useEffect(() => {
     if (location.pathname === '/' || location.pathname === '/no-access') return
@@ -227,9 +275,9 @@ function AppEnhanced() {
     if (path === '/procurement') return location.pathname === '/procurement'
     if (path === '/graphs/structures') return location.pathname.startsWith('/graphs/structures') || location.pathname.startsWith('/ontology') || (location.pathname === '/graphs' && (!location.search || location.search.includes('tab=structures')))
     if (path === '/graphs/sources') return location.pathname.startsWith('/graphs/sources') || location.pathname.startsWith('/data-access') || (location.pathname === '/graphs' && location.search.includes('tab=sources'))
+    if (path === '/graphs/results') return location.pathname.startsWith('/graphs/results') || location.pathname === '/graphs/new' || /^\/graphs\/[^/]+\/edit$/.test(location.pathname) || (location.pathname === '/graphs' && location.search.includes('tab=results'))
     return location.pathname === path || location.pathname.startsWith(`${path}/`)
   }
-  const activeItemId = useMemo(() => visibleNavSections.flatMap((section) => section.items).find((item) => item.path ? isNavItemActive(item.path) : item.children?.some((child) => isNavItemActive(child.path)))?.id, [location.pathname, location.search, visibleNavSections])
   const unread = messages.filter((item) => item.unread).length
   const searchResults = useMemo(() => {
     const keyword = search.trim().toLowerCase()
@@ -256,8 +304,10 @@ function AppEnhanced() {
     if (path === '/risk/events') return { page: '风险事件', guide: '这里管理由预警升级形成的风险事件，并跟踪整改、复核和关闭过程。', next: '建议优先处理逾期和待复核事件，再检查核查整改中的事项。', data: `当前共有${riskEvents.length}个风险事件，其中${riskEvents.filter((item) => item.overdue && item.status !== '已关闭').length}个已逾期。` }
     if (path.startsWith('/rules')) return { page: '规则管理', guide: '这里先按规则库维护规则目录，进入目录后再查看或配置风险规则。', next: '建议先选择规则库，再进入具体规则目录维护规则；规则表达式为必填，制度依据和证据要求按需填写。', data: '规则库承载分类，规则目录承载场景上下文，风险规则从目录继承领域等信息。' }
 
-    if (path.startsWith('/ontology')) return { page: '图谱结构', guide: '这里维护知识图谱中的实体类型、属性字段和关系类型定义。', next: '需要表达带时间属性的事实或事件时，为对应实体类型配置标识、发生时间属性字段及关联对象关系类型。', data: '图谱结构版本会影响规则配置、字段映射和图谱构建，请在发布前确认影响范围。' }
-    if (path.startsWith('/graphs')) return { page: '知识图谱', guide: '这里维护图谱结构、数据源、字段映射和知识图谱发布状态。', next: '建议先确认数据源和图谱结构，再检查映射模板和发布条件。', data: '知识图谱用于证据关联和风险穿透分析，发布后会被后续规则运行引用。' }
+    if (path.startsWith('/ontology')) return { page: '图谱模型', guide: '这里维护实体类型、属性字段和关系类型。', next: '先完成模型结构定义；发布后可在知识图谱生成流程中引用。', data: '图谱模型只定义知识图谱的结构，不直接绑定数据源。' }
+    if (path.startsWith('/graphs/results') || path === '/graphs/new' || /^\/graphs\/[^/]+\/edit$/.test(path)) return { page: '知识图谱', guide: '这里把图谱模型和数据源组合起来，完成映射、生成和展示。', next: '先选择模型和数据源，再在图谱映射中配置实例、属性和关系，最后生成图谱。', data: '知识图谱发布后可被后续规则和监管分析引用。' }
+    if (path.startsWith('/graphs/sources') || path.startsWith('/data-access')) return { page: '数据源', guide: '这里只维护数据接入方式、连接信息和启停状态。', next: '完成连接测试并启用数据源后，在知识图谱生成流程中选择它。', data: '数据源只负责提供可接入的数据，不承载图谱模型或映射配置。' }
+    if (path.startsWith('/graphs')) return { page: '知识图谱', guide: '这里维护图谱模型、数据源和知识图谱三个闭环入口。', next: '通常先维护图谱模型，再接入数据源，最后在知识图谱中配置映射并生成。', data: '知识图谱用于证据关联和风险穿透分析，发布后会被后续规则运行引用。' }
     if (path.startsWith('/system/users')) return { page: '用户与组织', guide: '这里维护用户账号、所属组织、角色和未完成待办。', next: '修改账号状态前应先检查角色、权限和未完成待办是否需要转派。', data: `当前共有${users.length}名用户，操作时将按照当前角色“${currentRole}”校验权限。` }
     if (path.startsWith('/system/roles')) return { page: '角色与权限', guide: '这里维护角色、数据范围、菜单权限和高危操作权限。', next: '建议先确认角色使用人数，再调整权限并检查敏感操作影响。', data: `当前共有${roles.length}个角色，权限调整会影响菜单、数据范围和可执行操作。` }
     if (path.startsWith('/system/models') || path.startsWith('/system/vertical-models')) return { page: '模型管理', guide: '这里统一管理平台预置模型和客户自有模型接入，维护启停、能力标签、适用范围和权限边界。', next: '可以接入自有模型、绑定规则场景、测试模型效果，或停用暂不适用的模型。', data: '模型可作为通用能力，也可以绑定规则场景形成专用研判助手。' }
@@ -345,7 +395,7 @@ function AppEnhanced() {
     }
   }
 
-  return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''} ${superAgentPage ? 'super-agent-embedded-shell' : ''}`} onClick={(event) => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false); const target = event.target as Element; if (agentOpen && !target.closest('.agent-popover') && !target.closest('.agent-fab')) setAgentOpen(false) }}>
+  return <div className={`app-shell ${collapsed ? 'collapsed' : ''} ${!activeRailSection ? 'rail-only' : ''} ${graphWorkspace ? 'graph-workspace-shell' : ''} ${superAgentPage ? 'super-agent-embedded-shell' : ''}`} onClick={(event) => { if (scopeOpen) setScopeOpen(false); if (roleOpen) setRoleOpen(false); const target = event.target as Element; if (agentOpen && !target.closest('.agent-popover') && !target.closest('.agent-fab')) setAgentOpen(false) }}>
     <header className="topbar">
       <button className="brand" onClick={() => navigate(firstAccessiblePath)} aria-label="返回采购管理应用"><img className="brand-logo" src={cloudLogo} alt="中国电子云"/><em/><span>AI平台</span></button>
       <nav className="platform-nav" aria-label="平台切换">{platformTabs.map((tab) => <button key={tab} className={tab === currentPlatformTab ? 'active' : ''} onClick={() => tab === currentPlatformTab ? navigate(firstAccessiblePath) : setToast(`${tab}暂未进入，当前选择采购管理应用`)}>{tab}</button>)}</nav>
@@ -356,14 +406,29 @@ function AppEnhanced() {
       </div>
     </header>
     <aside className="sidebar">
-      <div className="scope-switcher" onClick={(event) => event.stopPropagation()}><div className="sidebar-context"><span className="context-icon"><Icon name="shield"/></span><div><small>当前业务范围</small><strong>{currentScope}</strong></div><button onClick={() => setScopeOpen((value) => !value)}>⌄</button></div>{scopeOpen && <div className="context-menu scope-menu"><header><strong>切换监管范围</strong><span>列表、指标和检索结果同步变化</span></header>{scopeOptions.map((item) => <button key={item} className={currentScope === item ? 'active' : ''} onClick={() => chooseScope(item)}><span>{item}</span>{currentScope === item && <Icon name="check" size={15}/>}</button>)}</div>}</div>
-      <nav className="side-nav">{visibleNavSections.map((section) => <section className="side-nav-section" key={section.id} aria-label={section.title}><h3 className="side-nav-title">{section.title}</h3>{section.items.map((item) => {
-        const isActive = activeItemId === item.id
-        if (item.path && !item.children) return <button key={item.id} className={`nav-main ${isActive ? 'active' : ''}`} title={item.label} onClick={() => navigate(item.path!)}><Icon name={item.icon}/><span>{item.label}</span></button>
-        const isOpen = openGroups[item.id]
-        return <div key={item.id} className={`nav-group ${isActive ? 'active' : ''} ${isOpen ? 'open' : ''}`}><button className="nav-main" title={item.label} onClick={() => setOpenGroups((value) => ({ ...value, [item.id]: !value[item.id] }))}><Icon name={item.icon}/><span>{item.label}</span><i><Icon name="chevron" size={14}/></i></button><div className="nav-children">{item.children!.map((child) => <button key={child.path} className={isNavItemActive(child.path) ? 'active' : ''} onClick={() => navigate(child.path)}><span>{child.label}</span></button>)}</div></div>
-      })}</section>)}</nav>
-      <div className="sidebar-footer"><button onClick={() => setCollapsed((value) => !value)}><Icon name="menu"/><span>{collapsed ? '展开导航' : '收起导航'}</span></button><button onClick={() => setResetWorkflowOpen(true)}><Icon name="refresh"/><span>重置演示工作流</span></button></div>
+      <div className="scope-switcher" onClick={(event) => event.stopPropagation()}><div className="sidebar-context"><span className="context-icon"><Icon name="shield"/></span><div><small>当前业务范围</small><strong>{currentScope}</strong></div><button aria-label="切换业务范围" onClick={() => setScopeOpen((value) => !value)}>⌄</button></div>{scopeOpen && <div className="context-menu scope-menu"><header><strong>切换监管范围</strong><span>列表、指标和检索结果同步变化</span></header>{scopeOptions.map((item) => <button key={item} className={currentScope === item ? 'active' : ''} onClick={() => chooseScope(item)}><span>{item}</span>{currentScope === item && <Icon name="check" size={15}/>}</button>)}</div>}</div>
+      <div className="sidebar-main">
+        <nav className="side-rail" aria-label="一级导航">
+          <div className="side-rail-items">{visibleRailItems.map((item) => {
+            const section = item.sectionId ? visibleNavSections.find((candidate) => candidate.id === item.sectionId) : undefined
+            const targetPath = item.path || (section?.items[0] ? firstPathForItem(section.items[0]) : '/no-access')
+            return <button key={item.id} type="button" className={`side-rail-item ${activeRailId === item.id ? 'active' : ''}`} title={item.label} onClick={() => navigate(targetPath)}><Icon name={item.icon} size={20}/><span>{item.label}</span></button>
+          })}</div>
+          <div className="side-rail-footer">
+            <button type="button" className="side-rail-utility" title="重置演示工作流" aria-label="重置演示工作流" onClick={() => setResetWorkflowOpen(true)}><Icon name="refresh" size={18}/></button>
+            <button type="button" className="side-rail-utility" title={collapsed ? '展开导航' : '收起导航'} aria-label={collapsed ? '展开导航' : '收起导航'} disabled={!activeRailSection} onClick={() => setCollapsed((value) => !value)}><Icon name="menu" size={18}/></button>
+          </div>
+        </nav>
+        {activeRailSection && <section className="side-secondary" aria-label={`${activeRailSection.title}菜单`}>
+          <header className="side-secondary-header"><strong>{activeRailSection.title}</strong><span>{activeRailSection.items.length} 个模块</span></header>
+          <nav className="side-secondary-nav">{activeRailSection.items.map((item) => {
+            const itemActive = item.path ? isNavItemActive(item.path) : item.children?.some((child) => isNavItemActive(child.path))
+            if (item.path && !item.children) return <button key={item.id} type="button" className={`side-secondary-leaf ${itemActive ? 'active' : ''}`} onClick={() => navigate(item.path!)}><Icon name={item.icon} size={18}/><span>{item.label}</span></button>
+            const isOpen = openGroups[item.id] ?? true
+            return <div key={item.id} className={`side-secondary-group ${itemActive ? 'active' : ''} ${isOpen ? 'open' : ''}`}><button type="button" className="side-secondary-group-trigger" onClick={() => setOpenGroups((value) => ({ ...value, [item.id]: !value[item.id] }))}><Icon name={item.icon} size={18}/><span>{item.label}</span><i><Icon name="chevron" size={14}/></i></button>{isOpen && <div className="side-secondary-children">{item.children!.map((child) => <button type="button" key={child.path} className={isNavItemActive(child.path) ? 'active' : ''} onClick={() => navigate(child.path)}>{child.label}</button>)}</div>}</div>
+          })}</nav>
+        </section>}
+      </div>
     </aside>
     <main className="main-content"><div className="content-inner"><Routes>
       <Route path="/" element={<Navigate to={firstAccessiblePath} replace/>}/>
@@ -397,6 +462,9 @@ function AppEnhanced() {
       <Route path="/graphs/structures/new" element={<OntologyCreatePage/>}/>
       <Route path="/graphs/sources" element={<GraphManagementPage/>}/>
       <Route path="/graphs/sources/new" element={<DataSourceCreatePage/>}/>
+      <Route path="/graphs/sources/:id/edit" element={<DataSourceCreatePage/>}/>
+      <Route path="/graphs/results" element={<GraphManagementPage/>}/>
+      <Route path="/graphs/results/:id" element={<GraphResultDetailPage/>}/>
       <Route path="/graphs/new" element={<GraphCreatePage/>}/>
       <Route path="/graphs/:id/edit" element={<GraphCreatePage/>}/>
       <Route path="/graphs/sources/:id" element={<DataSourceDetailPage/>}/>

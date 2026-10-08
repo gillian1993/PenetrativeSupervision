@@ -19,13 +19,14 @@ interface OntologyState {
   updateOntology: (id: string, patch: OntologyUpdatePayload) => Promise<Result>
   deleteOntology: (id: string) => Promise<Result>
   copyOntology: (id: string) => Promise<Result>
-  publishOntology: (id: string) => Promise<Result>
-  activateOntology: (id: string) => Promise<Result>
-  retireOntology: (id: string) => Promise<Result>
-  validateOntology: (id: string) => Promise<Result>
+  enableOntology: (id: string) => Promise<Result>
+  disableOntology: (id: string) => Promise<Result>
   addElement: (id: string, payload: OntologyElementPayload) => Promise<Result>
   updateElement: (id: string, elementId: string, payload: Partial<OntologyElementPayload>) => Promise<Result>
   deleteElement: (id: string, elementId: string) => Promise<Result>
+  createGroup: (id: string, name: string) => Promise<Result>
+  renameGroup: (id: string, currentName: string, name: string) => Promise<Result>
+  deleteGroup: (id: string, name: string) => Promise<Result>
   resetOntologies: () => void
 }
 
@@ -82,43 +83,25 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
     try {
       const ontology = await ontologyApi.copy(id)
       set((state) => ({ ontologies: [ontology, ...state.ontologies] }))
-      return { ok: true, message: '图谱结构新版本已复制到MySQL，当前待发布', objectId: ontology.id }
+      return { ok: true, message: '已复制为草稿，可继续编辑模型结构', objectId: ontology.id }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }
   },
-  publishOntology: async (id) => {
+  enableOntology: async (id) => {
     try {
-      const ontology = await ontologyApi.publish(id)
+      const ontology = await ontologyApi.enable(id)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
-      return { ok: true, message: '图谱结构版本已发布并写入MySQL' }
+      return { ok: true, message: '图谱模型已启用' }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }
   },
-  activateOntology: async (id) => {
+  disableOntology: async (id) => {
     try {
-      const ontology = await ontologyApi.activate(id)
+      const ontology = await ontologyApi.disable(id)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
-      return { ok: true, message: '图谱结构已重新上架并恢复业务引用' }
-    } catch (error) {
-      return { ok: false, message: errorMessage(error) }
-    }
-  },
-  retireOntology: async (id) => {
-    try {
-      const ontology = await ontologyApi.retire(id)
-      set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
-      return { ok: true, message: '图谱结构已下架，不再允许新业务引用' }
-    } catch (error) {
-      return { ok: false, message: errorMessage(error) }
-    }
-  },
-  validateOntology: async (id) => {
-    try {
-      const result = await ontologyApi.validate(id)
-      set((state) => ({ ontologies: replaceOntology(state.ontologies, result.ontology) }))
-      return { ok: result.validation.blockers.length === 0, message: result.validation.blockers.length ? `图谱结构校验发现${result.validation.blockers.length}个阻断项` : '图谱结构校验通过，当前仍为草稿，可确认发布' }
+      return { ok: true, message: '图谱模型已停用，不再允许新业务引用' }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }
@@ -147,6 +130,33 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
       const ontology = await ontologyApi.deleteElement(id, elementId)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
       return { ok: true, message: `${element?.name || '结构定义项'}已从MySQL删除` }
+    } catch (error) {
+      return { ok: false, message: errorMessage(error) }
+    }
+  },
+  createGroup: async (id, name) => {
+    try {
+      const ontology = await ontologyApi.createGroup(id, name)
+      set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
+      return { ok: true, message: `分组“${name.trim()}”已创建` }
+    } catch (error) {
+      return { ok: false, message: errorMessage(error) }
+    }
+  },
+  renameGroup: async (id, currentName, name) => {
+    try {
+      const ontology = await ontologyApi.renameGroup(id, currentName, name)
+      set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
+      return { ok: true, message: `分组已重命名为“${name.trim()}”` }
+    } catch (error) {
+      return { ok: false, message: errorMessage(error) }
+    }
+  },
+  deleteGroup: async (id, name) => {
+    try {
+      const ontology = await ontologyApi.deleteGroup(id, name)
+      set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
+      return { ok: true, message: `分组“${name}”已删除` }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }

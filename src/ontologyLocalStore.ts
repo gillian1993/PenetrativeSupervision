@@ -10,6 +10,7 @@ export interface OntologyElement {
   type: OntologyElementType
   code: string
   name: string
+  groupName?: string
   ownerCode?: string
   targetCode?: string
   dataType: string
@@ -27,6 +28,7 @@ export interface OntologyValidation { blockers: OntologyValidationIssue[]; warni
 export interface OntologyRecord extends OntologyItem {
   description: string
   elements: OntologyElement[]
+  groups?: string[]
   sourceVersionId?: string
   validation?: OntologyValidation
   publishedAt?: string
@@ -43,7 +45,7 @@ interface OntologyState {
   createOntology: (payload: { id: string; name: string; scope: string; domain: string; description: string }) => Result
   updateOntology: (id: string, patch: Partial<Pick<OntologyRecord, 'name' | 'scope' | 'domain' | 'description'>>) => Result
   copyOntology: (id: string) => Result
-  publishOntology: (id: string) => Result
+  enableOntology: (id: string) => Result
   addElement: (id: string, payload: Omit<OntologyElement, 'id'>) => Result
   deleteElement: (id: string, elementId: string) => Result
   resetOntologies: () => void
@@ -63,8 +65,15 @@ const descriptions: Record<string, string> = {
   'ONT-FIN': '覆盖付款、账户、资金流水、融资和担保关系。',
 }
 
+const normalizeLocalOntologyStatus = (status: OntologyItem['status']): OntologyItem['status'] => {
+  if (status === '已启用' || status === '已发布') return '启用'
+  if (status === '已停用' || status === '已下架') return '停用'
+  return status
+}
+
 const createInitial = (): OntologyRecord[] => initialOntologyItems.map((item) => ({
   ...item,
+  status: normalizeLocalOntologyStatus(item.status),
   description: descriptions[item.id] || '',
   elements: item.id === 'ONT-PROC' ? sampleElements : [],
 }))
@@ -104,7 +113,7 @@ export const useOntologyStore = create<OntologyState>()(
           name: payload.name.trim(),
           scope: payload.scope,
           domain: payload.domain,
-          version: '待发布',
+          version: '待启用',
           classes: 0,
           properties: 0,
           relations: 0,
@@ -120,7 +129,7 @@ export const useOntologyStore = create<OntologyState>()(
       updateOntology: (id, patch) => {
         const item = get().ontologies.find((row) => row.id === id)
         if (!item) return { ok: false, message: '图谱结构不存在' }
-        if (item.status === '已发布' || item.status === '已下架') return { ok: false, message: `${item.status}图谱结构不可直接修改，请复制新版本` }
+        if (item.status === '停用' || item.status === '已删除') return { ok: false, message: `${item.status}图谱模型不可直接修改，请先启用` }
         if (patch.name !== undefined && !patch.name.trim()) return { ok: false, message: '结构名称不能为空' }
         set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, ...patch, updatedAt: '刚刚' } : row) }))
         return { ok: true, message: '图谱结构草稿已保存' }
@@ -129,21 +138,21 @@ export const useOntologyStore = create<OntologyState>()(
         const item = get().ontologies.find((row) => row.id === id)
         if (!item) return { ok: false, message: '图谱结构不存在' }
         const objectId = `${id.replace(/-DRAFT-[A-Z0-9]+$/, '')}-DRAFT-${Date.now().toString(36).toUpperCase()}`
-        const next: OntologyRecord = { ...item, id: objectId, version: '待发布', sourceVersionId: id, status: '草稿', updatedAt: '刚刚', elements: item.elements.map((element) => ({ ...element, id: `${element.id}-${Date.now().toString(36)}` })) }
+        const next: OntologyRecord = { ...item, id: objectId, version: '待启用', sourceVersionId: id, status: '草稿', updatedAt: '刚刚', elements: item.elements.map((element) => ({ ...element, id: `${element.id}-${Date.now().toString(36)}` })) }
         set((state) => ({ ontologies: [next, ...state.ontologies] }))
-        return { ok: true, message: '图谱结构新版本已创建，当前待发布', objectId }
+        return { ok: true, message: '图谱结构新版本已创建，当前待启用', objectId }
       },
-      publishOntology: (id) => {
+      enableOntology: (id) => {
         const item = get().ontologies.find((row) => row.id === id)
         if (!item) return { ok: false, message: '图谱结构不存在' }
-        if (item.classes < 1) return { ok: false, message: '图谱结构至少需要一个实体类型才能发布' }
-        set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, version: nextPublishedVersion(state.ontologies, item), status: '已发布', updatedAt: '刚刚' } : row) }))
-        return { ok: true, message: '图谱结构版本已发布' }
+        if (item.classes < 1) return { ok: false, message: '图谱结构至少需要一个实体类型才能启用' }
+        set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, version: nextPublishedVersion(state.ontologies, item), status: '启用', updatedAt: '刚刚' } : row) }))
+        return { ok: true, message: '图谱模型已启用' }
       },
       addElement: (id, payload) => {
         const item = get().ontologies.find((row) => row.id === id)
         if (!item) return { ok: false, message: '图谱结构不存在' }
-        if (item.status === '已发布' || item.status === '已下架') return { ok: false, message: `${item.status}图谱结构不可新增结构定义项` }
+        if (item.status === '停用' || item.status === '已删除') return { ok: false, message: `${item.status}图谱模型不可新增结构定义项` }
         if (!payload.code.trim() || !payload.name.trim()) return { ok: false, message: '结构定义项编码和名称不能为空' }
         if (item.elements.some((element) => element.type === payload.type && element.code === payload.code.trim())) return { ok: false, message: '同类型结构定义项编码已存在' }
         const key = countKey[payload.type]
@@ -154,7 +163,7 @@ export const useOntologyStore = create<OntologyState>()(
       deleteElement: (id, elementId) => {
         const item = get().ontologies.find((row) => row.id === id)
         if (!item) return { ok: false, message: '图谱结构不存在' }
-        if (item.status === '已发布' || item.status === '已下架') return { ok: false, message: `${item.status}图谱结构不可删除结构定义项` }
+        if (item.status === '启用' || item.status === '停用') return { ok: false, message: `${item.status}图谱结构不可删除结构定义项` }
         const element = item.elements.find((row) => row.id === elementId)
         if (!element) return { ok: false, message: '结构定义项不存在' }
         const key = countKey[element.type]
@@ -163,7 +172,20 @@ export const useOntologyStore = create<OntologyState>()(
       },
       resetOntologies: () => set({ ontologies: createInitial() }),
     }),
-    { name: 'penetrative-supervision-ontology-v1' },
+    {
+      name: 'penetrative-supervision-ontology-v1',
+      merge: (persistedState, currentState) => {
+        const stored = persistedState as Partial<OntologyState>
+        return {
+          ...currentState,
+          ...stored,
+          ontologies: (stored.ontologies ?? currentState.ontologies).map((item) => ({
+            ...item,
+            status: normalizeLocalOntologyStatus(item.status),
+          })),
+        }
+      },
+    },
   ),
 )
 

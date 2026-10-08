@@ -474,9 +474,9 @@ export const useAppStore = create<AppState>()(
           return { ok: true, message: '图谱结构新草稿版本已创建', objectId: next.id }
         },
         publishOntology: (id) => {
-          set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, status: '已发布', updatedAt: '刚刚' } : row) }))
-          appendAudit({ operator: '陈洁', organization: '数据管理部', action: '发布图谱结构版本', objectType: '图谱结构', objectId: id, summary: '类、属性、关系和事件校验通过', result: '成功', risk: '高危' })
-          return { ok: true, message: '图谱结构版本已发布' }
+          set((state) => ({ ontologies: state.ontologies.map((row) => row.id === id ? { ...row, status: '启用', updatedAt: '刚刚' } : row) }))
+          appendAudit({ operator: '陈洁', organization: '数据管理部', action: '启用图谱结构版本', objectType: '图谱结构', objectId: id, summary: '类、属性、关系和事件校验通过', result: '成功', risk: '高危' })
+          return { ok: true, message: '图谱结构版本已启用' }
         },
         createDataSource: (payload) => {
           const id = `SRC-${String(get().dataSources.length + 1).padStart(3, '0')}`

@@ -19,6 +19,8 @@ outputs/
 .codex_ppt_build/
 .codex_tmp/
 .codex_artifacts/
+.codex_ppt_assets/
+*.inspect.ndjson
 .super-agent-data/
 
 # local agent/tool state
