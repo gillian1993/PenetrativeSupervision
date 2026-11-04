@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { useOntologyStore, type OntologyElement, type OntologyElementType } from '../ontologyMysqlStore'
+import { useOntologyStore, type OntologyElement, type OntologyElementType, type OntologyRecord } from '../ontologyMysqlStore'
+import { useUnsavedOntologyChanges } from '../useUnsavedOntologyChanges'
 import { useAppStore } from '../store'
 import { Button, Drawer, EmptyState, Field, Icon, ListPagination, ListStatus, ListToolbar, Modal, PageHeader, Panel, StatusTag, Tabs } from '../ui'
 import { OntologyVisualModeler, saveOntologyLayoutPosition, type CanvasPosition } from './OntologyVisualModeler'
@@ -196,26 +197,27 @@ export function OntologyEditorPage() {
   const requestedTab = searchParams.get('tab') || 'basic'
   const normalizedRequestedTab = ['basic','structure'].includes(requestedTab) ? requestedTab : ['class','property','relation'].includes(requestedTab) ? 'structure' : 'basic'
   const creatingFlow = searchParams.get('flow') === 'create'
-  const item = useOntologyStore((state) => state.ontologies.find((row) => row.id === id))
-  const updateOntology = useOntologyStore((state) => state.updateOntology)
+  const savedItem = useOntologyStore((state) => state.ontologies.find((row) => row.id === id))
+  const saveDraft = useOntologyStore((state) => state.saveDraft)
   const copyOntology = useOntologyStore((state) => state.copyOntology)
   const deleteOntology = useOntologyStore((state) => state.deleteOntology)
-  const addElement = useOntologyStore((state) => state.addElement)
-  const deleteElement = useOntologyStore((state) => state.deleteElement)
-  const createGroup = useOntologyStore((state) => state.createGroup)
-  const renameGroup = useOntologyStore((state) => state.renameGroup)
-  const deleteGroup = useOntologyStore((state) => state.deleteGroup)
   const addAudit = useAppStore((state) => state.addAudit)
   const setToast = useAppStore((state) => state.setToast)
   const [tab, setTab] = useState(normalizedRequestedTab)
   const [editorMode, setEditorMode] = useState<OntologyEditorMode>('structured')
   const [draft, setDraft] = useState({ name: '', scope: '领域图谱模型', domain: '采购', description: '' })
+  const [structureDraft, setStructureDraft] = useState<OntologyRecord | null>(null)
+  const baseline = useRef<OntologyRecord | null>(null)
+  const [saving, setSaving] = useState(false)
+  const savingRef = useRef(false)
+  const item = savedItem && structureDraft?.id === savedItem.id ? { ...structureDraft, status: savedItem.status, updatedAt: savedItem.updatedAt } : savedItem
   const [elementOpen, setElementOpen] = useState(false)
   const [elementForm, setElementForm] = useState(elementInitial)
+  const elementFormBaseline = useRef(elementInitial)
   const [deleteTarget, setDeleteTarget] = useState<OntologyElement | null>(null)
-  const updateElement = useOntologyStore((state) => state.updateElement)
   const [cancelCreateOpen, setCancelCreateOpen] = useState(false)
   const [discardChangesOpen, setDiscardChangesOpen] = useState(false)
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [cancelingCreate, setCancelingCreate] = useState(false)
   const [copying, setCopying] = useState(false)
   const [editTarget, setEditTarget] = useState<OntologyElement | null>(null)
@@ -233,6 +235,15 @@ export function OntologyEditorPage() {
   const [entityKeyword, setEntityKeyword] = useState('')
   const [structureKeyword, setStructureKeyword] = useState('')
   const [elementFilter, setElementFilter] = useState<StructureElementFilter>('属性字段')
+  const basicInfoDirty = Boolean(item && baseline.current && (draft.name !== productText(baseline.current.name) || draft.domain !== baseline.current.domain || draft.description !== productText(baseline.current.description)))
+  const structureDirty = Boolean(item && baseline.current && (JSON.stringify(item.elements) !== JSON.stringify(baseline.current.elements) || JSON.stringify(item.groups || []) !== JSON.stringify(baseline.current.groups || [])))
+  const hasChanges = basicInfoDirty || structureDirty
+  const drawerDirty = elementOpen && JSON.stringify(elementForm) !== JSON.stringify(elementFormBaseline.current)
+  const groupDialogDirty = groupDialog && groupNameDraft.trim() !== (groupDialog.mode === 'rename' ? groupDialog.currentName : '')
+  const allowNavigation = useUnsavedOntologyChanges(Boolean(item && !isReadonlyOntology(item.status) && (hasChanges || drawerDirty || groupDialogDirty)), saving, (leave) => {
+    setPendingNavigation(() => leave)
+    setDiscardChangesOpen(true)
+  })
   const modeScrollPositions = useRef<Record<OntologyEditorMode, number>>({ structured: 0, visual: 0 })
   const ontologyGroups = useMemo(() => [...new Set([...(item?.groups || []), '未分组'])], [item?.groups])
   const classOptions = useMemo(() => (item?.elements || []).filter((element) => element.type === 'class').sort((a, b) => {
@@ -257,8 +268,13 @@ export function OntologyEditorPage() {
   }, [item?.elements])
 
   useEffect(() => {
-    if (item) setDraft({ name: productText(item.name), scope: productText(item.scope), domain: item.domain, description: productText(item.description) })
-  }, [item?.id])
+    if (!savedItem) return
+    baseline.current = structuredClone(savedItem)
+    setStructureDraft(structuredClone(savedItem))
+    setDraft({ name: productText(savedItem.name), scope: savedItem.scope, domain: savedItem.domain, description: productText(savedItem.description) })
+    setElementOpen(false)
+    setGroupDialog(null)
+  }, [savedItem?.id])
 
   useEffect(() => {
     if (!item) return
@@ -321,8 +337,7 @@ export function OntologyEditorPage() {
   const readonly = isReadonlyOntology(item.status)
   const domainOptions = [...new Set([...ontologyDomainOptions, item.domain])]
   const canCancelCreation = creatingFlow && !readonly
-  const basicInfoDirty = draft.name !== productText(item.name) || draft.domain !== item.domain || draft.description !== productText(item.description)
-  const showEditorFooter = !readonly && ((editorMode === 'structured' && tab === 'basic') || basicInfoDirty || canCancelCreation)
+  const showEditorFooter = !readonly
   const selectedEntity = classOptions.find((element) => element.code === selectedEntityCode)
   const entityName = (code = '') => classOptions.find((option) => option.code === code)?.name || code || '未选择'
   const selectedProperties = selectedEntity ? item.elements.filter((element) => element.type === 'property' && element.ownerCode === selectedEntity.code) : []
@@ -343,11 +358,11 @@ export function OntologyEditorPage() {
   const deleteTargetNotice = deleteBlockedByReferences
     ? `该实体类型已被 ${deleteTargetProperties.length} 个属性字段、${deleteTargetRelations.length} 个关系类型引用，不能直接删除。请先删除或调整这些属性字段和关系类型后再删除实体类型。`
     : deleteTarget?.type === 'class'
-      ? '删除后将从当前图谱模型中移除该实体类型；已经生成的知识图谱不受影响。'
+      ? '保存后将从当前图谱模型中移除该实体类型；已经生成的知识图谱不受影响。'
       : deleteTarget?.type === 'property'
-        ? '删除后将从当前图谱模型中移除该属性字段；已经生成的知识图谱不受影响。'
+        ? '保存后将从当前图谱模型中移除该属性字段；已经生成的知识图谱不受影响。'
         : deleteTarget?.type === 'relation'
-          ? '删除后将从当前图谱模型中移除该关系类型；已经生成的知识图谱不受影响。'
+          ? '保存后将从当前图谱模型中移除该关系类型；已经生成的知识图谱不受影响。'
           : '删除后将从当前图谱模型中移除该结构定义项；已经生成的知识图谱不受影响。'
   const relationSuggestion = (ownerCode: string, targetCode: string, excludeId = '') => {
     if (!ownerCode || !targetCode) return { code: '', name: '' }
@@ -370,10 +385,26 @@ export function OntologyEditorPage() {
   }
 
   const save = async () => {
+    if (savingRef.current || !hasChanges) return
     if (readonly) { setToast('只有草稿图谱模型可以编辑，请复制为草稿后修改'); return }
-    const result = await updateOntology(item.id, draft)
+    if (!baseline.current) return
+    savingRef.current = true
+    setSaving(true)
+    const result = await saveDraft(item.id, { ...draft, elements: item.elements, groups: item.groups || ['未分组'], expected: baseline.current })
+    savingRef.current = false
+    setSaving(false)
     setToast(result.message)
-    if (result.ok) addAudit({ operator: '陈洁', organization: '数据管理部', action: '保存图谱模型', objectType: '图谱模型', objectId: item.id, summary: '更新基本信息', result: '成功', risk: '普通' })
+    if (!result.ok) return
+    const saved = useOntologyStore.getState().ontologies.find((row) => row.id === item.id)!
+    baseline.current = structuredClone(saved)
+    setStructureDraft(structuredClone(saved))
+    setDraft({ name: productText(saved.name), scope: saved.scope, domain: saved.domain, description: productText(saved.description) })
+    addAudit({ operator: '陈洁', organization: '数据管理部', action: '保存图谱模型', objectType: '图谱模型', objectId: item.id, summary: '统一保存基本信息和模型结构', result: '成功', risk: '普通' })
+    if (creatingFlow) {
+      const next = new URLSearchParams(searchParams)
+      next.delete('flow')
+      setSearchParams(next, { replace: true })
+    }
   }
   const copyAsDraft = async () => {
     if (copying) return
@@ -386,13 +417,19 @@ export function OntologyEditorPage() {
     navigate(`/ontology/${result.objectId}`)
   }
   const cancelEditing = () => {
+    if (savingRef.current) return
+    setPendingNavigation(null)
     if (canCancelCreation) setCancelCreateOpen(true)
-    else if (basicInfoDirty) setDiscardChangesOpen(true)
+    else if (hasChanges) setDiscardChangesOpen(true)
     else navigate('/graphs/structures')
   }
   const discardBasicChanges = () => {
+    if (baseline.current) setStructureDraft(structuredClone(baseline.current))
     setDiscardChangesOpen(false)
-    navigate('/graphs/structures')
+    allowNavigation()
+    if (pendingNavigation) pendingNavigation()
+    else navigate('/graphs/structures')
+    setPendingNavigation(null)
   }
   const cancelCreation = async () => {
     if (!canCancelCreation || cancelingCreate) return
@@ -403,6 +440,7 @@ export function OntologyEditorPage() {
     if (!result.ok) return
     addAudit({ operator: '陈洁', organization: '数据管理部', action: '取消新建图谱模型', objectType: '图谱模型', objectId: item.id, summary: productText(item.name), result: '成功', risk: '普通' })
     setCancelCreateOpen(false)
+    allowNavigation()
     navigate('/graphs/structures', { replace: true })
   }
   const closeElementEditor = () => {
@@ -425,14 +463,12 @@ export function OntologyEditorPage() {
     setGroupDialog(mode === 'create' ? { mode } : { mode, currentName })
   }
   const submitGroupDialog = async () => {
-    if (!groupDialog) return
+    if (!groupDialog || readonly || savingRef.current) return
     const name = groupNameDraft.trim()
     if (!name) { setToast('分组名称不能为空'); return }
-    const result = groupDialog.mode === 'create'
-      ? await createGroup(item.id, name)
-      : await renameGroup(item.id, groupDialog.currentName, name)
-    setToast(result.message)
-    if (!result.ok) return
+    if (ontologyGroups.includes(name) && !(groupDialog.mode === 'rename' && groupDialog.currentName === name)) { setToast('实体分组名称不能重复'); return }
+    const currentName = groupDialog.mode === 'rename' ? groupDialog.currentName : ''
+    setStructureDraft({ ...item, groups: groupDialog.mode === 'create' ? [...ontologyGroups, name] : ontologyGroups.map((group) => group === currentName ? name : group), elements: item.elements.map((element) => element.type === 'class' && (element.groupName || '未分组') === currentName ? { ...element, groupName: name } : element) })
     setEntityKeyword('')
     setExpandedEntityGroup(name)
     setSelectedGroupName(name)
@@ -441,11 +477,10 @@ export function OntologyEditorPage() {
     setGroupNameDraft('')
   }
   const removeGroup = async () => {
-    if (!groupDeleteTarget) return
+    if (!groupDeleteTarget || readonly || savingRef.current) return
     const targetName = groupDeleteTarget
-    const result = await deleteGroup(item.id, targetName)
-    setToast(result.message)
-    if (result.ok) {
+    if (targetName !== '未分组') {
+      setStructureDraft({ ...item, groups: ontologyGroups.filter((group) => group !== targetName), elements: item.elements.map((element) => element.type === 'class' && (element.groupName || '未分组') === targetName ? { ...element, groupName: '未分组' } : element) })
       setGroupDeleteTarget('')
       if (selectedGroupName === targetName) {
         setSelectedGroupName('未分组')
@@ -462,7 +497,9 @@ export function OntologyEditorPage() {
     setPendingCanvasPosition(!element && position ? position : null)
     setElementCodeTouched(Boolean(element))
     setElementNameTouched(Boolean(element))
-    setElementForm(element ? { ...elementInitial, ...element, groupName: element.groupName || '未分组', dataType: productText(element.dataType), description: productText(element.description), ownerCode: element.ownerCode || '', targetCode: element.targetCode || '' } : { ...elementInitial, ...defaults, type, code: type === 'property' && ownerCode ? `${ownerCode}.` : type === 'relation' ? suggestion.code : '', name: type === 'relation' ? suggestion.name : '', groupName: type === 'class' ? defaults.groupName || selectedGroupName || currentClass?.groupName || '未分组' : '', ownerCode, targetCode, dataType: type === 'class' ? '实体类型' : type === 'property' ? '文本' : '实体类型 → 实体类型' })
+    const initialForm = element ? { ...elementInitial, ...element, groupName: element.groupName || '未分组', dataType: productText(element.dataType), description: productText(element.description), ownerCode: element.ownerCode || '', targetCode: element.targetCode || '' } : { ...elementInitial, ...defaults, type, code: type === 'property' && ownerCode ? `${ownerCode}.` : type === 'relation' ? suggestion.code : '', name: type === 'relation' ? suggestion.name : '', groupName: type === 'class' ? defaults.groupName || selectedGroupName || currentClass?.groupName || '未分组' : '', ownerCode, targetCode, dataType: type === 'class' ? '实体类型' : type === 'property' ? '文本' : '实体类型 → 实体类型' }
+    elementFormBaseline.current = initialForm
+    setElementForm(initialForm)
     setElementOpen(true)
   }
   const updateRelationEndpoint = (field: 'ownerCode' | 'targetCode', value: string) => {
@@ -478,21 +515,27 @@ export function OntologyEditorPage() {
     setEditTarget(null)
     setElementCodeTouched(false)
     setElementNameTouched(false)
-    setElementForm({ ...elementInitial, type: 'property', code: ownerCode ? `${ownerCode}.` : '', ownerCode, dataType })
+    const initialForm = { ...elementInitial, type: 'property' as const, code: ownerCode ? `${ownerCode}.` : '', ownerCode, dataType }
+    elementFormBaseline.current = initialForm
+    setElementForm(initialForm)
     setPendingCanvasPosition(null)
   }
   const saveElement = async (continueAdding = false) => {
+    if (savingRef.current) return
     if (readonly) { setToast('只有草稿图谱模型可以编辑，请复制为草稿后修改'); return }
     if (elementForm.type === 'property' && !elementForm.ownerCode) { setToast('请先在实体上下文中新增属性字段'); return }
     if (elementForm.type === 'relation' && !elementForm.ownerCode) { setToast('请先选择一个实体，再新增关系类型'); return }
     if (elementForm.type === 'relation' && !elementForm.targetCode) { setToast('请先选择关系类型的终点实体类型'); return }
     const named = (code: string) => classOptions.find((row) => row.code === code)?.name || code
-    const payload = { ...elementForm, constraint: elementForm.type === 'relation' ? '' : elementForm.constraint, dataType: elementForm.type === 'class' ? '实体类型' : elementForm.type === 'relation' && elementForm.ownerCode && elementForm.targetCode ? `${named(elementForm.ownerCode)} → ${named(elementForm.targetCode)}` : elementForm.dataType }
-    const result = editTarget ? await updateElement(item.id, editTarget.id, payload) : await addElement(item.id, payload)
-    setToast(result.message)
-    if (!result.ok) return
+    const payload = { ...elementForm, code: elementForm.code.trim(), name: elementForm.name.trim(), groupName: elementForm.type === 'class' ? elementForm.groupName || '未分组' : '', ownerCode: elementForm.type === 'class' ? '' : elementForm.ownerCode, targetCode: elementForm.type === 'relation' ? elementForm.targetCode : '', constraint: elementForm.type === 'relation' ? '' : elementForm.constraint, dataType: elementForm.type === 'class' ? '实体类型' : elementForm.type === 'relation' && elementForm.ownerCode && elementForm.targetCode ? `${named(elementForm.ownerCode)} → ${named(elementForm.targetCode)}` : elementForm.dataType }
+    if (!payload.code || !payload.name) { setToast('结构定义项编码和名称不能为空'); return }
+    if (payload.code.length > 120 || payload.name.length > 160) { setToast('编码不能超过120个字符，名称不能超过160个字符'); return }
+    if (item.elements.some((element) => element.type === payload.type && element.code === payload.code && element.id !== editTarget?.id)) { setToast('同类型结构定义项编码已存在'); return }
+    if (editTarget?.type === 'class' && payload.code !== editTarget.code && item.elements.some((element) => element.id !== editTarget.id && (element.ownerCode === editTarget.code || element.targetCode === editTarget.code))) { setToast('该实体类型已被属性或关系引用，请先调整引用后再修改编码'); return }
+    const nextElement = { ...payload, id: editTarget?.id || `draft-${crypto.randomUUID()}` }
+    setStructureDraft({ ...item, elements: editTarget ? item.elements.map((element) => element.id === editTarget.id ? nextElement : element) : [...item.elements, nextElement] })
+    if (payload.type === 'class') setSelectedEntityCode(payload.code)
     if (!editTarget && pendingCanvasPosition && elementForm.type === 'class') saveOntologyLayoutPosition(item.id, elementForm.code, pendingCanvasPosition)
-    addAudit({ operator: '陈洁', organization: '数据管理部', action: `${editTarget ? '编辑' : '新增'}${typeLabels[elementForm.type]}`, objectType: '图谱模型', objectId: item.id, summary: `${typeLabels[elementForm.type]}：${elementForm.code}`, result: '成功', risk: '普通' })
     if (elementForm.type === 'property' && (continueAdding || editTarget)) {
       resetPropertyEditor(elementForm.ownerCode, elementForm.dataType || '文本')
       return
@@ -503,9 +546,8 @@ export function OntologyEditorPage() {
     if (!deleteTarget) return
     if (deleteBlockedByReferences) { setDeleteTarget(null); return }
     if (readonly) { setToast('只有草稿图谱模型可以编辑，请复制为草稿后修改'); setDeleteTarget(null); return }
-    const result = await deleteElement(item.id, deleteTarget.id)
-    setToast(result.message)
-    if (!result.ok) return
+    if (savingRef.current) return
+    setStructureDraft({ ...item, elements: item.elements.filter((element) => element.id !== deleteTarget.id) })
     if (editTarget?.id === deleteTarget.id && deleteTarget.type === 'property') resetPropertyEditor(deleteTarget.ownerCode || '')
     setDeleteTarget(null)
   }
@@ -520,11 +562,11 @@ export function OntologyEditorPage() {
 
 
   const elementDrawerTitle = `${readonly && editTarget ? '查看' : editTarget ? '编辑' : '新增'}${typeLabels[elementForm.type]}`
-  const elementDrawerFooter = readonly ? <Button onClick={closeElementEditor}>关闭</Button> : <><Button onClick={closeElementEditor}>取消</Button>{editTarget && elementForm.type === 'property' && <Button onClick={() => resetPropertyEditor(elementForm.ownerCode, elementForm.dataType)}>返回新增</Button>}{!editTarget && elementForm.type === 'property' && <Button onClick={() => void saveElement(true)}>保存并继续新增</Button>}<Button variant="primary" onClick={() => void saveElement()}>{editTarget ? '保存修改' : '保存定义'}</Button></>
+  const elementDrawerFooter = readonly ? <Button onClick={closeElementEditor}>关闭</Button> : <><Button onClick={closeElementEditor}>取消</Button>{editTarget && elementForm.type === 'property' && <Button onClick={() => resetPropertyEditor(elementForm.ownerCode, elementForm.dataType)}>返回新增</Button>}{!editTarget && elementForm.type === 'property' && <Button onClick={() => void saveElement(true)}>完成并继续新增</Button>}<Button variant="primary" onClick={() => void saveElement()}>完成</Button></>
 
   return <>
     <div className="editor-header"><div><button className="back-button" onClick={cancelEditing}>‹ 返回图谱模型</button><h1>{productText(item.name)}</h1><div className="editor-meta"><StatusTag>{item.status}</StatusTag><span className="editor-model-code">{item.id}</span><span>{displayOntologyDomain(item)}</span><span>最近保存：{item.updatedAt}</span></div></div>{readonly && <div className="page-actions"><Button onClick={() => void copyAsDraft()} disabled={copying}>{copying ? '处理中...' : item.status === '停用' ? '编辑' : '复制为草稿'}</Button></div>}</div>
-    <Panel className={'editor-panel' + (editorMode === 'visual' ? ' ontology-visual-editor-panel' : '') + (editorMode === 'structured' && tab === 'structure' ? ' ontology-structure-editor-panel' : '')}>
+    <fieldset className="ontology-editor-fields" disabled={saving} aria-busy={saving}><Panel className={'editor-panel' + (editorMode === 'visual' ? ' ontology-visual-editor-panel' : '') + (editorMode === 'structured' && tab === 'structure' ? ' ontology-structure-editor-panel' : '')}>
       <div className="ontology-editor-panel-toolbar">
         <Tabs value={tab} onChange={(nextTab) => { if (nextTab === 'basic' && editorMode === 'visual') setEditorMode('structured'); changeTab(nextTab) }} items={[{ key: 'basic', label: '基本信息' }, { key: 'structure', label: '模型结构' }]}/>
         {tab === 'structure' && <div className="ontology-editor-mode" aria-label={`图谱模型${readonly ? '查看' : '编辑'}方式`}><span>{readonly ? '查看方式' : '编辑方式'}</span><div role="group"><button className={editorMode === 'structured' ? 'active' : ''} aria-pressed={editorMode === 'structured'} onClick={() => switchEditorMode('structured')}><Icon name="menu" size={15}/>{readonly ? '结构化查看' : '结构化配置'}</button><button className={editorMode === 'visual' ? 'active' : ''} aria-pressed={editorMode === 'visual'} onClick={() => switchEditorMode('visual')}><Icon name="graph" size={15}/>{readonly ? '结构画布' : '可视化建模'}</button></div></div>}
@@ -560,8 +602,8 @@ export function OntologyEditorPage() {
         </section>
       </div>}
       {editorMode === 'visual' && <OntologyVisualModeler ontologyId={item.id} status={item.status} elements={item.elements} onCreate={(type, position, defaults) => openElement(type, undefined, defaults || {}, position)} onEdit={(type, element) => openElement(type, element)}/>}
-    </Panel>
-    {showEditorFooter && <footer className="editor-action-bar ontology-editor-action-bar"><div className="ontology-editor-footer-actions"><Button variant="primary" disabled={!basicInfoDirty} onClick={save}>{editorMode === 'structured' && tab === 'basic' ? item.status === '草稿' ? '保存草稿' : '保存修改' : '保存基本信息'}</Button><Button onClick={cancelEditing}>取消</Button></div></footer>}
+    </Panel></fieldset>
+    {showEditorFooter && <footer className="editor-action-bar ontology-editor-action-bar"><div className="ontology-editor-footer-actions"><Button variant="primary" disabled={!hasChanges || saving} onClick={() => void save()}>{saving ? '正在保存…' : '保存'}</Button><Button disabled={saving} onClick={cancelEditing}>取消</Button></div><p className={'ontology-save-state' + (hasChanges ? ' pending' : '')} role="status">{saving ? '正在保存模型…' : hasChanges ? '有未保存的修改' : '所有修改已保存'}</p></footer>}
     {sidebarMenu && createPortal(<div ref={sidebarMenuRef} className="ontology-sidebar-popup" role="menu" aria-label={`${sidebarMenu.groupName}分组操作`} style={{ left: sidebarMenu.left, top: sidebarMenu.top }}>
         <button type="button" role="menuitem" onClick={() => { setSidebarMenu(null); openGroupDialog('rename', sidebarMenu.groupName) }}><Icon name="edit" size={14}/>重命名</button>
         <button type="button" role="menuitem" className="danger-link" onClick={() => {
@@ -569,7 +611,7 @@ export function OntologyEditorPage() {
           setGroupDeleteTarget(sidebarMenu.groupName)
         }}><Icon name="trash" size={14}/>删除分组</button>
     </div>, document.body)}
-    <Drawer open={elementOpen} title={elementDrawerTitle} eyebrow={readonly ? '结构定义' : '结构定义 · 保存后立即生效'} onClose={closeElementEditor} footer={elementDrawerFooter}>
+    <Drawer open={elementOpen} title={elementDrawerTitle} eyebrow={readonly ? '结构定义' : '结构定义 · 完成后请点击页面底部保存'} onClose={closeElementEditor} footer={elementDrawerFooter}>
       <div className="form-stack">
         {elementForm.type === 'property' && <div className="alert-box"><Icon name="graph"/><span>当前实体：{entityName(elementForm.ownerCode)}；新增属性将自动归属于当前实体。</span></div>}
         <Field label={`${typeLabels[elementForm.type]}编码 *`}><input value={elementForm.code} disabled={readonly} onChange={(event) => { setElementCodeTouched(true); setElementForm({ ...elementForm, code: event.target.value }) }} placeholder="请输入唯一编码"/></Field>
@@ -583,7 +625,7 @@ export function OntologyEditorPage() {
     <Modal open={!!groupDialog} title={groupDialog?.mode === 'rename' ? '重命名实体分组' : '新增实体分组'} description={groupDialog?.mode === 'rename' ? `当前名称：${groupDialog.currentName}` : '为当前图谱模型新增一个实体分组。'} confirmText={groupDialog?.mode === 'rename' ? '保存修改' : '创建分组'} onClose={() => setGroupDialog(null)} onConfirm={() => void submitGroupDialog()}><Field label="分组名称 *"><input value={groupNameDraft} maxLength={120} onChange={(event) => setGroupNameDraft(event.target.value)} placeholder="请输入分组名称"/></Field></Modal>
     <Modal open={Boolean(groupDeleteTarget)} title="删除实体分组" description={groupDeleteTarget} confirmText="确认删除" danger onClose={() => setGroupDeleteTarget('')} onConfirm={() => void removeGroup()}><div className="alert-box danger"><Icon name="warning"/><span>{groupDeleteTarget && classOptions.some((entity) => (entity.groupName || '未分组') === groupDeleteTarget) ? `组内 ${classOptions.filter((entity) => (entity.groupName || '未分组') === groupDeleteTarget).length} 个实体类型将移至“未分组”，属性和关系不会删除。` : '删除后该空分组将无法恢复；实体类型不会被删除。'}</span></div></Modal>
     <Modal open={cancelCreateOpen} title="取消新建图谱模型" description={`${productText(item.name)} · ${item.id}`} confirmText={cancelingCreate ? '正在取消…' : '确认取消'} danger onClose={() => { if (!cancelingCreate) setCancelCreateOpen(false) }} onConfirm={cancelCreation}><div className="alert-box danger"><Icon name="warning"/><span>取消后将删除当前草稿以及已配置的实体类型、属性字段和关系类型；已经生成的知识图谱不受影响。</span></div></Modal>
-    <Modal open={discardChangesOpen} title="放弃基本信息修改？" description={`${productText(item.name)} · ${item.id}`} confirmText="放弃修改" danger onClose={() => setDiscardChangesOpen(false)} onConfirm={discardBasicChanges}><div className="alert-box danger"><Icon name="warning"/><span>尚未保存的基本信息修改将丢失；模型结构中的增删改已即时保存，不受影响。</span></div></Modal>
+    <Modal open={discardChangesOpen} title="放弃本次修改？" description={`${productText(item.name)} · ${item.id}`} confirmText="放弃修改" danger onClose={() => setDiscardChangesOpen(false)} onConfirm={discardBasicChanges}><div className="alert-box danger"><Icon name="warning"/><span>尚未保存的基本信息、实体类型、属性字段、关系类型和分组修改将被放弃，模型恢复到最近一次保存的状态。</span></div></Modal>
     <Modal open={!!deleteTarget} title={`删除${deleteTargetLabel}`} description={deleteTarget ? `${deleteTarget.name} · ${deleteTarget.code}` : ''} confirmText={deleteBlockedByReferences ? '知道了' : '确认删除'} danger={!deleteBlockedByReferences} onClose={() => setDeleteTarget(null)} onConfirm={removeElement}><div className={`alert-box ${deleteBlockedByReferences ? '' : 'danger'}`}><Icon name="warning"/><span>{deleteTargetNotice}</span></div></Modal>
   </>
 }

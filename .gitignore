@@ -7,8 +7,12 @@ vite.config.d.ts
 .vite/
 
 # environment
-.env.local
+.env
+.env.*
+!.env.example
 .DS_Store
+Thumbs.db
+Desktop.ini
 
 # local runtime logs
 *.log
@@ -16,13 +20,32 @@ vite.config.d.ts
 
 # generated outputs
 outputs/
-.codex_ppt_build/
-.codex_tmp/
-.codex_artifacts/
-.codex_ppt_assets/
 *.inspect.ndjson
 .super-agent-data/
+
+# product documents, presentations, and generated reports
+/docs/
+/*.md
+!/README.md
+!/DEVELOPMENT.md
+/*.doc
+/*.docx
+/*.ppt
+/*.pptx
+/*.pdf
+/scripts/generate_prd_*.mjs
+/scripts/prd_*.md
 
 # local agent/tool state
 .agents/
 .codex/
+.codex_*
+
+# local caches and temporary files
+.cache/
+coverage/
+*.tmp
+*.temp
+*.bak
+*.swp
+*~

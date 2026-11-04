@@ -10,6 +10,7 @@ import { handleDemoReadApi } from './demoReadApi.js'
 import { initializeRuleCatalogDatabase } from './ruleCatalogService.js'
 import { handleRuleCatalogApi } from './ruleCatalogRouter.js'
 import { handleSuperAgentApi } from './superAgentRouter.js'
+import { saveOntologyDraft } from './ontologyDraft.js'
 
 const root=fileURLToPath(new URL('.',import.meta.url))
 
@@ -1105,6 +1106,7 @@ async function handleApi(req,res,url){
   if(await handleDataGraphApi(req,res,url,{pool,sendJson,readBody}))return
   if(url.pathname==='/api/ontologies'&&req.method==='GET')return sendJson(res,200,await listOntologies())
   if(url.pathname==='/api/ontologies'&&req.method==='POST')return createOntology(req,res)
+  const draft=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/draft$/);if(draft&&req.method==='PUT')return sendJson(res,200,await saveOntologyDraft(pool,decodeURIComponent(draft[1]),await readBody(req),getOntology))
   const group=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/groups(?:\/([^/]+))?$/);if(group){const id=decodeURIComponent(group[1]);if(req.method==='POST'&&!group[2])return createOntologyGroup(req,res,id);if(req.method==='PUT'&&group[2])return renameOntologyGroup(req,res,id,decodeURIComponent(group[2]));if(req.method==='DELETE'&&group[2])return deleteOntologyGroup(res,id,decodeURIComponent(group[2]))}
   const element=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/elements(?:\/([^/]+))?$/);if(element){const id=decodeURIComponent(element[1]);if(req.method==='POST'&&!element[2])return addElementV2(req,res,id);if(req.method==='PUT'&&element[2])return updateElementV2(req,res,id,decodeURIComponent(element[2]));if(req.method==='DELETE'&&element[2])return deleteElementV2(res,id,decodeURIComponent(element[2]))}
    const action=url.pathname.match(/^\/api\/ontologies\/([^/]+)\/(copy|enable|disable|validate|publish|retire|activate)$/);if(action&&req.method==='POST'){const actionName=action[2];if(actionName==='copy')return copyOntologyV2(res,decodeURIComponent(action[1]));if(actionName==='validate')return validateOntologyV2(res,decodeURIComponent(action[1]));if(actionName==='disable'||actionName==='retire')return disableOntologyV2(res,decodeURIComponent(action[1]));if(actionName==='enable'||actionName==='activate')return enableOntologyV2(res,decodeURIComponent(action[1]));return publishOntologyV2(res,decodeURIComponent(action[1]))}

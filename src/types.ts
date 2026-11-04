@@ -144,7 +144,7 @@ export interface DataSourceItem {
   accessConfig?: DataSourceAccessConfig
   fileCount?: number
   lastSuccess: string
-  connectionStatus?: '正常' | '异常' | '未测试' | '无需测试' | string
+  connectionStatus?: '正常' | '异常' | '未测试'
   lastTestedAt?: string
   connectionMessage?: string
   status: '草稿' | '启用' | '停用' | '异常'
@@ -163,6 +163,19 @@ export interface GraphStructureElement {
   constraint: string
   description: string
   sourceType?: 'model' | 'custom' | 'modified'
+}
+
+export interface GraphSyncRecord {
+  id: string
+  graphId: string
+  resultGraphId: string | null
+  status: '同步中' | '成功' | '失败'
+  startedAt: string
+  finishedAt: string
+  durationMs: number | null
+  entities: number | null
+  relations: number | null
+  errorMessage: string
 }
 
 export interface GraphVersion {
@@ -191,6 +204,7 @@ export interface GraphVersion {
   }
   sourceStats?: Array<{ sourceId: string; sourceName: string; rows: number; entities: number }>
   syncedAt?: string
+  latestSync?: GraphSyncRecord | null
 }
 
 export interface UserItem {

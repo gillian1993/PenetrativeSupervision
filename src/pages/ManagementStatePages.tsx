@@ -9,6 +9,8 @@ import type { OntologyElement, OntologyRecord } from '../ontologyLocalStore'
 import { Button, Drawer, EmptyState, Field, FilterGrid, Icon, KeyValue, ListPagination, ListStatus, ListToolbar, Modal, PageHeader, Panel, RiskTag, StatusTag, Tabs } from '../ui'
 import { ACTION_PERMISSION_CATALOG, MENU_PERMISSION_CATALOG, PERMISSION_LABEL_BY_CODE, normalizePermissionCodes } from '../permissions'
 import { OntologyListPage as GraphStructureListPage } from './OntologyLocalPages'
+import { GraphSyncSummary, useGraphSync } from './GraphSyncControls'
+import { useSourceAccessDialog } from './SourceAccessDialog'
 
 const sceneInitial = {
   name: '',
@@ -172,11 +174,15 @@ const sourceFileSizeLimit = 10 * 1024 * 1024
 const sourceFileSize = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`
 const sourceUsageStatus = (item: DataSourceItem) => item.status === '异常' ? '停用' : item.status
 const sourceConnectionStatus = (item: DataSourceItem) => {
-  if (item.mode === '文件导入') return !item.fileCount ? '待上传' : item.status !== '草稿' && item.connectionStatus === '正常' ? '正常' : '待启用'
-  return item.connectionStatus || (item.status === '异常' ? '异常' : '未测试')
+  return item.connectionStatus === '正常' || item.connectionStatus === '异常' ? item.connectionStatus : '未测试'
 }
 const sourceLastTest = (item: DataSourceItem) => item.mode === '文件导入' ? '—' : item.lastTestedAt || '—'
-const sourceNeedsInitialTest = (item: DataSourceItem) => item.status === '草稿' && item.mode !== '文件导入' && sourceConnectionStatus(item) === '未测试'
+const sourceConfigChanged = (source: DataSourceItem, mode: string, config: DataSourceAccessConfig) => {
+  if (source.mode !== mode) return true
+  const previous = source.accessConfig || {}
+  const keys: (keyof DataSourceAccessConfig)[] = mode === '数据库接入' ? ['databaseType', 'host', 'port', 'databaseName', 'username'] : mode === '接口接入' ? ['apiUrl', 'method', 'authType'] : ['fileName']
+  return keys.some((key) => (config[key] || '') !== (previous[key] || '')) || Boolean(config.password || config.token)
+}
 
 function validateSourceAccessConfig(mode: string, config: DataSourceAccessConfig) {
   if (mode === '数据库接入') {
@@ -184,19 +190,19 @@ function validateSourceAccessConfig(mode: string, config: DataSourceAccessConfig
     if (!config.port?.trim()) return '请填写数据库端口'
     if (!config.databaseName?.trim()) return '请填写数据库名/Schema'
     if (!config.username?.trim()) return '请填写数据库用户名'
-    if (!config.password?.trim()) return '请填写数据库密码'
+    if (!config.password?.trim() && !config.passwordConfigured) return '请填写数据库密码'
   }
   if (mode === '接口接入') {
     if (!config.apiUrl?.trim()) return '请填写接口地址'
     if (!config.method?.trim()) return '请选择请求方式'
     if (!config.authType?.trim()) return '请选择认证方式'
-    if (config.authType !== '无认证' && !config.token?.trim()) return '请填写 Token/密钥'
+    if (config.authType !== '无认证' && !config.token?.trim() && !config.tokenConfigured) return '请填写 Token/密钥'
   }
   return ''
 }
 
-function AccessConfigFields({ mode, config, onChange, readonly = false }: { mode: string; config: DataSourceAccessConfig; onChange: (patch: DataSourceAccessConfig) => void; readonly?: boolean }) {
-  if (mode === '接口接入') return <Panel title="接口接入配置" subtitle="填写接口地址和认证信息；Token/密钥保存后不明文回显。">
+function AccessConfigFields({ mode, config, onChange, readonly = false, actions }: { mode: string; config: DataSourceAccessConfig; onChange: (patch: DataSourceAccessConfig) => void; readonly?: boolean; actions?: ReactNode }) {
+  if (mode === '接口接入') return <Panel className="source-connection-panel" title="接口接入配置" actions={actions} subtitle={readonly ? '接口地址和认证信息；Token/密钥不明文回显。' : '填写接口地址和认证信息，可先测试当前配置是否可用。'}>
     <div className="form-section two-column">
       <Field label="接口地址 *"><input value={config.apiUrl || ''} disabled={readonly} onChange={(event) => onChange({ apiUrl: event.target.value })} placeholder="例如 https://api.example.com/orders"/></Field>
       <Field label="请求方式 *"><select value={config.method || 'GET'} disabled={readonly} onChange={(event) => onChange({ method: event.target.value })}><option>GET</option><option>POST</option></select></Field>
@@ -205,7 +211,7 @@ function AccessConfigFields({ mode, config, onChange, readonly = false }: { mode
     </div>
   </Panel>
   if (mode === '文件导入') return null
-  return <Panel title="数据库接入配置" subtitle="填写数据库连接信息；密码保存后不明文回显，接入后的字段可在知识图谱映射中使用。">
+  return <Panel className="source-connection-panel" title="数据库接入配置" actions={actions} subtitle={readonly ? '数据库连接信息；密码不明文回显。' : '填写连接信息，可先测试当前配置是否可用。'}>
     <div className="form-section two-column">
       <Field label="数据库类型 *"><select value={config.databaseType || 'MySQL'} disabled={readonly} onChange={(event) => onChange({ databaseType: event.target.value, port: databaseDefaultPorts[event.target.value] || config.port })}>{Object.keys(databaseDefaultPorts).map((item) => <option key={item}>{item}</option>)}</select></Field>
       <Field label="数据库地址/IP *"><input value={config.host || ''} disabled={readonly} onChange={(event) => onChange({ host: event.target.value })} placeholder="例如 10.10.1.12"/></Field>
@@ -245,12 +251,15 @@ export function DataSourceCreatePage() {
   const [form, setForm] = useState(sourceInitial)
   const [loading, setLoading] = useState(editing)
   const [saving, setSaving] = useState(false)
-  const [testing, setTesting] = useState(false)
+  const accessDialog = useSourceAccessDialog()
+  const [originalSource, setOriginalSource] = useState<DataSourceItem | null>(null)
+  const [formError, setFormError] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const [storedFiles, setStoredFiles] = useState<SourceFileItem[]>([])
   const [pendingFiles, setPendingFiles] = useState<PendingSourceFile[]>([])
   const [removedFileIds, setRemovedFileIds] = useState<string[]>([])
   const [workingSourceId, setWorkingSourceId] = useState('')
+  const workingSourceIdRef = useRef('')
   const [legacyFileName, setLegacyFileName] = useState('')
 
   useEffect(() => {
@@ -260,6 +269,7 @@ export function DataSourceCreatePage() {
       const source = rows.find((item) => item.id === editSourceId)
       if (!source) throw new Error('数据源不存在或已被删除')
       if (active) {
+        setOriginalSource(source)
         setForm({ name: source.name, mode: source.mode, range: source.range, owner: source.owner, accessConfig: source.accessConfig || defaultAccessConfig(source.mode) })
         setStoredFiles(files)
         setLegacyFileName(source.mode === '文件导入' && !files.length ? source.accessConfig?.fileName || '' : '')
@@ -268,7 +278,7 @@ export function DataSourceCreatePage() {
     return () => { active = false }
   }, [editSourceId, setToast])
 
-  const updateAccessConfig = (patch: DataSourceAccessConfig) => setForm({ ...form, accessConfig: { ...form.accessConfig, ...patch } })
+  const updateAccessConfig = (patch: DataSourceAccessConfig) => { setFormError(''); setForm({ ...form, accessConfig: { ...form.accessConfig, ...patch } }) }
   const changeMode = (mode: string) => {
     setForm({ ...form, mode, accessConfig: defaultAccessConfig(mode) })
     setPendingFiles([])
@@ -291,57 +301,74 @@ export function DataSourceCreatePage() {
   }
 
   const testAccess = async () => {
-    if (testing || form.mode === '文件导入') return
+    if (saving || accessDialog.open || form.mode === '文件导入') return
     const configError = validateSourceAccessConfig(form.mode, form.accessConfig)
-    if (configError) { setToast(configError); return }
-    setTesting(true)
-    try {
-      const result = await dataGraphApi.testSourceConfig({ mode: form.mode, accessConfig: form.accessConfig })
-      setToast(result.message)
-    } catch (error) {
-      setToast(error instanceof Error ? error.message : '接入测试失败')
-    } finally {
-      setTesting(false)
-    }
+    if (configError) { setFormError(configError); return }
+    setFormError('')
+    void accessDialog.run({ kind: 'test', name: form.name || '当前配置', mode: form.mode,
+      execute: () => dataGraphApi.testSourceConfig({ sourceId: workingSourceIdRef.current || editSourceId, mode: form.mode, accessConfig: form.accessConfig }),
+      onEdit: () => {},
+    })
   }
 
-  const save = async () => {
-    if (saving) return
-    if (!form.name.trim()) { setToast('请填写数据源名称'); return }
+  const save = async (activate = false) => {
+    if (saving || accessDialog.open) return
+    if (!form.name.trim()) { setFormError('请填写数据源名称'); return }
     const configError = validateSourceAccessConfig(form.mode, form.accessConfig)
-    if (configError) { setToast(configError); return }
+    if (configError) { setFormError(configError); return }
     if (form.mode === '文件导入') {
-      if (storedFiles.length - removedFileIds.length + pendingFiles.length < 1) { setToast('请至少选择一份数据文件'); return }
-      if (pendingFiles.some((item) => item.status === '失败')) { setToast('请先重试或移除解析失败的文件'); return }
+      if (storedFiles.length - removedFileIds.length + pendingFiles.length < 1) { setFormError('请至少选择一份数据文件'); return }
     }
-    setSaving(true)
-    try {
-      const sourceId = workingSourceId || editSourceId
-      const source = sourceId ? await dataGraphApi.updateSource(sourceId, form) : await dataGraphApi.createSource(form)
-      if (!sourceId) setWorkingSourceId(source.id)
+    setFormError('')
+    const attempt = { source: null as DataSourceItem | null, uploaded: new Set<string>(), removed: new Set<string>() }
+    const persist = async () => {
+      if (!attempt.source) {
+        const sourceId = workingSourceIdRef.current || editSourceId
+        attempt.source = sourceId ? await dataGraphApi.updateSource(sourceId, form) : await dataGraphApi.createSource(form)
+        workingSourceIdRef.current = attempt.source.id
+        setWorkingSourceId(attempt.source.id)
+      }
+      const source = attempt.source
       if (form.mode === '文件导入') {
         for (const fileId of removedFileIds) {
+          if (attempt.removed.has(fileId)) continue
           await dataGraphApi.deleteSourceFile(source.id, fileId)
+          attempt.removed.add(fileId)
           setStoredFiles((current) => current.filter((item) => item.id !== fileId))
           setRemovedFileIds((current) => current.filter((id) => id !== fileId))
         }
-        let failed = 0
         for (const item of pendingFiles) {
+          if (attempt.uploaded.has(item.key)) continue
           setPendingFiles((current) => current.map((row) => row.key === item.key ? { ...row, status: '上传中', error: undefined } : row))
           try {
             const uploaded = await dataGraphApi.uploadSourceFile(source.id, item.file)
+            attempt.uploaded.add(item.key)
             setStoredFiles((current) => [...current, uploaded])
             setPendingFiles((current) => current.filter((row) => row.key !== item.key))
             setLegacyFileName('')
           } catch (error) {
-            failed++
             const message = error instanceof Error ? error.message : '文件解析失败'
             setPendingFiles((current) => current.map((row) => row.key === item.key ? { ...row, status: '失败', error: message } : row))
+            throw new Error(`${item.file.name}：${message}。已成功的文件保留在草稿中。`)
           }
         }
-        if (failed) { setToast(`${failed} 个文件处理失败，请重试或移除；已成功的文件仍保留在草稿中`); return }
-        setToast('数据源草稿已保存，文件解析完成')
-      } else setToast(editing ? `数据源 ${source.id} 已保存为草稿，启用时会重新测试连接` : `数据源草稿 ${source.id} 已创建，启用时会自动测试连接`)
+      }
+      return activate ? await dataGraphApi.toggleSource(source.id, true) : source
+    }
+    const validatesActiveConfig = originalSource?.status === '启用' && sourceConfigChanged(originalSource, form.mode, form.accessConfig)
+    if (activate || validatesActiveConfig) {
+      void accessDialog.run({ kind: activate ? 'enable' : 'save', name: form.name, mode: form.mode,
+        execute: async () => ({ source: await persist(), message: activate ? '配置已保存，数据源现已开放使用。' : '新配置已生效，数据源保持启用。' }),
+        onSuccess: ({ source }) => { if (source) setOriginalSource(source) },
+        onComplete: () => navigate(`/graphs/sources/${workingSourceIdRef.current || editSourceId}`),
+        onEdit: () => {},
+      })
+      return
+    }
+    setSaving(true)
+    try {
+      const source = await persist()
+      setToast('保存成功')
       navigate(`/graphs/sources/${source.id}`)
     } catch (error) {
       setToast(error instanceof Error ? error.message : '数据源保存失败')
@@ -351,42 +378,46 @@ export function DataSourceCreatePage() {
   }
 
   if (loading) return <div className="loading-state page-loading"><i/><span>正在加载数据源配置…</span></div>
-  const testAction = form.mode !== '文件导入' ? <Button className="compact data-source-test-action" icon="refresh" disabled={testing || saving} onClick={() => void testAccess()}>{testing ? '测试中…' : form.mode === '接口接入' ? '测试调用' : '测试连接'}</Button> : undefined
+  const activeSource = originalSource?.status === '启用'
+  const busy = saving || accessDialog.open
+  const testAction = form.mode !== '文件导入' ? <Button className="source-connection-test" disabled={busy} onClick={() => void testAccess()}>{form.mode === '接口接入' ? '测试调用' : '测试连接'}</Button> : undefined
 
   return <section className="data-source-form-page">
-    <PageHeader eyebrow="知识图谱 / 数据源" title={editing ? '编辑数据源' : '新建数据源'} description={form.mode === '文件导入' ? '保存后将上传并解析文件，数据源先进入草稿。' : editing ? '修改并保存后，数据源回到草稿；启用时会重新测试连接。' : '填写并保存数据源配置，之后可直接启用，系统会先测试连接。'}/>
-    <Panel className="data-access-panel" title="数据源配置" subtitle={form.mode === '文件导入' ? undefined : '可先保存为草稿；测试通过后才能启用。也可在此处先测试配置。'}>
+    <PageHeader eyebrow="知识图谱 / 数据源" title={editing ? '编辑数据源' : '新建数据源'} description={activeSource ? '基本信息可直接保存；连接信息修改通过校验后生效，失败时保留原配置。' : form.mode === '文件导入' ? '保存并启用时自动上传、解析并校验文件，也可仅保存草稿。' : '点击“保存并启用”自动测试连接，通过后启用；也可先保存配置。'}/>
+    {formError && <p className="source-form-error" role="alert">{formError}</p>}
+    <fieldset className="source-access-dialog-fields" disabled={busy}><Panel className="data-access-panel" title="数据源配置">
       <div className="form-stack">
         <div className="form-section two-column">
           <Field label={form.mode === '文件导入' ? '数据源名称 *' : '来源系统名称 *'}><input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="请输入数据源名称"/></Field>
-          <Field label="来源方式"><select value={form.mode} disabled={Boolean((editing || workingSourceId) && storedFiles.length)} onChange={(event) => changeMode(event.target.value)}>{sourceModeOptions.map((item) => <option key={item}>{item}</option>)}</select></Field>
+          <Field label="来源方式"><select value={form.mode} disabled={activeSource || Boolean((editing || workingSourceId) && storedFiles.length)} onChange={(event) => changeMode(event.target.value)}>{sourceModeOptions.map((item) => <option key={item}>{item}</option>)}</select></Field>
           <Field label="责任人"><select value={form.owner} onChange={(event) => setForm({ ...form, owner: event.target.value })}><option>张海</option><option>陈洁</option></select></Field>
           <Field label="数据范围"><input value={form.range} onChange={(event) => setForm({ ...form, range: event.target.value })} placeholder="可选，说明对象、时间和组织范围"/></Field>
         </div>
-        <AccessConfigFields mode={form.mode} config={form.accessConfig} onChange={updateAccessConfig}/>
+        <AccessConfigFields mode={form.mode} config={form.accessConfig} onChange={updateAccessConfig} actions={testAction}/>
         {form.mode === '文件导入' && <section className="source-file-import" aria-label="文件导入配置">
             <div className="source-file-upload-row">
               <span className="source-file-upload-label">导入文件 *</span>
-              <input ref={fileInputRef} className="source-file-input" type="file" accept=".csv,.xlsx" multiple disabled={saving} aria-label="选择数据文件" onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = '' }}/>
-              <Button icon="plus" disabled={saving || storedFiles.length - removedFileIds.length + pendingFiles.length >= sourceFileLimit} onClick={() => fileInputRef.current?.click()}>{storedFiles.length - removedFileIds.length + pendingFiles.length ? '继续添加' : '选择文件'}</Button>
-              <span className="source-file-upload-hint">CSV、XLSX · 单文件不超过 10 MB · 最多 10 个</span>
+              <input ref={fileInputRef} className="source-file-input" type="file" accept=".csv,.xlsx" multiple disabled={busy || activeSource} aria-label="选择数据文件" onChange={(event) => { if (event.target.files) addFiles(event.target.files); event.target.value = '' }}/>
+              <Button icon="plus" disabled={busy || activeSource || storedFiles.length - removedFileIds.length + pendingFiles.length >= sourceFileLimit} onClick={() => fileInputRef.current?.click()}>{storedFiles.length - removedFileIds.length + pendingFiles.length ? '继续添加' : '选择文件'}</Button>
+              <span className="source-file-upload-hint">{activeSource ? '请先停用数据源，再调整文件。' : 'CSV、XLSX · 单文件不超过 10 MB · 最多 10 个'}</span>
             </div>
             {legacyFileName && <p className="source-file-legacy-note">原记录仅保存了“{legacyFileName}”的文件名，请重新选择文件。</p>}
             {(storedFiles.length > 0 || pendingFiles.length > 0) && <div className="source-file-list">
               <div className="source-file-list-heading"><strong>文件列表（{storedFiles.length - removedFileIds.length + pendingFiles.length}）</strong></div>
               <div className="table-container"><table className="source-file-list-table"><thead><tr><th>文件名</th><th>大小</th><th>状态</th><th>操作</th></tr></thead><tbody>
-                {storedFiles.map((file) => { const removed = removedFileIds.includes(file.id); return <tr key={file.id} className={removed ? 'source-file-removing' : ''}><td><span title={file.name}>{file.name}</span>{!removed && <small>{file.sheetCount} 个来源对象</small>}</td><td>{sourceFileSize(file.size)}</td><td><span className={removed ? 'source-file-status pending' : 'source-file-status success'}>{removed ? '待移除' : '解析成功'}</span></td><td><button type="button" disabled={saving} onClick={() => setRemovedFileIds((current) => removed ? current.filter((id) => id !== file.id) : [...current, file.id])}>{removed ? '撤销' : '移除'}</button></td></tr> })}
+                {storedFiles.map((file) => { const removed = removedFileIds.includes(file.id); return <tr key={file.id} className={removed ? 'source-file-removing' : ''}><td><span title={file.name}>{file.name}</span>{!removed && <small>{file.sheetCount} 个来源对象</small>}</td><td>{sourceFileSize(file.size)}</td><td><span className={removed ? 'source-file-status pending' : 'source-file-status success'}>{removed ? '待移除' : '解析成功'}</span></td><td><button type="button" disabled={busy || activeSource} onClick={() => setRemovedFileIds((current) => removed ? current.filter((id) => id !== file.id) : [...current, file.id])}>{removed ? '撤销' : '移除'}</button></td></tr> })}
                 {pendingFiles.map((item) => <tr key={item.key}><td><span title={item.file.name}>{item.file.name}</span>{item.error && <small className="source-file-error">{item.error}</small>}</td><td>{sourceFileSize(item.file.size)}</td><td><span className={`source-file-status ${item.status === '失败' ? 'failed' : 'pending'}`}>{item.status}</span></td><td>{item.status === '失败' && <button type="button" disabled={saving} onClick={() => setPendingFiles((current) => current.map((row) => row.key === item.key ? { ...row, status: '待上传', error: undefined } : row))}>重试</button>}<button type="button" disabled={saving} onClick={() => setPendingFiles((current) => current.filter((row) => row.key !== item.key))}>移除</button></td></tr>)}
               </tbody></table></div>
             </div>}
         </section>}
       </div>
-    </Panel>
+    </Panel></fieldset>
     <footer className="data-source-form-footer">
-      {testAction}
-      <Button variant="primary" disabled={saving || testing} onClick={() => void save()}>{saving ? '保存中…' : editing ? '保存修改' : '保存数据源'}</Button>
-      <Button disabled={saving || testing} onClick={() => { if (workingSourceId) setToast('数据源草稿已保留，可稍后继续处理文件'); navigate(workingSourceId ? `/graphs/sources/${workingSourceId}` : '/graphs/sources') }}>取消</Button>
+      <Button variant="primary" disabled={busy} onClick={() => void save(!activeSource)}>{activeSource ? '保存修改' : '保存并启用'}</Button>
+      {!activeSource && <Button disabled={busy} onClick={() => void save(false)}>{originalSource?.status === '停用' ? '仅保存' : '保存草稿'}</Button>}
+      <Button disabled={busy} onClick={() => { if (workingSourceId) setToast('数据源配置已保留，可稍后继续处理'); navigate(workingSourceId ? `/graphs/sources/${workingSourceId}` : '/graphs/sources') }}>取消</Button>
     </footer>
+    {accessDialog.dialog}
   </section>
 }
 export function DataAccessPage() {
@@ -395,7 +426,7 @@ export function DataAccessPage() {
   const [dataSources, setDataSources] = useState<DataSourceItem[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<DataSourceItem | null>(null)
-  const [enableTarget, setEnableTarget] = useState<DataSourceItem | null>(null)
+  const accessDialog = useSourceAccessDialog()
   const [keyword, setKeyword] = useState('')
   const [status, setStatus] = useState('全部')
   const [page, setPage] = useState(1)
@@ -431,19 +462,25 @@ export function DataAccessPage() {
     }
   }
   const requestToggle = (item: DataSourceItem) => {
-    if (sourceNeedsInitialTest(item)) { setEnableTarget(item); return }
-    void toggle(item)
+    if (togglingSourceId || accessDialog.open) return
+    if (item.status === '启用') { void toggle(item); return }
+    void accessDialog.run({ kind: 'enable', name: `${item.name} · ${item.id}`, mode: item.mode,
+      execute: async () => ({ source: await dataGraphApi.toggleSource(item.id, true), message: '数据源现已开放使用，可在知识图谱中选择。' }),
+      onSuccess: ({ source }) => { if (source) setDataSources((rows) => rows.map((row) => row.id === source.id ? source : row)) },
+      onFailure: async () => { setDataSources(await dataGraphApi.listSources()) },
+      onEdit: () => navigate(`/graphs/sources/${item.id}/edit`),
+    })
   }
   const remove = async () => { if (!deleteTarget) return; try { const result = await dataGraphApi.deleteSource(deleteTarget.id); setDeleteTarget(null); setToast(result.message); await load() } catch (error) { setToast(error instanceof Error ? error.message : '数据源删除失败') } }
   return <>
     <section className="standard-list-page">
       <ListToolbar keyword={keyword} placeholder="搜索数据源名称、编码或责任人" onKeywordChange={(value) => { setKeyword(value); setPage(1) }} onSearch={() => setPage(1)} onRefresh={() => void load()} primaryAction={<Button className="compact" variant="primary" icon="plus" onClick={() => navigate('/graphs/sources/new')}>新建数据源</Button>}/>
       {loading ? <div className="loading-state"><i/><span>正在加载数据源…</span></div> : filteredSources.length ? <>
-        <SourceTable data={pagedSources} status={status} togglingSourceId={togglingSourceId} onStatusChange={(value) => { setStatus(value); setPage(1) }} onSelect={(item) => navigate(`/graphs/sources/${item.id}`)} onEdit={(item) => navigate(`/graphs/sources/${item.id}/edit`)} onToggle={requestToggle} onDelete={setDeleteTarget}/>
+        <SourceTable data={pagedSources} status={status} togglingSourceId={togglingSourceId || (accessDialog.open ? 'access-dialog' : '')} onStatusChange={(value) => { setStatus(value); setPage(1) }} onSelect={(item) => navigate(`/graphs/sources/${item.id}`)} onEdit={(item) => navigate(`/graphs/sources/${item.id}/edit`)} onToggle={requestToggle} onDelete={setDeleteTarget}/>
         <ListPagination total={filteredSources.length} page={page} pageSize={pageSize} onChange={(nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) }}/>
       </> : <EmptyState title={dataSources.length ? '未找到数据源' : '暂无数据源'} description={dataSources.length ? '请调整关键词或状态条件。' : '点击“新建数据源”开始配置数据接入。'}/>}
     </section>
-    <Modal open={!!enableTarget} title="启用数据源" description={enableTarget ? `${enableTarget.name} · ${enableTarget.id}` : ''} confirmText="确认启用" onClose={() => setEnableTarget(null)} onConfirm={() => { const target = enableTarget; setEnableTarget(null); if (target) void toggle(target) }}><p>当前数据源尚未测试连接。确认后将先测试已保存的配置，测试通过即启用；失败时保持草稿状态。</p></Modal>
+    {accessDialog.dialog}
     <Modal open={!!deleteTarget} title="删除数据源" description={deleteTarget ? `${deleteTarget.name} · ${deleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()}><div className="alert-box danger"><Icon name="warning"/><span>仅停用的数据源可以删除；已被知识图谱引用的数据源需要先解除引用。</span></div></Modal>
   </>
 }
@@ -456,7 +493,7 @@ export function DataSourceDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [toggling, setToggling] = useState(false)
-  const [confirmEnableOpen, setConfirmEnableOpen] = useState(false)
+  const accessDialog = useSourceAccessDialog()
 
   const load = async () => {
     if (!id) return
@@ -485,16 +522,30 @@ export function DataSourceDetailPage() {
     finally { setToggling(false) }
   }
   const requestToggle = () => {
-    if (!source || toggling) return
-    if (sourceNeedsInitialTest(source)) { setConfirmEnableOpen(true); return }
-    void toggle()
+    if (!source || toggling || accessDialog.open) return
+    if (source.status === '启用') { void toggle(); return }
+    void accessDialog.run({ kind: 'enable', name: `${source.name} · ${source.id}`, mode: source.mode,
+      execute: async () => ({ source: await dataGraphApi.toggleSource(source.id, true), message: '数据源现已开放使用，可在知识图谱中选择。' }),
+      onSuccess: ({ source: updated }) => { if (updated) setSource(updated) },
+      onFailure: async () => { const rows = await dataGraphApi.listSources(); setSource(rows.find((row) => row.id === id) || null) },
+      onEdit: () => navigate(`/graphs/sources/${source.id}/edit`),
+    })
+  }
+  const testConnection = () => {
+    if (!source || toggling || accessDialog.open) return
+    void accessDialog.run({ kind: 'test', name: `${source.name} · ${source.id}`, mode: source.mode,
+      execute: () => dataGraphApi.testSource(source.id),
+      onSuccess: ({ source: updated }) => { if (updated) setSource(updated) },
+      onFailure: async () => { const rows = await dataGraphApi.listSources(); setSource(rows.find((row) => row.id === id) || null) },
+      onEdit: () => navigate(`/graphs/sources/${source.id}/edit`),
+    })
   }
   if (loading) return <div className="loading-state page-loading"><i/><span>正在加载数据源详情…</span></div>
   if (!source) return <><button className="back-button" onClick={() => navigate('/graphs/sources')}>‹ 返回数据源列表</button><EmptyState title="数据源不可访问" description={error || '请返回数据源列表重新选择。'}/></>
   return <>
-    <div className="data-source-detail-header"><div><button className="back-button" onClick={() => navigate('/graphs/sources')}>‹ 返回数据源列表</button><p className="eyebrow">知识图谱 / 数据源详情 / {source.id}</p><h1>{source.name}</h1><div className="editor-meta"><StatusTag>{source.status}</StatusTag><span>{source.mode}</span><span>责任人：{source.owner}</span><span>{source.mode === '文件导入' ? '文件状态' : '连接状态'}：{sourceConnectionStatus(source)}</span>{source.mode !== '文件导入' && <span>最近测试：{sourceLastTest(source)}</span>}</div></div><div className="page-actions"><Button onClick={() => navigate(`/graphs/sources/${source.id}/edit`)}>编辑数据源</Button><Button variant={source.status === '启用' ? 'danger' : 'primary'} disabled={toggling} onClick={requestToggle}>{toggling ? '处理中…' : source.status === '启用' ? '停用数据源' : '启用数据源'}</Button></div></div>
+    <div className="data-source-detail-header"><div><button className="back-button" onClick={() => navigate('/graphs/sources')}>‹ 返回数据源列表</button><p className="eyebrow">知识图谱 / 数据源详情 / {source.id}</p><h1>{source.name}</h1><div className="editor-meta"><StatusTag>{source.status}</StatusTag><span>{source.mode}</span><span>责任人：{source.owner}</span><span>接入状态：{sourceConnectionStatus(source)}</span>{source.mode !== '文件导入' && <span>最近测试：{sourceLastTest(source)}</span>}</div></div><div className="page-actions"><Button disabled={toggling || accessDialog.open} onClick={() => navigate(`/graphs/sources/${source.id}/edit`)}>编辑数据源</Button>{source.mode !== '文件导入' && <Button className="source-connection-test" disabled={toggling || accessDialog.open} onClick={testConnection}>{source.mode === '接口接入' ? '测试调用' : '测试连接'}</Button>}<Button variant={source.status === '启用' ? 'danger' : 'primary'} disabled={toggling || accessDialog.open} onClick={requestToggle}>{source.status === '启用' ? '停用数据源' : '启用数据源'}</Button></div></div>
     <Panel className="data-source-detail-panel" title="接入配置" subtitle={source.mode === '文件导入' ? undefined : '这里只维护数据源的接入方式、连接信息和启停状态。'}><SourceBasicConfig source={source}/></Panel>
-    <Modal open={confirmEnableOpen} title="启用数据源" description={`${source.name} · ${source.id}`} confirmText="确认启用" onClose={() => setConfirmEnableOpen(false)} onConfirm={() => { setConfirmEnableOpen(false); void toggle() }}><p>当前数据源尚未测试连接。确认后将先测试已保存的配置，测试通过即启用；失败时保持草稿状态。</p></Modal>
+    {accessDialog.dialog}
   </>
 }
 
@@ -620,7 +671,7 @@ function SourceSyncPanel({ source, records, onSync }: { source: DataSourceItem; 
 }
 
 function SourceTable({ data, status, togglingSourceId, onStatusChange, onSelect, onEdit, onToggle, onDelete }: { data: DataSourceItem[]; status: string; togglingSourceId: string; onStatusChange: (value: string) => void; onSelect: (item: DataSourceItem) => void; onEdit: (item: DataSourceItem) => void; onToggle: (item: DataSourceItem) => void; onDelete: (item: DataSourceItem) => void }) {
-  return <div className="table-container standard-list-table"><table className="data-source-list-table"><thead><tr><th>数据源</th><th>接入方式</th><th>责任人</th><th><label className="table-header-filter"><span>使用状态</span><Icon name="filter" size={14}/><select aria-label="数据源状态" value={status} onChange={(event) => onStatusChange(event.target.value)}><option>全部</option><option>草稿</option><option>启用</option><option>停用</option></select></label></th><th>接入状态</th><th>最近测试</th><th>操作</th></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => onSelect(item)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.mode}</td><td>{item.owner}</td><td><ListStatus>{sourceUsageStatus(item)}</ListStatus></td><td><ListStatus>{sourceConnectionStatus(item)}</ListStatus></td><td title={item.connectionMessage || undefined}>{sourceLastTest(item)}</td><td><div className="list-row-actions"><button onClick={() => onEdit(item)}>编辑</button><button disabled={!!togglingSourceId} onClick={() => onToggle(item)}>{togglingSourceId === item.id ? (item.status === '启用' ? '停用中…' : '启用中…') : item.status === '启用' ? '停用' : '启用'}</button>{item.status !== '启用' && <button className="danger-link" disabled={!!togglingSourceId} onClick={() => onDelete(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
+  return <div className="table-container standard-list-table"><table className="data-source-list-table"><thead><tr><th>数据源</th><th>接入方式</th><th>责任人</th><th><label className="table-header-filter"><span>使用状态</span><Icon name="filter" size={14}/><select aria-label="数据源状态" value={status} onChange={(event) => onStatusChange(event.target.value)}><option>全部</option><option>草稿</option><option>启用</option><option>停用</option></select></label></th><th>接入状态</th><th>最近测试</th><th>操作</th></tr></thead><tbody>{data.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => onSelect(item)}><strong>{item.name}</strong><span>{item.id}</span></button></td><td>{item.mode}</td><td>{item.owner}</td><td><ListStatus>{sourceUsageStatus(item)}</ListStatus></td><td><ListStatus>{sourceConnectionStatus(item)}</ListStatus></td><td title={item.connectionMessage || undefined}>{sourceLastTest(item)}</td><td><div className="list-row-actions"><button onClick={() => onEdit(item)}>编辑</button><button disabled={!!togglingSourceId} onClick={() => onToggle(item)}>{item.status === '启用' ? '停用' : '启用'}</button>{item.status !== '启用' && <button className="danger-link" disabled={!!togglingSourceId} onClick={() => onDelete(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
 }
 
 const graphStatusOptions = ['全部', '草稿', '待发布', '已发布']
@@ -648,8 +699,8 @@ export function GraphResultListPage({ embedded = false }: { embedded?: boolean }
   const [deleteTarget, setDeleteTarget] = useState<GraphVersion | null>(null)
   const [unpublishTarget, setUnpublishTarget] = useState<GraphVersion | null>(null)
 
-  const load = async () => {
-    setLoading(true)
+  const load = async (quiet = false) => {
+    if (!quiet) setLoading(true)
     try {
       const [graphRows, ontologyRows] = await Promise.all([
         dataGraphApi.listGraphs(),
@@ -660,11 +711,19 @@ export function GraphResultListPage({ embedded = false }: { embedded?: boolean }
     } catch (error) {
       setToast(error instanceof Error ? error.message : '知识图谱列表加载失败')
     } finally {
-      setLoading(false)
+      if (!quiet) setLoading(false)
     }
   }
 
+  const graphSync = useGraphSync(async () => { await load(true) })
+  const hasRunningSync = Boolean(graphSync.syncingId) || graphs.some((graph) => graph.latestSync?.status === '同步中')
   useEffect(() => { void load() }, [])
+  useEffect(() => {
+    const refresh = () => { void load(true) }
+    window.addEventListener('focus', refresh)
+    const timer = hasRunningSync ? setInterval(refresh, 2500) : undefined
+    return () => { window.removeEventListener('focus', refresh); clearInterval(timer) }
+  }, [hasRunningSync])
 
   const rows = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase()
@@ -714,13 +773,28 @@ export function GraphResultListPage({ embedded = false }: { embedded?: boolean }
     <section className="standard-list-page">
       <ListToolbar keyword={keyword} placeholder="搜索图谱名称、编码、标签或数据源" onKeywordChange={(value) => { setKeyword(value); setPage(1) }} onSearch={() => setPage(1)} onRefresh={() => void load()} primaryAction={<Button className="compact" variant="primary" icon="plus" onClick={() => navigate('/graphs/new')}>新建图谱</Button>}/>
       {loading ? <div className="loading-state"><i/><span>正在加载知识图谱…</span></div> : rows.length ? <>
-        <div className="table-container standard-list-table"><table className="graph-results-table"><thead><tr><th>知识图谱</th><th>图谱模型</th><th>数据源</th><th><label className="table-header-filter"><span>状态</span><Icon name="filter" size={14}/><select aria-label="知识图谱状态" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}>{graphStatusOptions.map((item) => <option key={item}>{item}</option>)}</select></label></th><th>发布时间</th><th>操作</th></tr></thead><tbody>{pagedRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(graphViewable(item) ? `/graphs/results/${item.id}` : `/graphs/${item.id}/edit`)}><strong>{graphDisplayName(item)}</strong><span>{item.graphCode} · {item.tag || '通用图谱'}</span>{item.generationFailed && <small className="cell-sub danger-text">上次生成未完成</small>}</button></td><td>{ontologies.find((ontology) => ontology.id === item.ontologyId)?.name || item.ontologyId}</td><td><span className="list-cell-ellipsis" title={item.sourceNames.join('、') || item.sourceIds.join('、') || '未绑定'}>{item.sourceNames.join('、') || item.sourceIds.join('、') || '未绑定'}</span></td><td><ListStatus>{item.status}</ListStatus></td><td>{item.status === '已发布' ? item.publishedAt : '—'}</td><td><div className="list-row-actions">{graphViewable(item) && <button onClick={() => navigate(`/graphs/results/${item.id}`)}>查看图谱</button>}{graphEditable(item) && <button onClick={() => navigate(`/graphs/${item.id}/edit`)}>编辑</button>}{graphCanUnpublish(item) && <button onClick={() => setUnpublishTarget(item)}>取消发布</button>}{item.status === '待发布' && <button onClick={() => setPublishTarget(item)}>发布</button>}{graphDeletable(item) && <button className="danger-link" onClick={() => setDeleteTarget(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
+        <div className="table-container standard-list-table"><table className="graph-results-table"><thead><tr><th>知识图谱</th><th>图谱模型</th><th>数据源</th><th><label className="table-header-filter"><span>状态</span><Icon name="filter" size={14}/><select aria-label="知识图谱状态" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}>{graphStatusOptions.map((item) => <option key={item}>{item}</option>)}</select></label></th><th>发布时间</th><th>最近同步</th><th>操作</th></tr></thead><tbody>{pagedRows.map((item) => <tr key={item.id}>
+          <td><button className="table-link title-cell" onClick={() => navigate(graphViewable(item) ? `/graphs/results/${item.id}` : `/graphs/${item.id}/edit`)}><strong>{graphDisplayName(item)}</strong><span>{item.graphCode} · {item.tag || '通用图谱'}</span>{item.generationFailed && <small className="cell-sub danger-text">上次生成未完成</small>}</button></td>
+          <td>{ontologies.find((ontology) => ontology.id === item.ontologyId)?.name || item.ontologyId}</td>
+          <td><span className="list-cell-ellipsis" title={item.sourceNames.join('、') || item.sourceIds.join('、') || '未绑定'}>{item.sourceNames.join('、') || item.sourceIds.join('、') || '未绑定'}</span></td>
+          <td><ListStatus>{item.status}</ListStatus></td><td>{item.status === '已发布' ? item.publishedAt : '—'}</td>
+          <td><GraphSyncSummary graph={item} busy={graphSync.busyFor(item)} onClick={() => graphSync.openHistory(item)}/></td>
+          <td><div className="list-row-actions">
+            {graphViewable(item) && <button onClick={() => navigate(`/graphs/results/${item.id}`)}>查看图谱</button>}
+            {graphViewable(item) && <button disabled={graphSync.busyFor(item)} onClick={() => graphSync.openSync(item)}>{graphSync.busyFor(item) ? '同步中…' : '同步数据'}</button>}
+            {graphEditable(item) && <button disabled={graphSync.busyFor(item)} onClick={() => navigate(`/graphs/${item.id}/edit`)}>编辑</button>}
+            {graphCanUnpublish(item) && <button disabled={graphSync.busyFor(item)} onClick={() => setUnpublishTarget(item)}>取消发布</button>}
+            {item.status === '待发布' && <button disabled={graphSync.busyFor(item)} onClick={() => setPublishTarget(item)}>发布</button>}
+            {graphDeletable(item) && <button className="danger-link" disabled={graphSync.busyFor(item)} onClick={() => setDeleteTarget(item)}>删除</button>}
+          </div></td>
+        </tr>)}</tbody></table></div>
         <ListPagination total={rows.length} page={page} pageSize={pageSize} onChange={(nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) }}/>
       </> : <EmptyState title="没有符合条件的知识图谱" description="请调整筛选条件，或点击“新建图谱”创建结果。"/>}
     </section>
     <Modal open={!!publishTarget} title="发布知识图谱" description={publishTarget ? `${graphDisplayName(publishTarget)} · ${publishTarget.id}` : ''} confirmText="确认发布" onClose={() => setPublishTarget(null)} onConfirm={() => void publish()}><PublishChecklist/></Modal>
     <Modal open={!!unpublishTarget} title="取消发布知识图谱" description={unpublishTarget ? `${graphDisplayName(unpublishTarget)} · ${unpublishTarget.id}` : ''} confirmText="确认取消发布" onClose={() => setUnpublishTarget(null)} onConfirm={() => void unpublish()}><div className="alert-box"><Icon name="warning"/><span>取消发布后，当前图谱会回到待发布状态；可继续编辑、重新发布或删除。</span></div></Modal>
     <Modal open={!!deleteTarget} title="删除未发布图谱" description={deleteTarget ? `${graphDisplayName(deleteTarget)} · ${deleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()}><div className="alert-box danger"><Icon name="warning"/><span>仅草稿或待发布的知识图谱可以删除，已发布版本会继续保留。</span></div></Modal>
+    {graphSync.controls}
   </>
 }
 
@@ -733,12 +807,10 @@ export function GraphResultDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [unpublishOpen, setUnpublishOpen] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const [syncOpen, setSyncOpen] = useState(false)
 
-  const load = async () => {
+  const load = async (quiet = false) => {
     if (!id) return
-    setLoading(true)
+    if (!quiet) setLoading(true)
     setError('')
     try {
       const [nextGraph, ontologyRows] = await Promise.all([
@@ -749,14 +821,27 @@ export function GraphResultDetailPage() {
       setGraph(nextGraph)
       setOntologyName(ontologyRows.find((item) => item.id === nextGraph.ontologyId)?.name || (/[一-鿿]/.test(snapshotName) ? snapshotName : ''))
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : '知识图谱详情加载失败')
-      setGraph(null)
+      const message = loadError instanceof Error ? loadError.message : '知识图谱详情加载失败'
+      if (quiet) setToast(message)
+      else { setError(message); setGraph(null) }
     } finally {
-      setLoading(false)
+      if (!quiet) setLoading(false)
     }
   }
 
+  const graphSync = useGraphSync(async (updated) => {
+    if (!updated) { await load(true); return }
+    if (updated.id !== id) navigate(`/graphs/results/${updated.id}`)
+    else setGraph(updated)
+  })
+  const hasRunningSync = Boolean(graphSync.syncingId) || graph?.latestSync?.status === '同步中'
   useEffect(() => { void load() }, [id])
+  useEffect(() => {
+    const refresh = () => { void load(true) }
+    window.addEventListener('focus', refresh)
+    const timer = hasRunningSync ? setInterval(refresh, 2500) : undefined
+    return () => { window.removeEventListener('focus', refresh); clearInterval(timer) }
+  }, [id, hasRunningSync])
 
   const publish = async () => {
     if (!graph) return
@@ -779,21 +864,6 @@ export function GraphResultDetailPage() {
       setToast(actionError instanceof Error ? actionError.message : '取消发布失败')
     }
   }
-  const sync = async () => {
-    if (!graph || syncing) return
-    setSyncing(true)
-    try {
-      const updated = await dataGraphApi.syncGraph(graph.id)
-      setSyncOpen(false)
-      setToast(`数据更新完成：${updated.entities} 个实体、${updated.relations} 条关系${updated.id !== graph.id ? '，已生成待发布版本' : ''}`)
-      if (updated.id !== graph.id) navigate(`/graphs/results/${updated.id}`)
-      else setGraph(updated)
-    } catch (actionError) {
-      setToast(actionError instanceof Error ? actionError.message : '数据更新失败')
-    } finally {
-      setSyncing(false)
-    }
-  }
 
   if (loading) return <div className="loading-state page-loading"><i/><span>正在加载知识图谱详情…</span></div>
   if (!graph) return <><button className="back-button" onClick={() => navigate('/graphs/results')}>‹ 返回知识图谱</button><EmptyState title="知识图谱不可访问" description={error || '请返回知识图谱列表重新选择。'}/></>
@@ -804,13 +874,14 @@ export function GraphResultDetailPage() {
         <button className="back-button graph-result-back" onClick={() => navigate('/graphs/results')}>‹ 返回知识图谱</button>
         <div className="graph-result-title-row">
           <div className="graph-result-title-main"><h1>{graphDisplayName(graph)}</h1><ListStatus>{graph.status}</ListStatus></div>
-          <div className="page-actions">{graph.status !== '草稿' && <Button icon="refresh" disabled={syncing} onClick={() => setSyncOpen(true)}>{syncing ? '正在更新…' : '更新数据'}</Button>}{graph.status === '待发布' && <Button variant="primary" onClick={() => void publish()}>发布</Button>}{graph.status === '已发布' && <Button onClick={() => setUnpublishOpen(true)}>取消发布</Button>}</div>
+          <div className="page-actions"><Button onClick={() => graphSync.openHistory(graph)}>同步记录</Button>{graphViewable(graph) && <Button icon="refresh" disabled={graphSync.busyFor(graph)} onClick={() => graphSync.openSync(graph)}>{graphSync.busyFor(graph) ? '同步中…' : '同步数据'}</Button>}{graph.status === '待发布' && <Button variant="primary" disabled={graphSync.busyFor(graph)} onClick={() => void publish()}>发布</Button>}{graph.status === '已发布' && <Button disabled={graphSync.busyFor(graph)} onClick={() => setUnpublishOpen(true)}>取消发布</Button>}</div>
         </div>
         <div className="graph-result-header-meta">
           <span>{graph.tag || '通用图谱'}</span>
           {ontologyName && <span>图谱模型：{ontologyName}</span>}
           {graph.status === '已发布' && graph.publishedAt !== '—' && <span>发布于 {graph.publishedAt}</span>}
-          {graph.syncedAt && <span>数据更新于 {graph.syncedAt}</span>}
+          {graph.syncedAt && <span>当前数据生成于 {graph.syncedAt}</span>}
+          {graph.latestSync && <button type="button" className="graph-sync-detail-status" onClick={() => graphSync.openHistory(graph)} title="查看同步记录">最近同步：<ListStatus>{graph.latestSync.status}</ListStatus></button>}
         </div>
       </header>
       {graph.generationFailed && <div className="alert-box graph-generation-notice"><Icon name="warning"/><span>上次生成未完成，请调整图谱映射后重试。当前图谱已保留为草稿。</span></div>}
@@ -822,7 +893,7 @@ export function GraphResultDetailPage() {
       </section>
       <section className="graph-result-workspace-panel"><header className="graph-result-workspace-header"><div><h2>图谱展示</h2><p>{graph.instanceDataset ? '查看生成后的实体实例、实例关系与属性信息。' : '历史示例图谱；更新数据后展示真实实例。'}</p></div><span className="graph-result-workspace-note">当前图谱只读展示</span></header><KnowledgeGraphDisplay graph={graph}/></section>
       <Modal open={unpublishOpen} title="取消发布知识图谱" description={`${graphDisplayName(graph)} · ${graph.id}`} confirmText="确认取消发布" onClose={() => setUnpublishOpen(false)} onConfirm={() => void unpublish()}><div className="alert-box"><Icon name="warning"/><span>取消发布后，当前图谱会回到待发布状态；可继续编辑、重新发布或删除。</span></div></Modal>
-      <Modal open={syncOpen} title="更新图谱数据" description={graphDisplayName(graph)} confirmText={syncing ? '正在更新…' : '确认更新'} onClose={() => { if (!syncing) setSyncOpen(false) }} onConfirm={() => void sync()}><div className="alert-box"><Icon name="refresh"/><span>{graph.status === '已发布' ? '将从已选数据源重新读取数据，生成新的待发布版本；当前已发布版本保持不变。' : '将从已选数据源重新读取数据，并更新当前待发布图谱。'}</span></div></Modal>
+      {graphSync.controls}
     </div>
   </>
 }

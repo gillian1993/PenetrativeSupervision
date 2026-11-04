@@ -4,6 +4,8 @@ import { Readable } from 'node:stream'
 import { buildGraphDataset } from './graphDataSync.js'
 import { assessGraphMappingCoverage } from './graphMappingCoverage.js'
 import { suggestGraphMappings } from './graphAutoMapping.js'
+import { initializeGraphSyncHistory, listGraphSyncRecords, runTrackedGraphSync, withGraphSyncMetadata } from './graphSyncHistory.js'
+import { withSourceOperation } from './dataSourceLifecycle.js'
 
 const json=(value)=>JSON.stringify(value??null)
 const parseJson=(value,fallback)=>{if(value===null||value===undefined||value==='')return fallback;if(typeof value==='object')return value;try{return JSON.parse(value)}catch{return fallback}}
@@ -39,7 +41,7 @@ function normalizeSourceMode(mode){const text=String(mode||'').trim();if(['数�
 function normalizeAccessConfig(mode,config={}){const source=config&&typeof config==='object'?config:{};if(mode==='数据库接入')return{databaseType:String(source.databaseType||'MySQL'),host:String(source.host||'').trim(),port:String(source.port||'').trim(),databaseName:String(source.databaseName||'').trim(),username:String(source.username||'').trim(),password:String(source.password||'')};if(mode==='接口接入')return{apiUrl:String(source.apiUrl||'').trim(),method:String(source.method||'GET'),authType:String(source.authType||'Token'),token:String(source.token||'')};if(mode==='文件导入')return{fileName:String(source.fileName||'').trim()};return{}}
 function redactAccessConfig(mode,value){const config=normalizeAccessConfig(mode,parseJson(value,{}));if(mode==='数据库接入')return{databaseType:config.databaseType,host:config.host,port:config.port,databaseName:config.databaseName,username:config.username,passwordConfigured:Boolean(config.password)};if(mode==='接口接入')return{apiUrl:config.apiUrl,method:config.method,authType:config.authType,tokenConfigured:Boolean(config.token)};if(mode==='文件导入')return{fileName:config.fileName};return{}}
 function validateAccessConfig(mode,config){if(mode==='数据库接入'){if(!config.host||!config.port||!config.databaseName||!config.username||!config.password)throw Object.assign(new Error('请完整填写数据库接入配置'),{status:400})}else if(mode==='接口接入'){if(!config.apiUrl||!config.method||!config.authType)throw Object.assign(new Error('请完整填写接口接入配置'),{status:400});if(config.authType!=='无认证'&&!config.token)throw Object.assign(new Error('请填写接口 Token/密钥'),{status:400})}}
-function mapSource(row){const mode=normalizeSourceMode(row.mode);return{id:row.id,name:row.name,mode,range:row.data_range,owner:row.owner,ontologyIds:splitList(row.ontology_ids),ontologyNames:splitList(row.ontology_names),lastSuccess:row.last_success,status:row.status,connectionStatus:row.connection_status||'未测试',lastTestedAt:formatTime(row.last_tested_at),connectionMessage:row.connection_message||'',accessConfig:redactAccessConfig(mode,row.access_config),fileCount:Number(row.file_count||0)}}
+function mapSource(row){const mode=normalizeSourceMode(row.mode);return{id:row.id,name:row.name,mode,range:row.data_range,owner:row.owner,ontologyIds:splitList(row.ontology_ids),ontologyNames:splitList(row.ontology_names),lastSuccess:row.last_success,status:row.status==='异常'?'草稿':row.status,connectionStatus:['正常','异常'].includes(row.connection_status)?row.connection_status:'未测试',lastTestedAt:formatTime(row.last_tested_at),connectionMessage:row.connection_message||'',accessConfig:redactAccessConfig(mode,row.access_config),fileCount:Number(row.file_count||0)}}
 function sourceFieldsForTable(tableName){
   const fields={
     purchase_project:['project_id','project_name','budget_amount','purchase_method','org_code','created_at'],
@@ -123,7 +125,7 @@ export async function initializeDataGraphDatabase(pool){
   await ensureColumn(pool,'data_sources','last_tested_at',"last_tested_at DATETIME NULL AFTER connection_status")
   await ensureColumn(pool,'data_sources','connection_message',"connection_message VARCHAR(500) NOT NULL DEFAULT '' AFTER last_tested_at")
   await pool.query("UPDATE data_sources SET connection_status='异常',connection_message='历史连接状态异常，请重新测试连接' WHERE status='异常' AND connection_status='未测试'")
-  await pool.query("UPDATE data_sources SET connection_status='无需测试',connection_message='文件导入无需测试连接' WHERE mode='文件导入' AND connection_status='未测试'")
+  await pool.query("UPDATE data_sources SET connection_status='未测试' WHERE connection_status NOT IN ('未测试','正常','异常')")
   await pool.query(`CREATE TABLE IF NOT EXISTS data_source_structures (source_id VARCHAR(64) NOT NULL,ontology_id VARCHAR(64) NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,PRIMARY KEY (source_id,ontology_id),KEY idx_source_structure_ontology (ontology_id,source_id),CONSTRAINT fk_source_structure_source FOREIGN KEY (source_id) REFERENCES data_sources(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await pool.query(`CREATE TABLE IF NOT EXISTS data_source_files (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,source_id VARCHAR(64) NOT NULL,file_name VARCHAR(255) NOT NULL,mime_type VARCHAR(120) NOT NULL DEFAULT '',size_bytes BIGINT UNSIGNED NOT NULL,content LONGBLOB NOT NULL,sheet_count INT NOT NULL DEFAULT 0,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,UNIQUE KEY uk_source_file_name (source_id,file_name),CONSTRAINT fk_source_file_source FOREIGN KEY (source_id) REFERENCES data_sources(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await pool.query(`CREATE TABLE IF NOT EXISTS data_source_metadata (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,source_id VARCHAR(64) NOT NULL,table_name VARCHAR(120) NOT NULL,display_name VARCHAR(160) NOT NULL,field_count INT NOT NULL DEFAULT 0,summary VARCHAR(500) NOT NULL DEFAULT '',updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,UNIQUE KEY uk_source_table (source_id,table_name),CONSTRAINT fk_metadata_source FOREIGN KEY (source_id) REFERENCES data_sources(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
@@ -133,6 +135,7 @@ export async function initializeDataGraphDatabase(pool){
   await pool.query(`CREATE TABLE IF NOT EXISTS sync_records (id VARCHAR(80) PRIMARY KEY,source_id VARCHAR(64) NOT NULL,source_name VARCHAR(160) NOT NULL,sync_mode VARCHAR(40) NOT NULL,started_at DATETIME NOT NULL,processed_count INT NOT NULL DEFAULT 0,error_count INT NOT NULL DEFAULT 0,duration_text VARCHAR(40) NOT NULL,result VARCHAR(24) NOT NULL,KEY idx_sync_source (source_id,started_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await pool.query(`CREATE TABLE IF NOT EXISTS graph_versions (id VARCHAR(64) PRIMARY KEY,ontology_id VARCHAR(64) NOT NULL DEFAULT 'ONT-PROC',ontology_version VARCHAR(160) NOT NULL,mapping_version VARCHAR(80) NOT NULL,data_range VARCHAR(500) NOT NULL,entity_count INT NOT NULL DEFAULT 0,relation_count INT NOT NULL DEFAULT 0,event_count INT NOT NULL DEFAULT 0,blockers INT NOT NULL DEFAULT 0,warnings INT NOT NULL DEFAULT 0,status VARCHAR(24) NOT NULL DEFAULT '待发布',published_at DATETIME NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,KEY idx_graph_status (status,updated_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await pool.query(`CREATE TABLE IF NOT EXISTS graph_instance_datasets (graph_id VARCHAR(64) PRIMARY KEY,dataset_json JSON NOT NULL,source_stats_json JSON NOT NULL,synced_at DATETIME NOT NULL,CONSTRAINT fk_graph_dataset_graph FOREIGN KEY (graph_id) REFERENCES graph_versions(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
+  await initializeGraphSyncHistory(pool)
   await ensureColumn(pool,'semantic_mappings','ontology_id',"ontology_id VARCHAR(64) NOT NULL DEFAULT 'ONT-PROC' AFTER source_id")
   await pool.query("DELETE duplicate FROM semantic_mappings duplicate JOIN semantic_mappings keep ON keep.source_id=duplicate.source_id AND keep.ontology_id=duplicate.ontology_id AND keep.source_field=duplicate.source_field AND keep.target_code=duplicate.target_code AND keep.id<duplicate.id WHERE duplicate.mapping_type IN ('实体类型','属性','关系','事件','事件实例','节点实例') AND keep.mapping_type IN ('实体类型','属性','关系','事件','事件实例','节点实例')")
   await pool.query("UPDATE semantic_mappings sm JOIN ontology_elements oe ON oe.ontology_id=sm.ontology_id AND oe.code=sm.target_code SET sm.mapping_type=CASE WHEN oe.element_type='class' THEN '实体类型' WHEN oe.element_type='property' THEN '属性' ELSE sm.mapping_type END WHERE sm.mapping_type IN ('属性','事件','事件实例','节点实例') AND oe.element_type IN ('class','property')")
@@ -156,11 +159,10 @@ export async function initializeDataGraphDatabase(pool){
   await pool.query("UPDATE data_sources SET mode='数据库接入' WHERE mode IN ('数据库视图','数据库表','数据库视图/表')")
   await pool.query("UPDATE data_sources SET mode='接口接入' WHERE mode IN ('API','API接口','消息','消息/日志')")
   await pool.query("UPDATE data_sources SET mode='文件导入' WHERE mode='批量文件'")
-  await pool.query("UPDATE data_sources SET connection_status='无需测试',connection_message='文件导入无需测试连接' WHERE mode='文件导入' AND connection_status='未测试'")
-  await pool.query("UPDATE data_sources ds SET ds.connection_status='正常',ds.connection_message='文件已接入，可用于图谱构建' WHERE ds.mode='文件导入' AND (ds.connection_status='已就绪' OR (ds.status='启用' AND ds.connection_status='无需测试')) AND EXISTS (SELECT 1 FROM data_source_files dsf WHERE dsf.source_id=ds.id) AND EXISTS (SELECT 1 FROM data_source_metadata dsm WHERE dsm.source_id=ds.id AND dsm.file_id IS NOT NULL)")
+  await pool.query("UPDATE data_sources SET connection_status='未测试' WHERE connection_status NOT IN ('未测试','正常','异常')")
+  await pool.query("UPDATE data_sources ds SET ds.connection_status='正常',ds.connection_message='文件已解析，可启用使用' WHERE ds.mode='文件导入' AND ds.connection_status='未测试' AND EXISTS (SELECT 1 FROM data_source_files dsf WHERE dsf.source_id=ds.id) AND EXISTS (SELECT 1 FROM data_source_metadata dsm WHERE dsm.source_id=ds.id AND dsm.file_id IS NOT NULL)")
   await pool.query("UPDATE data_sources SET status='草稿' WHERE status='异常'")
-  await pool.query("UPDATE data_sources SET status='草稿' WHERE status='启用' AND mode IN ('数据库接入','接口接入') AND connection_status<>'正常'")
-  await pool.query("UPDATE data_sources ds SET ds.status='草稿',ds.connection_status='无需测试',ds.connection_message='请先上传并解析至少一份数据文件' WHERE ds.mode='文件导入' AND ds.status='启用' AND (NOT EXISTS (SELECT 1 FROM data_source_files dsf WHERE dsf.source_id=ds.id) OR NOT EXISTS (SELECT 1 FROM data_source_metadata dsm WHERE dsm.source_id=ds.id AND dsm.file_id IS NOT NULL))")
+  await pool.query("UPDATE data_sources ds SET ds.connection_status='异常',ds.connection_message='请先上传并解析至少一份数据文件' WHERE ds.mode='文件导入' AND ds.status='启用' AND (NOT EXISTS (SELECT 1 FROM data_source_files dsf WHERE dsf.source_id=ds.id) OR NOT EXISTS (SELECT 1 FROM data_source_metadata dsm WHERE dsm.source_id=ds.id AND dsm.file_id IS NOT NULL))")
   await pool.query("UPDATE data_sources SET name='司库付款接口' WHERE id='SRC-TREASURY' AND name='司库付款消息'")
   await pool.query("UPDATE sync_records SET source_name='司库付款接口' WHERE source_id='SRC-TREASURY' AND source_name='司库付款消息'")
   await pool.query("INSERT IGNORE INTO data_source_structures (source_id,ontology_id) SELECT id,'ONT-PROC' FROM data_sources")
@@ -192,8 +194,35 @@ function normalizeSourceOntologyIds(payload){return [...new Set((Array.isArray(p
 function inferSourceSyncMode(mode){const text=String(mode||'');if(text.includes('消息'))return'事件';if(text.includes('文件'))return'全量';return'增量'}
 async function ensureSourceUsesOntology(pool,sourceId,ontologyId){const [rows]=await pool.query('SELECT COUNT(*) AS total FROM data_source_structures WHERE source_id=? AND ontology_id=?',[sourceId,ontologyId]);if(!Number(rows[0].total))throw Object.assign(new Error('该数据源未绑定当前图谱结构，请先在数据源配置中选择适用图谱结构'),{status:409})}
 async function listSources(pool){const [rows]=await pool.query(`${sourceSelect} ORDER BY ds.updated_at DESC,ds.id ASC`);return rows.map(mapSource)}
-async function createSource(pool,payload){if(!String(payload.name||'').trim())throw Object.assign(new Error('请填写数据源名称'),{status:400});const mode=normalizeSourceMode(payload.mode);const accessConfig=normalizeAccessConfig(mode,payload.accessConfig);validateAccessConfig(mode,accessConfig);const [rows]=await pool.query("SELECT MAX(CAST(SUBSTRING(id,5) AS UNSIGNED)) AS total FROM data_sources WHERE id REGEXP '^SRC-[0-9]+$'");const id='SRC-'+String(Number(rows[0].total||0)+1).padStart(3,'0');await pool.query('INSERT INTO data_sources (id,name,mode,data_range,owner,sync_mode,access_config,last_success,status,connection_status) VALUES (?,?,?,?,?,?,?,?,?,?)',[id,String(payload.name).trim(),mode,String(payload.range||''),payload.owner||'张海',inferSourceSyncMode(mode),json(accessConfig),'未同步','草稿',mode==='文件导入'?'无需测试':'未测试']);return mapSource((await pool.query(`${sourceSelect} WHERE ds.id=?`,[id]))[0][0])}
-async function updateSource(pool,id,payload){const source=await getSource(pool,id);if(!source)throw Object.assign(new Error('数据源不存在'),{status:404});if(!String(payload.name||'').trim())throw Object.assign(new Error('请填写数据源名称'),{status:400});const mode=normalizeSourceMode(payload.mode);if(source.mode==='文件导入'&&mode!=='文件导入'&&Number(source.file_count))throw Object.assign(new Error('请先移除导入文件，再切换来源方式'),{status:409});const accessConfig=normalizeAccessConfig(mode,payload.accessConfig);validateAccessConfig(mode,accessConfig);await pool.query('UPDATE data_sources SET name=?,mode=?,data_range=?,owner=?,sync_mode=?,access_config=?,status=\'草稿\',connection_status=?,last_tested_at=NULL,connection_message=\'\' WHERE id=?',[String(payload.name).trim(),mode,String(payload.range||''),payload.owner||'张海',inferSourceSyncMode(mode),json(accessConfig),mode==='文件导入'?'无需测试':'未测试',id]);return mapSource((await pool.query(`${sourceSelect} WHERE ds.id=?`,[id]))[0][0])}
+async function createSource(pool,payload){if(!String(payload.name||'').trim())throw Object.assign(new Error('请填写数据源名称'),{status:400});const mode=normalizeSourceMode(payload.mode);const accessConfig=normalizeAccessConfig(mode,payload.accessConfig);validateAccessConfig(mode,accessConfig);const [rows]=await pool.query("SELECT MAX(CAST(SUBSTRING(id,5) AS UNSIGNED)) AS total FROM data_sources WHERE id REGEXP '^SRC-[0-9]+$'");const id='SRC-'+String(Number(rows[0].total||0)+1).padStart(3,'0');await pool.query('INSERT INTO data_sources (id,name,mode,data_range,owner,sync_mode,access_config,last_success,status,connection_status) VALUES (?,?,?,?,?,?,?,?,?,?)',[id,String(payload.name).trim(),mode,String(payload.range||''),payload.owner||'张海',inferSourceSyncMode(mode),json(accessConfig),'未同步','草稿','未测试']);return mapSource((await pool.query(`${sourceSelect} WHERE ds.id=?`,[id]))[0][0])}
+function sourceCandidateConfig(source,mode,patch){
+  const config=normalizeAccessConfig(mode,patch)
+  if(source&&normalizeSourceMode(source.mode)===mode){
+    const stored=normalizeAccessConfig(mode,parseJson(source.access_config,{}))
+    if(mode==='数据库接入'&&!config.password)config.password=stored.password
+    if(mode==='接口接入'&&!config.token)config.token=stored.token
+  }
+  return config
+}
+async function updateSource(pool,id,payload){
+  if(!String(payload.name||'').trim())throw Object.assign(new Error('请填写数据源名称'),{status:400})
+  const result=await withSourceOperation(pool,id,getSource,async(connection,source)=>{
+    const mode=normalizeSourceMode(payload.mode)
+    const oldMode=normalizeSourceMode(source.mode)
+    if(oldMode==='文件导入'&&mode!==oldMode&&Number(source.file_count))throw Object.assign(new Error('请先移除导入文件，再切换来源方式'),{status:409})
+    if(source.status==='启用'&&oldMode!==mode)throw Object.assign(new Error('请先停用数据源，再切换接入方式'),{status:409})
+    const config=sourceCandidateConfig(source,mode,payload.accessConfig)
+    validateAccessConfig(mode,config)
+    const changed=oldMode!==mode||json(config)!==json(normalizeAccessConfig(oldMode,parseJson(source.access_config,{})))
+    let message=source.connection_message||''
+    if(changed&&source.status==='启用'&&mode!=='文件导入'){
+      try{message=await runSourceConnectionTest(mode,config)}catch(error){throw Object.assign(new Error(`新配置校验失败：${error.message}。原有配置继续使用。`),{status:error.status||502})}
+    }
+    const connectionStatus=changed?(source.status==='启用'?'正常':'未测试'):source.connection_status
+    await connection.query('UPDATE data_sources SET name=?,mode=?,data_range=?,owner=?,sync_mode=?,access_config=?,connection_status=?,last_tested_at=?,connection_message=? WHERE id=?',[String(payload.name).trim(),mode,String(payload.range||''),payload.owner||'张海',inferSourceSyncMode(mode),json(config),connectionStatus,changed?(source.status==='启用'?new Date():null):source.last_tested_at,changed?(source.status==='启用'?message:''):message,id])
+  })
+  return mapSource(result.source)
+}
 async function getSource(pool,id){const [rows]=await pool.query(`${sourceSelect} WHERE ds.id=?`,[id]);return rows[0]||null}
 
 const maxSourceFiles=10
@@ -242,12 +271,12 @@ async function syncSourceFileName(connection,id){
   const [sources]=await connection.query('SELECT access_config FROM data_sources WHERE id=?',[id])
   const [files]=await connection.query('SELECT file_name FROM data_source_files WHERE source_id=? ORDER BY id LIMIT 1',[id])
   const config=parseJson(sources[0]?.access_config,{})
-  await connection.query('UPDATE data_sources SET access_config=? WHERE id=?',[json({...config,fileName:files[0]?.file_name||''}),id])
+  await connection.query("UPDATE data_sources SET access_config=?,connection_status=?,connection_message=? WHERE id=?",[json({...config,fileName:files[0]?.file_name||''}),files.length?'正常':'未测试',files.length?'文件已解析，可启用使用':'请先上传并解析数据文件',id])
 }
 async function uploadSourceFile(pool,id,req){
   const source=await getSource(pool,id)
   if(!source)throw sourceFileError('数据源不存在',404)
-  if(source.mode!=='文件导入'||source.status!=='草稿')throw sourceFileError('仅草稿状态的文件数据源可以添加文件',409)
+  if(source.mode!=='文件导入'||source.status==='启用')throw sourceFileError('请先停用文件数据源，再添加文件',409)
   if(Number(source.file_count)>=maxSourceFiles)throw sourceFileError(`最多上传 ${maxSourceFiles} 个文件`,409)
   const {name,mimeType,content}=await readSourceUpload(req)
   const sheets=await parseSourceWorkbook(name,content)
@@ -272,7 +301,7 @@ async function uploadSourceFile(pool,id,req){
 async function deleteSourceFile(pool,id,fileId){
   const source=await getSource(pool,id)
   if(!source)throw sourceFileError('数据源不存在',404)
-  if(source.status!=='草稿')throw sourceFileError('请先将数据源调整为草稿，再移除文件',409)
+  if(source.status==='启用')throw sourceFileError('请先停用数据源，再移除文件',409)
   const connection=await pool.getConnection()
   try{
     await connection.beginTransaction()
@@ -295,7 +324,7 @@ async function runSourceConnectionTest(mode,accessConfig){
     let connection
     try{
       connection=await mysql.createConnection({host:accessConfig.host,port:Number(accessConfig.port),user:accessConfig.username,password:accessConfig.password,database:accessConfig.databaseName,connectTimeout:8000})
-      await connection.query('SELECT 1 AS connectivity_check')
+      await connection.query({sql:'SELECT 1 AS connectivity_check',timeout:8000})
       return '数据库连接正常，已完成只读连通性检查'
     }catch(error){
       const reason=error?.code?`（${error.code}）`:''
@@ -335,35 +364,36 @@ async function recordSourceTest(pool,id,source){
     return message
   }catch(error){
     const message=String(error?.message||'连接测试失败').slice(0,500)
-    await pool.query("UPDATE data_sources SET connection_status='异常',last_tested_at=NOW(),connection_message=?,status='草稿' WHERE id=?",[message,id])
+    await pool.query("UPDATE data_sources SET connection_status='异常',last_tested_at=NOW(),connection_message=? WHERE id=?",[message,id])
     throw error
   }
 }
-async function testSourceConfig(pool,payload){const mode=normalizeSourceMode(payload.mode);if(mode==='文件导入')throw Object.assign(new Error('文件导入无需测试连接，请直接读取文件'),{status:400});const accessConfig=normalizeAccessConfig(mode,payload.accessConfig);return{ok:true,message:await runSourceConnectionTest(mode,accessConfig)}}
-async function testSource(pool,id){const source=await getSource(pool,id);if(!source)throw Object.assign(new Error('数据源不存在'),{status:404});const message=await recordSourceTest(pool,id,source);return{ok:true,message,source:mapSource(await getSource(pool,id))}}
+async function testSourceConfig(pool,payload){const mode=normalizeSourceMode(payload.mode);if(mode==='文件导入')throw Object.assign(new Error('文件导入无需测试连接，请直接读取文件'),{status:400});const source=payload.sourceId?await getSource(pool,String(payload.sourceId)):null;if(payload.sourceId&&!source)throw Object.assign(new Error('数据源不存在'),{status:404});const accessConfig=sourceCandidateConfig(source,mode,payload.accessConfig);return{ok:true,message:await runSourceConnectionTest(mode,accessConfig)}}
+async function testSource(pool,id){
+  const result=await withSourceOperation(pool,id,getSource,async(connection,source)=>{try{await recordSourceTest(connection,id,source)}catch(error){return error}})
+  if(result.error)throw result.error
+  return{ok:true,message:result.source.connection_message,source:mapSource(result.source)}
+}
 async function toggleSource(pool,id,enabled){
-  const source=await getSource(pool,id)
-  if(!source)throw Object.assign(new Error('数据源不存在'),{status:404})
-  if(!enabled){
-    await pool.query("UPDATE data_sources SET status='停用' WHERE id=?",[id])
-    return mapSource(await getSource(pool,id))
-  }
-  try{
+  const result=await withSourceOperation(pool,id,getSource,async(connection,source)=>{
+    if(!enabled){await connection.query("UPDATE data_sources SET status='停用' WHERE id=?",[id]);return}
+    try{
     if(normalizeSourceMode(source.mode)==='文件导入'){
-      const [files]=await pool.query('SELECT COUNT(*) AS total FROM data_source_files WHERE source_id=?',[id])
-      const [objects]=await pool.query('SELECT COUNT(*) AS total FROM data_source_metadata WHERE source_id=? AND file_id IS NOT NULL',[id])
+      const [files]=await connection.query('SELECT COUNT(*) AS total FROM data_source_files WHERE source_id=?',[id])
+      const [objects]=await connection.query('SELECT COUNT(*) AS total FROM data_source_metadata WHERE source_id=? AND file_id IS NOT NULL',[id])
       if(!Number(files[0].total)||!Number(objects[0].total))throw sourceFileError('请先上传并解析至少一份数据文件',409)
-      await pool.query("UPDATE data_sources SET status='启用',connection_status='正常',last_tested_at=NULL,connection_message='文件已接入，可用于图谱构建' WHERE id=?",[id])
+      await connection.query("UPDATE data_sources SET status='启用',connection_status='正常',last_tested_at=NULL,connection_message='文件已接入，可用于图谱构建' WHERE id=?",[id])
     }else{
-      if(source.connection_status!=='正常')await recordSourceTest(pool,id,source)
-      await pool.query("UPDATE data_sources SET status='启用',connection_status='正常' WHERE id=?",[id])
+      await recordSourceTest(connection,id,source)
+      await connection.query("UPDATE data_sources SET status='启用',connection_status='正常' WHERE id=?",[id])
     }
-  }catch(error){
-    if(normalizeSourceMode(source.mode)==='文件导入')await pool.query("UPDATE data_sources SET status='草稿',connection_status='无需测试',connection_message='文件导入无需测试连接' WHERE id=?",[id])
-    else await pool.query("UPDATE data_sources SET status='草稿' WHERE id=?",[id])
-    throw Object.assign(new Error(`启用失败：${error?.message||'连接测试未通过'}。数据源仍为草稿，请检查配置后重试。`),{status:error?.status||502})
-  }
-  return mapSource(await getSource(pool,id))
+    }catch(error){
+      if(normalizeSourceMode(source.mode)==='文件导入')await connection.query("UPDATE data_sources SET connection_status='异常',connection_message=? WHERE id=?",[error.message,id])
+      return Object.assign(new Error(`启用失败：${error?.message||'连接测试未通过'}。使用状态保持不变，请检查配置后重试。`),{status:error?.status||502})
+    }
+  })
+  if(result.error)throw result.error
+  return mapSource(result.source)
 }
 async function metadata(pool,id){
   const source=await getSource(pool,id)
@@ -583,8 +613,8 @@ async function applyGraphAutoMapping(pool,payload){
 }
 const graphSelect=`SELECT gv.*,(SELECT GROUP_CONCAT(gvs.source_id ORDER BY gvs.source_id) FROM graph_version_sources gvs WHERE gvs.graph_id=gv.id) AS source_ids,(SELECT GROUP_CONCAT(ds.name ORDER BY ds.id) FROM graph_version_sources gvs JOIN data_sources ds ON ds.id=gvs.source_id WHERE gvs.graph_id=gv.id) AS source_names,ged.graph_id AS draft_graph_id,ged.graph_code AS draft_graph_code,ged.graph_name AS draft_graph_name,ged.graph_tag AS draft_graph_tag,ged.ontology_id AS draft_ontology_id,ged.data_range AS draft_data_range,ged.source_ids_json AS draft_source_ids,ged.structure_snapshot AS draft_structure_snapshot,ged.dirty AS draft_dirty FROM graph_versions gv LEFT JOIN graph_edit_drafts ged ON ged.graph_id=gv.id`
 function graphStatusFilter(status,column,params){if(status==='草稿'||status==='生成失败'){params.push('草稿','生成失败','失败','校验中');return `${column} IN (?,?,?,?)`}params.push(status);return `${column}=?`}
-async function listGraphVersions(pool,url){const status=String(url.searchParams.get('status')||'');const params=[];let where='';if(status){where=` WHERE ${graphStatusFilter(status,'gv.status',params)}`}else{where=' WHERE gv.status<>?';params.push('已归档')}const [rows]=await pool.query(`${graphSelect}${where} ORDER BY gv.updated_at DESC,gv.id DESC`,params);return rows.map(mapGraphVersion)}
-async function getGraphVersion(pool,id){const [rows]=await pool.query(`${graphSelect} WHERE gv.id=?`,[id]);if(!rows.length)return null;const graph=mapGraphVersion(rows[0]);const [datasets]=await pool.query('SELECT dataset_json,source_stats_json,synced_at FROM graph_instance_datasets WHERE graph_id=?',[id]);if(datasets.length){graph.instanceDataset=parseJson(datasets[0].dataset_json,{nodes:[],relations:[]});graph.sourceStats=parseJson(datasets[0].source_stats_json,[]);graph.syncedAt=formatTime(datasets[0].synced_at)}return graph}
+async function listGraphVersions(pool,url){const status=String(url.searchParams.get('status')||'');const params=[];let where='';if(status){where=` WHERE ${graphStatusFilter(status,'gv.status',params)}`}else{where=' WHERE gv.status<>?';params.push('已归档')}const [rows]=await pool.query(`${graphSelect}${where} ORDER BY gv.updated_at DESC,gv.id DESC`,params);return withGraphSyncMetadata(pool,rows.map(mapGraphVersion))}
+async function getGraphVersion(pool,id){const [rows]=await pool.query(`${graphSelect} WHERE gv.id=?`,[id]);if(!rows.length)return null;const graph=mapGraphVersion(rows[0]);const [datasets]=await pool.query('SELECT dataset_json,source_stats_json,synced_at FROM graph_instance_datasets WHERE graph_id=?',[id]);if(datasets.length){graph.instanceDataset=parseJson(datasets[0].dataset_json,{nodes:[],relations:[]});graph.sourceStats=parseJson(datasets[0].source_stats_json,[]);graph.syncedAt=formatTime(datasets[0].synced_at)}return (await withGraphSyncMetadata(pool,[graph]))[0]}
 async function graphVersionDetail(pool,id){const graph=await getGraphVersion(pool,id);if(!graph)throw Object.assign(new Error('知识图谱生成结果不存在'),{status:404});return graph}
 async function materializeGraph(pool,sourceIds,ontologyId,structureElements,graphId=''){
   const uniqueIds=[...new Set(sourceIds)]
@@ -600,13 +630,11 @@ async function materializeGraph(pool,sourceIds,ontologyId,structureElements,grap
   return buildGraphDataset(pool,uniqueIds.map((id)=>byId.get(id)),mappings,structureElements)
 }
 async function syncGraphVersion(pool,id){
-  const connection=await pool.getConnection()
-  try{
-    await connection.beginTransaction()
+  const result=await runTrackedGraphSync(pool,id,async(connection)=>{
     const [rows]=await connection.query('SELECT * FROM graph_versions WHERE id=? FOR UPDATE',[id])
     if(!rows.length)throw Object.assign(new Error('知识图谱不存在'),{status:404})
     const graph=rows[0]
-    if(!['待发布','已发布'].includes(graph.status))throw Object.assign(new Error('请先完成图谱配置和数据映射，再更新数据'),{status:409})
+    if(!['待发布','已发布'].includes(graph.status))throw Object.assign(new Error('请先完成图谱配置和数据映射，再同步数据'),{status:409})
     const [drafts]=await connection.query('SELECT dirty FROM graph_edit_drafts WHERE graph_id=?',[id])
     if(drafts.some((item)=>item.dirty))throw Object.assign(new Error('存在未保存的映射修改，请先生成图谱'),{status:409})
     const dependencies=await validateGraphDependencies(connection,graph)
@@ -628,9 +656,9 @@ async function syncGraphVersion(pool,id){
     }
     await saveGraphDataset(connection,resultId,dataset)
     for(const item of dataset.sourceStats)await connection.query("UPDATE data_sources SET last_success='刚刚' WHERE id=?",[item.sourceId])
-    await connection.commit()
-    return await getGraphVersion(pool,resultId)
-  }catch(error){await connection.rollback();throw error}finally{connection.release()}
+    return {id:resultId,entities:dataset.nodes.length,relations:dataset.relations.length}
+  })
+  return getGraphVersion(pool,result.id)
 }
 async function saveGraphDataset(connection,graphId,dataset){await connection.query('INSERT INTO graph_instance_datasets (graph_id,dataset_json,source_stats_json,synced_at) VALUES (?,?,?,NOW()) ON DUPLICATE KEY UPDATE dataset_json=VALUES(dataset_json),source_stats_json=VALUES(source_stats_json),synced_at=NOW()',[graphId,json({nodes:dataset.nodes,relations:dataset.relations}),json(dataset.sourceStats)])}
 async function listGraphMappingSnapshots(pool,id){await graphVersionDetail(pool,id);const [rows]=await pool.query('SELECT * FROM graph_version_mapping_snapshots WHERE graph_id=? ORDER BY source_id',[id]);return rows.map(mapMappingSnapshot)}
@@ -719,7 +747,7 @@ async function validateGraphDependencies(connection,graph){
 }
 async function createGraphVersion(pool,payload){
   const graphCode=String(payload.graphCode||'').trim().toUpperCase();const graphName=String(payload.graphName||'').trim();const graphTag=normalizeGraphTag(payload.tag);const ontologyId=String(payload.ontologyId||'').trim();const range=String(payload.range||'').trim()
-  if(!/^[A-Z0-9_-]{3,64}$/.test(graphCode))throw Object.assign(new Error('图谱编码只能包含大写字母、数字、下划线和中划线'),{status:400});if(!graphName)throw Object.assign(new Error('图谱名称不能为空'),{status:400});if(!ontologyId)throw Object.assign(new Error('请选择启用状态的图谱结构'),{status:400});if(!range)throw Object.assign(new Error('请填写图谱说明'),{status:400})
+  if(!/^[A-Z0-9_-]{3,64}$/.test(graphCode))throw Object.assign(new Error('图谱编码只能包含大写字母、数字、下划线或中划线'),{status:400});if(!graphName)throw Object.assign(new Error('图谱名称不能为空'),{status:400});if(!ontologyId)throw Object.assign(new Error('请选择启用状态的图谱结构'),{status:400})
   const structureSnapshot=normalizeStructureElements(payload.structureElements)
   const connection=await pool.getConnection()
   try{
@@ -808,7 +836,7 @@ async function updateGraphVersion(pool,id,payload){
     const graph=rows[0]
     if(!['草稿','待发布'].includes(normalizeGraphStatus(graph.status)))throw Object.assign(new Error('当前版本不可直接覆盖，请通过编辑保存未发布修改'),{status:409})
     const graphCode=String(payload.graphCode??graph.graph_code).trim().toUpperCase();const graphName=String(payload.graphName??graph.graph_name).trim();const graphTag=normalizeGraphTag(payload.tag??graph.graph_tag);const ontologyId=String(payload.ontologyId??graph.ontology_id).trim();const range=String(payload.range??graph.data_range).trim()
-    if(!/^[A-Z0-9_-]{3,64}$/.test(graphCode))throw Object.assign(new Error('图谱编码只能包含大写字母、数字、下划线和中划线'),{status:400});if(!graphName)throw Object.assign(new Error('图谱名称不能为空'),{status:400});if(!ontologyId)throw Object.assign(new Error('请选择启用状态的图谱结构'),{status:400});if(!range)throw Object.assign(new Error('图谱说明不能为空'),{status:400})
+    if(!/^[A-Z0-9_-]{3,64}$/.test(graphCode))throw Object.assign(new Error('图谱编码只能包含大写字母、数字、下划线或中划线'),{status:400});if(!graphName)throw Object.assign(new Error('图谱名称不能为空'),{status:400});if(!ontologyId)throw Object.assign(new Error('请选择启用状态的图谱结构'),{status:400})
     const structureSnapshot=normalizeStructureElements(Array.isArray(payload.structureElements)?payload.structureElements:parseJson(graph.structure_snapshot,[]))
     await ensureGraphEditDraft(connection,id,graph)
     let sourceIds=Array.isArray(payload.sourceIds)?payload.sourceIds:null
@@ -885,6 +913,8 @@ export async function handleDataGraphApi(req,res,url,{pool,sendJson,readBody}){
   if(scopedUnpublish&&req.method==='POST'){sendJson(res,200,await unpublishGraphVersion(pool,decodeURIComponent(scopedUnpublish[1])));return true}
   const scopedSync=url.pathname.match(/^\/api\/graphs\/([^/]+)\/sync$/)
   if(scopedSync&&req.method==='POST'){sendJson(res,200,await syncGraphVersion(pool,decodeURIComponent(scopedSync[1])));return true}
+  const scopedSyncRecords=url.pathname.match(/^\/api\/graphs\/([^/]+)\/sync-records$/)
+  if(scopedSyncRecords&&req.method==='GET'){sendJson(res,200,await listGraphSyncRecords(pool,decodeURIComponent(scopedSyncRecords[1])));return true}
   if(url.pathname==='/api/data-sources'&&req.method==='GET'){sendJson(res,200,await listSources(pool));return true}
   if(url.pathname==='/api/data-sources'&&req.method==='POST'){sendJson(res,201,await createSource(pool,await readBody(req)));return true}
   if(url.pathname==='/api/data-sources/test-config'&&req.method==='POST'){sendJson(res,200,await testSourceConfig(pool,await readBody(req)));return true}

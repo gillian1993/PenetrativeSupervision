@@ -1,4 +1,9 @@
 .editor-panel { min-width: 0; overflow: hidden; }
+.ontology-editor-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.ontology-editor-fields:disabled { opacity: .75; }
+footer.editor-action-bar.ontology-editor-action-bar > .ontology-editor-footer-actions { display: flex; align-items: center; gap: 8px; }
+.ontology-editor-action-bar > .ontology-save-state { margin: 0 0 0 auto; color: #667085; font-size: 13px; }
+.ontology-editor-action-bar > .ontology-save-state.pending { color: #b66b13; }
 .ontology-modeler { display: grid; grid-template-columns: 180px minmax(500px, 1fr) 240px; gap: 12px; min-height: 720px; align-items: stretch; }
 .ontology-model-palette, .ontology-inspector, .ontology-canvas-panel { border: 1px solid #dfe7f2; border-radius: 12px; background: #fff; box-shadow: 0 5px 18px rgba(27, 47, 78, .05); }
 .ontology-model-palette, .ontology-inspector { padding: 14px; }

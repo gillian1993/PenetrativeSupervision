@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { ontologyApi, type OntologyCreatePayload, type OntologyElementPayload, type OntologyUpdatePayload } from './ontologyApi'
+import { ontologyApi, type OntologyCreatePayload, type OntologyDraftPayload, type OntologyElementPayload, type OntologyUpdatePayload } from './ontologyApi'
 import type { OntologyElement, OntologyRecord } from './ontologyLocalStore'
 
 export type { OntologyElement, OntologyElementType, OntologyRecord } from './ontologyLocalStore'
@@ -17,6 +17,7 @@ interface OntologyState {
   loadOntologies: () => Promise<Result>
   createOntology: (payload: OntologyCreatePayload) => Promise<Result>
   updateOntology: (id: string, patch: OntologyUpdatePayload) => Promise<Result>
+  saveDraft: (id: string, payload: OntologyDraftPayload) => Promise<Result>
   deleteOntology: (id: string) => Promise<Result>
   copyOntology: (id: string) => Promise<Result>
   enableOntology: (id: string) => Promise<Result>
@@ -65,6 +66,15 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
       const ontology = await ontologyApi.update(id, patch)
       set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
       return { ok: true, message: '图谱结构草稿已保存到MySQL' }
+    } catch (error) {
+      return { ok: false, message: errorMessage(error) }
+    }
+  },
+  saveDraft: async (id, payload) => {
+    try {
+      const ontology = await ontologyApi.saveDraft(id, payload)
+      set((state) => ({ ontologies: replaceOntology(state.ontologies, ontology) }))
+      return { ok: true, message: '保存成功' }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }

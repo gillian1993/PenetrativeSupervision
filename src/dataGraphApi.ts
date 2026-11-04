@@ -1,4 +1,4 @@
-import type { DataSourceItem, GraphStructureElement, GraphVersion } from './types'
+import type { DataSourceItem, GraphStructureElement, GraphSyncRecord, GraphVersion } from './types'
 
 export interface SourceMetadataItem { id: string; sourceId: string; tableName: string; displayName: string; fieldCount: number; summary: string; fields?: string[] }
 export interface SourceFileItem { id: string; sourceId: string; name: string; size: number; sheetCount: number; status: string; createdAt: string }
@@ -40,7 +40,7 @@ export const dataGraphApi = {
   deleteSourceFile: (id: string, fileId: string) => request<{ ok: boolean; message: string }>(`/api/data-sources/${encodeURIComponent(id)}/files/${encodeURIComponent(fileId)}`, { method: 'DELETE' }),
   deleteSource: (id: string) => request<{ ok: boolean; message: string }>(`/api/data-sources/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   testSource: (id: string) => request<{ ok: boolean; message: string; source: DataSourceItem }>(`/api/data-sources/${encodeURIComponent(id)}/test`, { method: 'POST' }),
-  testSourceConfig: (payload: { mode: string; accessConfig?: DataSourceItem['accessConfig'] }) => request<{ ok: boolean; message: string }>('/api/data-sources/test-config', { method: 'POST', body: JSON.stringify(payload) }),
+  testSourceConfig: (payload: { sourceId?: string; mode: string; accessConfig?: DataSourceItem['accessConfig'] }) => request<{ ok: boolean; message: string }>('/api/data-sources/test-config', { method: 'POST', body: JSON.stringify(payload) }),
   toggleSource: (id: string, enabled: boolean) => request<DataSourceItem>(`/api/data-sources/${encodeURIComponent(id)}/toggle`, { method: 'POST', body: JSON.stringify({ enabled }) }),
   parseMetadata: (id: string, ontologyId = 'ONT-PROC') => request<SourceMetadataItem[]>(`/api/data-sources/${encodeURIComponent(id)}/metadata/parse`, { method: 'POST', body: JSON.stringify({ ontologyId }) }),
   metadata: (id: string) => request<SourceMetadataItem[]>(`/api/data-sources/${encodeURIComponent(id)}/metadata`),
@@ -65,6 +65,7 @@ export const dataGraphApi = {
   unpublishGraph: (id: string) => request<GraphVersion>(`/api/graphs/${encodeURIComponent(id)}/unpublish`, { method: 'POST' }),
   publishGraph: (id: string) => request<GraphVersion>(`/api/graphs/${encodeURIComponent(id)}/publish`, { method: 'POST' }),
   syncGraph: (id: string) => request<GraphVersion>(`/api/graphs/${encodeURIComponent(id)}/sync`, { method: 'POST' }),
+  graphSyncRecords: (id: string) => request<GraphSyncRecord[]>(`/api/graphs/${encodeURIComponent(id)}/sync-records`),
   issues: (graphId: string) => request<GraphIssueItem[]>(`/api/graphs/${encodeURIComponent(graphId)}/issues`),
   resolveIssue: (graphId: string, issueId: string) => request<{ ok: boolean; message: string }>(`/api/graphs/${encodeURIComponent(graphId)}/issues/${encodeURIComponent(issueId)}/resolve`, { method: 'POST' }),
   governance: (graphId: string) => request<GovernanceTaskItem[]>(`/api/graphs/${encodeURIComponent(graphId)}/governance`),

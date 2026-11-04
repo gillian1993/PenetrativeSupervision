@@ -1,0 +1,20 @@
+.source-access-result { display: flex; align-items: flex-start; gap: 16px; padding: 12px 0 20px; }
+.source-access-result h3 { margin: 2px 0 10px; font-size: 16px; line-height: 24px; }
+.source-access-result p { margin: 0; color: var(--muted); line-height: 22px; overflow-wrap: anywhere; }
+.source-access-spinner { width: 30px; height: 30px; flex: 0 0 30px; box-sizing: border-box; border: 3px solid #dce8ff; border-top-color: var(--blue); border-radius: 50%; animation: source-access-spin .8s linear infinite; }
+.source-access-result-icon { display: grid; place-items: center; flex: 0 0 38px; height: 38px; color: #159b64; background: #eaf8f0; border-radius: 50%; }
+.source-access-result.failure .source-access-result-icon { color: #d92d20; background: #fff0ee; }
+.source-access-wait { color: var(--muted); font-size: 13px; }
+.modal:has(.source-access-result) > footer { justify-content: flex-start; }
+.source-access-dialog-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.source-connection-panel > .panel-header { display: grid; grid-template-columns: max-content 1fr; align-items: center; gap: 5px 14px; }
+.source-connection-panel > .panel-header > div:first-child { display: contents; }
+.source-connection-panel > .panel-header h2 { grid-column: 1; grid-row: 1; }
+.source-connection-panel > .panel-header p { grid-column: 1 / -1; grid-row: 2; margin: 0; }
+.source-connection-panel > .panel-header > .panel-actions { grid-column: 2; grid-row: 1; justify-self: start; }
+.button.source-connection-test { min-width: 0; min-height: 26px; padding: 2px 4px; border-color: transparent; border-radius: 3px; color: #4b6ea8; background: transparent; font-size: 13px; font-weight: 500; box-shadow: none; }
+.button.source-connection-test:hover:not(:disabled) { border-color: transparent; color: var(--blue); background: transparent; text-decoration: underline; text-underline-offset: 3px; }
+.button.source-connection-test:focus-visible { outline: 2px solid #b6cef7; outline-offset: 2px; }
+.button.source-connection-test:disabled, .button.source-connection-test:disabled:hover { border-color: transparent; background: transparent; color: #98a2b3; }
+.source-form-error { margin: 0; color: #d92d20; font-size: 13px; }
+@keyframes source-access-spin { to { transform: rotate(360deg); } }

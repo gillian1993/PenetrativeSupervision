@@ -67,6 +67,7 @@ export function ListStatus({ children }: { children: ReactNode }) {
     ? 'danger'
     : text.includes('待') || text.includes('草稿') || text.includes('未测试')
       ? 'warning'
+      : text === '同步中' ? 'processing'
       : text.includes('启用') || text.includes('已发布') || text.includes('正常') || text.includes('成功')
         ? 'success'
         : 'neutral'
@@ -133,9 +134,9 @@ export function Tabs({ items, value, onChange }: { items: { key: string; label: 
   return <nav className="tabs">{items.map((item) => <button key={item.key} className={item.key === value ? 'active' : ''} onClick={() => onChange(item.key)}>{item.label}{item.count !== undefined && <b>{item.count}</b>}</button>)}</nav>
 }
 
-export function Modal({ open, title, description, children, confirmText = '确认提交', danger, onClose, onConfirm }: { open: boolean; title: string; description?: string; children?: ReactNode; confirmText?: string; danger?: boolean; onClose: () => void; onConfirm: () => void }) {
+export function Modal({ open, title, description, children, confirmText = '确认提交', danger, busy = false, footer, eyebrow = '操作确认', onClose, onConfirm }: { open: boolean; title: string; description?: string; children?: ReactNode; confirmText?: string; danger?: boolean; busy?: boolean; footer?: ReactNode; eyebrow?: string; onClose: () => void; onConfirm?: () => void }) {
   if (!open) return null
-  return <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}><section className="modal" role="dialog" aria-modal="true"><header><div><p className="eyebrow">操作确认</p><h2>{title}</h2>{description && <p>{description}</p>}</div><button className="icon-button" onClick={onClose}><Icon name="close"/></button></header><div className="modal-body">{children}</div><footer><Button onClick={onClose}>取消</Button><Button variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>{confirmText}</Button></footer></section></div>
+  return <div className="overlay" role="presentation" onMouseDown={(event) => { if (!busy && event.target === event.currentTarget) onClose() }}><section className="modal" role="dialog" aria-modal="true" aria-label={title} aria-busy={busy}><header><div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2>{description && <p>{description}</p>}</div><button className="icon-button" aria-label="关闭" disabled={busy} onClick={onClose}><Icon name="close"/></button></header><div className="modal-body">{children}</div><footer>{footer !== undefined ? footer : <><Button disabled={busy} onClick={onClose}>取消</Button><Button disabled={busy} variant={danger ? 'danger' : 'primary'} onClick={onConfirm}>{confirmText}</Button></>}</footer></section></div>
 }
 
 export function Drawer({ open, title, eyebrow = '详情', children, onClose, footer, modal = true, className = '' }: { open: boolean; title: string; eyebrow?: string; children: ReactNode; onClose: () => void; footer?: ReactNode; modal?: boolean; className?: string }) {
