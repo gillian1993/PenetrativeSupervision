@@ -199,7 +199,6 @@ export function OntologyEditorPage() {
   const creatingFlow = searchParams.get('flow') === 'create'
   const savedItem = useOntologyStore((state) => state.ontologies.find((row) => row.id === id))
   const saveDraft = useOntologyStore((state) => state.saveDraft)
-  const copyOntology = useOntologyStore((state) => state.copyOntology)
   const deleteOntology = useOntologyStore((state) => state.deleteOntology)
   const addAudit = useAppStore((state) => state.addAudit)
   const setToast = useAppStore((state) => state.setToast)
@@ -219,7 +218,6 @@ export function OntologyEditorPage() {
   const [discardChangesOpen, setDiscardChangesOpen] = useState(false)
   const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
   const [cancelingCreate, setCancelingCreate] = useState(false)
-  const [copying, setCopying] = useState(false)
   const [editTarget, setEditTarget] = useState<OntologyElement | null>(null)
   const [pendingCanvasPosition, setPendingCanvasPosition] = useState<CanvasPosition | null>(null)
   const [elementCodeTouched, setElementCodeTouched] = useState(false)
@@ -406,16 +404,6 @@ export function OntologyEditorPage() {
       setSearchParams(next, { replace: true })
     }
   }
-  const copyAsDraft = async () => {
-    if (copying) return
-    setCopying(true)
-    const result = await copyOntology(item.id)
-    setCopying(false)
-    setToast(result.ok && item.status === '停用' ? '已创建可编辑草稿，原停用模型保持不变' : result.message)
-    if (!result.ok || !result.objectId) return
-    addAudit({ operator: '陈洁', organization: '数据管理部', action: '复制图谱模型为草稿', objectType: '图谱模型', objectId: result.objectId, summary: productText(item.name), result: '成功', risk: '普通' })
-    navigate(`/ontology/${result.objectId}`)
-  }
   const cancelEditing = () => {
     if (savingRef.current) return
     setPendingNavigation(null)
@@ -565,7 +553,7 @@ export function OntologyEditorPage() {
   const elementDrawerFooter = readonly ? <Button onClick={closeElementEditor}>关闭</Button> : <><Button onClick={closeElementEditor}>取消</Button>{editTarget && elementForm.type === 'property' && <Button onClick={() => resetPropertyEditor(elementForm.ownerCode, elementForm.dataType)}>返回新增</Button>}{!editTarget && elementForm.type === 'property' && <Button onClick={() => void saveElement(true)}>完成并继续新增</Button>}<Button variant="primary" onClick={() => void saveElement()}>完成</Button></>
 
   return <>
-    <div className="editor-header"><div><button className="back-button" onClick={cancelEditing}>‹ 返回图谱模型</button><h1>{productText(item.name)}</h1><div className="editor-meta"><StatusTag>{item.status}</StatusTag><span className="editor-model-code">{item.id}</span><span>{displayOntologyDomain(item)}</span><span>最近保存：{item.updatedAt}</span></div></div>{readonly && <div className="page-actions"><Button onClick={() => void copyAsDraft()} disabled={copying}>{copying ? '处理中...' : item.status === '停用' ? '编辑' : '复制为草稿'}</Button></div>}</div>
+    <div className="editor-header"><div><button className="back-button" onClick={cancelEditing}>‹ 返回图谱模型</button><h1>{productText(item.name)}</h1><div className="editor-meta"><StatusTag>{item.status}</StatusTag><span className="editor-model-code">{item.id}</span><span>{displayOntologyDomain(item)}</span><span>最近保存：{item.updatedAt}</span></div></div></div>
     <fieldset className="ontology-editor-fields" disabled={saving} aria-busy={saving}><Panel className={'editor-panel' + (editorMode === 'visual' ? ' ontology-visual-editor-panel' : '') + (editorMode === 'structured' && tab === 'structure' ? ' ontology-structure-editor-panel' : '')}>
       <div className="ontology-editor-panel-toolbar">
         <Tabs value={tab} onChange={(nextTab) => { if (nextTab === 'basic' && editorMode === 'visual') setEditorMode('structured'); changeTab(nextTab) }} items={[{ key: 'basic', label: '基本信息' }, { key: 'structure', label: '模型结构' }]}/>

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import cytoscape, { type Core, type EventObject } from 'cytoscape'
+import { GraphInstancePreview, graphEntityColor } from './GraphInstancePreview'
 import { useAppStore } from '../store'
 import type { AuditItem, DataSourceAccessConfig, DataSourceItem, GraphVersion, OntologyItem, RoleItem, SceneItem, UserItem } from '../types'
 import { dataGraphApi, type GovernanceTaskItem, type GraphIssueItem, type MappingItem, type MappingSnapshotItem, type SourceFileItem, type SourceMetadataItem, type SyncRecordItem } from '../dataGraphApi'
@@ -806,7 +806,6 @@ export function GraphResultDetailPage() {
   const [ontologyName, setOntologyName] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [unpublishOpen, setUnpublishOpen] = useState(false)
 
   const load = async (quiet = false) => {
     if (!id) return
@@ -853,46 +852,40 @@ export function GraphResultDetailPage() {
       setToast(actionError instanceof Error ? actionError.message : '知识图谱发布失败')
     }
   }
-  const unpublish = async () => {
-    if (!graph) return
-    try {
-      const updated = await dataGraphApi.unpublishGraph(graph.id)
-      setUnpublishOpen(false)
-      setToast(`${graphDisplayName(updated)} 已取消发布，当前状态为待发布`)
-      navigate('/graphs/results')
-    } catch (actionError) {
-      setToast(actionError instanceof Error ? actionError.message : '取消发布失败')
-    }
-  }
-
   if (loading) return <div className="loading-state page-loading"><i/><span>正在加载知识图谱详情…</span></div>
   if (!graph) return <><button className="back-button" onClick={() => navigate('/graphs/results')}>‹ 返回知识图谱</button><EmptyState title="知识图谱不可访问" description={error || '请返回知识图谱列表重新选择。'}/></>
   const entityTypeCount = new Set((graph.structureElements || []).filter((item) => item.type === 'class').map((item) => item.code)).size || 7
   return <>
     <div className="graph-result-page service-detail-page">
       <header className="graph-result-page-header">
-        <button className="back-button graph-result-back" onClick={() => navigate('/graphs/results')}>‹ 返回知识图谱</button>
         <div className="graph-result-title-row">
-          <div className="graph-result-title-main"><h1>{graphDisplayName(graph)}</h1><ListStatus>{graph.status}</ListStatus></div>
-          <div className="page-actions"><Button onClick={() => graphSync.openHistory(graph)}>同步记录</Button>{graphViewable(graph) && <Button icon="refresh" disabled={graphSync.busyFor(graph)} onClick={() => graphSync.openSync(graph)}>{graphSync.busyFor(graph) ? '同步中…' : '同步数据'}</Button>}{graph.status === '待发布' && <Button variant="primary" disabled={graphSync.busyFor(graph)} onClick={() => void publish()}>发布</Button>}{graph.status === '已发布' && <Button disabled={graphSync.busyFor(graph)} onClick={() => setUnpublishOpen(true)}>取消发布</Button>}</div>
+          <div className="graph-result-title-main">
+            <button type="button" className="graph-result-back" aria-label="返回知识图谱" title="返回知识图谱" onClick={() => navigate('/graphs/results')}><Icon name="chevron" size={18}/></button>
+            <h1 title={graphDisplayName(graph)}>{graphDisplayName(graph)}</h1>
+            <ListStatus>{graph.status}</ListStatus>
+          </div>
+          <div className="page-actions graph-result-page-actions">
+            <Button onClick={() => graphSync.openHistory(graph)}>同步记录</Button>
+            {graphViewable(graph) && <Button className="graph-result-sync-button" icon="refresh" disabled={graphSync.busyFor(graph)} onClick={() => graphSync.openSync(graph)}>{graphSync.busyFor(graph) ? '同步中…' : '同步数据'}</Button>}
+            {graph.status === '待发布' && <Button variant="primary" disabled={graphSync.busyFor(graph)} onClick={() => void publish()}>发布</Button>}
+          </div>
         </div>
         <div className="graph-result-header-meta">
-          <span>{graph.tag || '通用图谱'}</span>
-          {ontologyName && <span>图谱模型：{ontologyName}</span>}
-          {graph.status === '已发布' && graph.publishedAt !== '—' && <span>发布于 {graph.publishedAt}</span>}
-          {graph.syncedAt && <span>当前数据生成于 {graph.syncedAt}</span>}
-          {graph.latestSync && <button type="button" className="graph-sync-detail-status" onClick={() => graphSync.openHistory(graph)} title="查看同步记录">最近同步：<ListStatus>{graph.latestSync.status}</ListStatus></button>}
+          <span className="graph-result-meta-tag">{graph.tag || '通用图谱'}</span>
+          {ontologyName && <span className="graph-result-meta-item graph-result-model-meta"><span>图谱模型</span><b title={ontologyName}>{ontologyName}</b></span>}
+          {graph.status === '已发布' && graph.publishedAt !== '—' && <span className="graph-result-meta-item"><span>发布时间</span><b>{graph.publishedAt}</b></span>}
+          {graph.syncedAt && <span className="graph-result-meta-item"><span>数据生成时间</span><b>{graph.syncedAt}</b></span>}
+          {graph.latestSync && <button type="button" className="graph-result-meta-item graph-result-sync-status" onClick={() => graphSync.openHistory(graph)} title="查看同步记录"><span>最近同步</span><ListStatus>{graph.latestSync.status}</ListStatus><Icon name="chevron" size={12}/></button>}
         </div>
+        <section className="graph-result-overview" aria-label="图谱数据概览">
+          <div><span>实体</span><strong>{compactNumber(graphNodeTotal(graph))}</strong></div>
+          <div><span>关系</span><strong>{compactNumber(graph.relations)}</strong></div>
+          <div><span>实体类型</span><strong>{entityTypeCount}</strong></div>
+          <div><span>数据源</span><strong>{graph.sourceIds.length}</strong></div>
+        </section>
       </header>
       {graph.generationFailed && <div className="alert-box graph-generation-notice"><Icon name="warning"/><span>上次生成未完成，请调整图谱映射后重试。当前图谱已保留为草稿。</span></div>}
-      <section className="graph-overview graph-result-overview">
-        <div><span>实体</span><strong>{compactNumber(graphNodeTotal(graph))}</strong></div>
-        <div><span>关系</span><strong>{compactNumber(graph.relations)}</strong></div>
-        <div><span>实体类型</span><strong>{entityTypeCount}</strong></div>
-        <div><span>数据源</span><strong>{graph.sourceIds.length}</strong></div>
-      </section>
-      <section className="graph-result-workspace-panel"><header className="graph-result-workspace-header"><div><h2>图谱展示</h2><p>{graph.instanceDataset ? '查看生成后的实体实例、实例关系与属性信息。' : '历史示例图谱；更新数据后展示真实实例。'}</p></div><span className="graph-result-workspace-note">当前图谱只读展示</span></header><KnowledgeGraphDisplay graph={graph}/></section>
-      <Modal open={unpublishOpen} title="取消发布知识图谱" description={`${graphDisplayName(graph)} · ${graph.id}`} confirmText="确认取消发布" onClose={() => setUnpublishOpen(false)} onConfirm={() => void unpublish()}><div className="alert-box"><Icon name="warning"/><span>取消发布后，当前图谱会回到待发布状态；可继续编辑、重新发布或删除。</span></div></Modal>
+      <section className="graph-result-workspace-panel"><header className="graph-result-workspace-header"><div><h2>图谱展示</h2><p>{graph.instanceDataset ? '查看生成后的实体实例、实例关系与属性信息。' : '历史示例图谱；更新数据后展示真实实例。'}</p></div><span className="graph-result-workspace-note">当前图谱只读展示</span></header><KnowledgeGraphDisplay graph={graph} onRefresh={() => load(true)}/></section>
       {graphSync.controls}
     </div>
   </>
@@ -973,7 +966,7 @@ function LegacyGraphResultDetailPage() {
       <div><span>当前状态</span><strong>{graph.status}</strong><small>{graph.generationFailed ? '可以继续编辑' : graph.status === '草稿' ? '可以继续编辑' : '可在当前页面查看图谱结果'}</small></div>
     </section>
     <Panel className="graph-result-detail-panel" title="图谱展示" subtitle="查看生成后的实例、属性和关系分布。">
-      <KnowledgeGraphDisplay graph={graph}/>
+      <KnowledgeGraphDisplay graph={graph} onRefresh={load}/>
     </Panel>
   </>
 }
@@ -1002,22 +995,6 @@ type GraphRelationInstance = {
 }
 type GraphDisplayMode = 'graph' | 'entities' | 'relations'
 type GraphDisplaySelection = { kind: 'node' | 'edge'; id: string } | null
-type GraphLegendType = { key: string; typeName: string; typeCode: string; color: string; count: number }
-
-const graphLegendGroups = [
-  { key: 'supplier', label: '供应商与组织', color: '#3a67f0', matches: /supplier|供应商|qualification|资质|company|企业|组织/i },
-  { key: 'procurement', label: '采购与标的', color: '#d97706', matches: /purchase|采购|project|项目|product|标的|item|物料/i },
-  { key: 'contract', label: '合同与履约', color: '#1f9d74', matches: /contract|合同|performance|履约/i },
-  { key: 'settlement', label: '结算与付款', color: '#5965b3', matches: /payment|付款|settlement|结算|finance|财务/i },
-  { key: 'governance', label: '评审与治理', color: '#a94cbd', matches: /review|评审|risk|风险|audit|审计/i },
-] as const
-const fallbackGraphLegendGroup = { key: 'other', label: '其他类型', color: '#168aad' }
-
-function resolveGraphLegendGroup(typeCode: string, typeName: string) {
-  const source = `${typeCode} ${typeName}`
-  return graphLegendGroups.find((group) => group.matches.test(source)) || fallbackGraphLegendGroup
-}
-
 function createGraphInstanceDataset(graph: GraphVersion) {
   const primarySource = graph.sourceNames.find((name) => /ERP|采购|供应商|业务/.test(name)) || '集团ERP采购视图'
   const financeSource = graph.sourceNames.find((name) => /银行|财务|付款|结算/.test(name)) || '资金结算数据'
@@ -1044,113 +1021,19 @@ function createGraphInstanceDataset(graph: GraphVersion) {
     { id: 'rel-9', name: '采购标的', typeCode: 'PROC.purchases', sourceId: 'project-1', targetId: 'product-1', sourceName: primarySource, properties: [{ label: '采购数量', value: '120 台' }] },
   ]
   return {
-    nodes: nodes.map((node) => ({ ...node, color: resolveGraphLegendGroup(node.typeCode, node.typeName).color })),
+    nodes: nodes.map((node) => ({ ...node, color: graphEntityColor(node.typeCode, node.typeName) })),
     relations,
   }
 }
 
-function GraphInstanceCanvas({ nodes, relations, selection, totalEntityTypeCount, onSelect }: { nodes: GraphEntityInstance[]; relations: GraphRelationInstance[]; selection: GraphDisplaySelection; totalEntityTypeCount: number; onSelect: (selection: GraphDisplaySelection) => void }) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const coreRef = useRef<Core | null>(null)
-  const onSelectRef = useRef(onSelect)
-  const [zoom, setZoom] = useState(1)
-  const [legendOpen, setLegendOpen] = useState(false)
-  const [legendKeyword, setLegendKeyword] = useState('')
-  onSelectRef.current = onSelect
-
-  const legendGroups = useMemo(() => {
-    const typeMap = new Map<string, GraphLegendType>()
-    nodes.forEach((node) => {
-      const key = `${node.typeCode}:${node.typeName}`
-      const existing = typeMap.get(key)
-      if (existing) {
-        existing.count += 1
-        return
-      }
-      typeMap.set(key, { key, typeName: node.typeName, typeCode: node.typeCode, color: node.color, count: 1 })
-    })
-    const groups = new Map([...graphLegendGroups, fallbackGraphLegendGroup].map((group) => [group.key, { ...group, types: [] as GraphLegendType[] }]))
-    typeMap.forEach((type) => {
-      const group = resolveGraphLegendGroup(type.typeCode, type.typeName)
-      groups.get(group.key)?.types.push(type)
-    })
-    return Array.from(groups.values()).filter((group) => group.types.length)
-  }, [nodes])
-  const normalizedLegendKeyword = legendKeyword.trim().toLowerCase()
-  const filteredLegendGroups = useMemo(() => legendGroups.map((group) => ({
-    ...group,
-    types: group.types.filter((type) => !normalizedLegendKeyword || `${type.typeName} ${type.typeCode}`.toLowerCase().includes(normalizedLegendKeyword)),
-  })).filter((group) => group.types.length), [legendGroups, normalizedLegendKeyword])
-  const visibleTypeCount = useMemo(() => legendGroups.reduce((total, group) => total + group.types.length, 0), [legendGroups])
-  const legendTotal = Math.max(totalEntityTypeCount, visibleTypeCount)
-
-  useEffect(() => {
-    if (!containerRef.current || !nodes.length) return
-    const core = cytoscape({
-      container: containerRef.current,
-      elements: [
-        ...nodes.map((node) => ({ data: { id: node.id, label: node.name, typeName: node.typeName, color: node.color }, position: { x: node.x, y: node.y } })),
-        ...relations.map((relation) => ({ data: { id: relation.id, source: relation.sourceId, target: relation.targetId, label: relation.name } })),
-      ],
-      minZoom: .45,
-      maxZoom: 2.2,
-      wheelSensitivity: .22,
-      style: [
-        { selector: 'node', style: { width: 54, height: 54, 'background-color': 'data(color)', 'border-width': 3, 'border-color': '#ffffff', 'outline-width': 1, 'outline-color': '#d7e0ec', label: 'data(label)', color: '#344054', 'font-size': 11, 'font-weight': 'bold', 'font-family': 'Inter, Microsoft YaHei, sans-serif', 'text-valign': 'bottom', 'text-halign': 'center', 'text-margin-y': 9, 'text-wrap': 'wrap', 'text-max-width': '116px', 'text-background-color': '#ffffff', 'text-background-opacity': .9, 'text-background-padding': '2px', 'min-zoomed-font-size': '9px', 'overlay-opacity': 0 } },
-        { selector: 'node:selected', style: { 'border-width': 5, 'border-color': '#dbe9ff', 'outline-width': 2, 'outline-color': '#176dff', 'background-blacken': -.08 } },
-        { selector: 'edge', style: { width: 1.5, 'line-color': '#9aacbf', 'target-arrow-color': '#9aacbf', 'target-arrow-shape': 'triangle', 'arrow-scale': .8, 'curve-style': 'bezier', label: 'data(label)', color: '#667085', 'font-size': 9, 'font-weight': 'bold', 'font-family': 'Inter, Microsoft YaHei, sans-serif', 'text-rotation': 'none', 'text-margin-y': -7, 'text-background-color': '#ffffff', 'text-background-opacity': .96, 'text-background-padding': '3px', 'min-zoomed-font-size': '8px', 'overlay-opacity': 0 } },
-        { selector: 'edge:selected', style: { width: 3, 'line-color': '#176dff', 'target-arrow-color': '#176dff', color: '#175dad', 'text-background-color': '#eef5ff' } },
-      ],
-      layout: { name: 'preset', fit: true, padding: 54 },
-    })
-    core.on('tap', 'node', (event: EventObject) => onSelectRef.current({ kind: 'node', id: event.target.id() }))
-    core.on('tap', 'edge', (event: EventObject) => onSelectRef.current({ kind: 'edge', id: event.target.id() }))
-    core.on('tap', (event: EventObject) => { if (event.target === core) onSelectRef.current(null) })
-    core.on('zoom', () => setZoom(core.zoom()))
-    coreRef.current = core
-    const observer = new ResizeObserver(() => { core.resize(); core.fit(undefined, 54) })
-    observer.observe(containerRef.current)
-    return () => { observer.disconnect(); core.destroy(); coreRef.current = null }
-  }, [nodes, relations])
-
-  useEffect(() => {
-    const core = coreRef.current
-    if (!core) return
-    core.elements().unselect()
-    if (selection) core.getElementById(selection.id).select()
-  }, [selection, nodes, relations])
-
-  const changeZoom = (delta: number) => {
-    const core = coreRef.current
-    if (!core) return
-    const next = Math.max(core.minZoom(), Math.min(core.maxZoom(), core.zoom() + delta))
-    core.zoom({ level: next, renderedPosition: { x: core.width() / 2, y: core.height() / 2 } })
-  }
-  const fit = () => { coreRef.current?.fit(undefined, 54) }
-
-  return <div className="graph-instance-canvas-shell">
-    <div className="graph-instance-canvas-heading"><div><strong>实例关系子图</strong><span>当前仅加载查询结果与直接关联实例</span></div><span>{nodes.length} 个实体 · {relations.length} 条关系</span></div>
-    <div ref={containerRef} className="graph-instance-canvas" role="img" aria-label="知识图谱实例关系视图"/>
-    <div className="graph-instance-canvas-tools"><button type="button" aria-label="缩小" title="缩小" onClick={() => changeZoom(-.15)}>−</button><span>{Math.round(zoom * 100)}%</span><button type="button" aria-label="放大" title="放大" onClick={() => changeZoom(.15)}>＋</button><button type="button" className="fit" onClick={fit}>适应画布</button><button type="button" className={`legend-toggle${legendOpen ? ' active' : ''}`} aria-expanded={legendOpen} aria-haspopup="dialog" onClick={() => setLegendOpen((open) => !open)}><Icon name="menu" size={14}/><span>图例</span><b>{visibleTypeCount}/{legendTotal}</b></button></div>
-    {legendOpen && <section className="graph-instance-legend-popover" role="dialog" aria-label="实体类型图例">
-      <header><div><strong>实体类型</strong><span>当前展示 {visibleTypeCount} / 全部 {legendTotal} 类</span></div><button type="button" aria-label="关闭图例" title="关闭图例" onClick={() => setLegendOpen(false)}><Icon name="close" size={14}/></button></header>
-      <label className="graph-instance-legend-search"><Icon name="search" size={14}/><input value={legendKeyword} onChange={(event) => setLegendKeyword(event.target.value)} placeholder="搜索实体类型" aria-label="搜索实体类型"/></label>
-      <div className="graph-instance-legend-groups">
-        {filteredLegendGroups.length ? filteredLegendGroups.map((group) => <section className="graph-instance-legend-group" key={group.key}>
-          <div className="graph-instance-legend-group-title"><i style={{ background: group.color }}/><strong>{group.label}</strong><span>{group.types.length} 类</span></div>
-          <div className="graph-instance-legend-type-list">{group.types.map((type) => <div key={type.key}><i style={{ background: type.color }}/><span title={type.typeCode}>{type.typeName}</span><b>{type.count}</b></div>)}</div>
-        </section>) : <div className="graph-instance-legend-empty">没有匹配的实体类型</div>}
-      </div>
-    </section>}
-  </div>
-}
-
-function KnowledgeGraphDisplay({ graph }: { graph: GraphVersion }) {
+function KnowledgeGraphDisplay({ graph, onRefresh }: { graph: GraphVersion; onRefresh?: () => Promise<void> }) {
   const dataset = useMemo(() => graph.instanceDataset ? {
-    nodes: graph.instanceDataset.nodes.map((node) => ({ ...node, color: resolveGraphLegendGroup(node.typeCode, node.typeName).color })),
+    nodes: graph.instanceDataset.nodes.map((node) => ({ ...node, color: graphEntityColor(node.typeCode, node.typeName) })),
     relations: graph.instanceDataset.relations,
   } : createGraphInstanceDataset(graph), [graph])
   const [mode, setMode] = useState<GraphDisplayMode>('graph')
+  const [previewRevision, setPreviewRevision] = useState(0)
+  const [refreshingPreview, setRefreshingPreview] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const [keyword, setKeyword] = useState('')
   const [entityType, setEntityType] = useState('全部')
@@ -1202,31 +1085,43 @@ function KnowledgeGraphDisplay({ graph }: { graph: GraphVersion }) {
     const nextKeyword = searchValue.trim()
     setKeyword(nextKeyword)
     const matched = dataset.nodes.find((node) => `${node.name} ${node.typeName} ${node.identifier}`.toLowerCase().includes(nextKeyword.toLowerCase()))
-    if (mode === 'graph' && matched) setSelection({ kind: 'node', id: matched.id })
+    if (mode === 'graph') setSelection(nextKeyword && matched ? { kind: 'node', id: matched.id } : null)
   }
-  const resetFilters = () => { setSearchValue(''); setKeyword(''); setEntityType('全部'); setRelationType('全部'); setEntityTypeKeyword(''); setEntityDetail(null); setSelection(null) }
+  const resetFilters = () => { setSearchValue(''); setKeyword(''); setEntityType('全部'); setRelationType('全部'); setEntityTypeKeyword(''); setEntityDetail(null); setSelection(null); setPreviewRevision((revision) => revision + 1) }
+  const refreshPreview = async () => {
+    resetFilters()
+    setRefreshingPreview(true)
+    try { await onRefresh?.() } finally { setRefreshingPreview(false) }
+  }
   const focusNode = (node: GraphEntityInstance) => { setMode('graph'); setSearchValue(node.name); setKeyword(node.name); setEntityType('全部'); setRelationType('全部'); setSelection({ kind: 'node', id: node.id }) }
   const focusRelation = (relation: GraphRelationInstance) => { setMode('graph'); setSearchValue(''); setKeyword(''); setEntityType('全部'); setRelationType(relation.name); setSelection({ kind: 'edge', id: relation.id }) }
   const openEntityDetail = (node: GraphEntityInstance) => setEntityDetail(node)
 
   return <div className="graph-result-workspace">
     <div className="graph-result-view-tabs" role="tablist" aria-label="图谱展示方式">
-      {[{ key: 'graph', label: '图谱视图' }, { key: 'entities', label: '实体实例', count: dataset.nodes.length }, { key: 'relations', label: '关系实例', count: dataset.relations.length }].map((item) => <button type="button" role="tab" aria-selected={mode === item.key} className={mode === item.key ? 'active' : ''} key={item.key} onClick={() => { setMode(item.key as GraphDisplayMode); if (item.key !== 'entities') setEntityDetail(null) }}><span>{item.label}</span>{item.count !== undefined && <b>{item.count}</b>}</button>)}
+      {[{ key: 'graph', label: '图谱视图' }, { key: 'entities', label: '实体实例', count: dataset.nodes.length }, { key: 'relations', label: '关系实例', count: dataset.relations.length }].map((item) => <button type="button" role="tab" aria-selected={mode === item.key} className={mode === item.key ? 'active' : ''} key={item.key} onClick={() => { setMode(item.key as GraphDisplayMode); setSelection(null); if (item.key !== 'entities') setEntityDetail(null); if (item.key === 'graph') { setEntityType('全部'); setRelationType('全部') } }}><span>{item.label}</span>{item.count !== undefined && <b>{item.count}</b>}</button>)}
     </div>
-    <div className={`graph-view-toolbar${mode === 'entities' ? ' entities' : ''}`}>
+    <div className={mode === 'graph' ? 'graph-preview-toolbar' : `graph-view-toolbar${mode === 'entities' ? ' entities' : ''}`}>
+      {mode === 'graph' ? <div className="graph-preview-query-actions">
+        <form className="graph-preview-search-control" role="search" onSubmit={(event) => { event.preventDefault(); runSearch() }}>
+          <input value={searchValue} onChange={(event) => setSearchValue(event.target.value)} placeholder="输入关键词搜索" aria-label="搜索图谱"/>
+          <button type="submit" aria-label="搜索图谱" title="搜索"><Icon name="search" size={16}/></button>
+        </form>
+        <button type="button" className="graph-preview-refresh" aria-label="刷新图谱" title="刷新" disabled={refreshingPreview} onClick={() => void refreshPreview()}><Icon name="refresh" size={17}/></button>
+      </div> : <>
       <label className="graph-view-search"><Icon name="search" size={15}/><input value={searchValue} onChange={(event) => setSearchValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') runSearch() }} placeholder="搜索实例名称、唯一标识或属性值" aria-label="搜索实例名称、唯一标识或属性值"/></label>
-      {mode !== 'entities' && <select aria-label="实体类型筛选" value={entityType} onChange={(event) => setEntityType(event.target.value)}>{entityTypes.map((item) => <option key={item} value={item}>{item === '全部' ? '全部实体类型' : item}</option>)}</select>}
-      {mode !== 'entities' && <select aria-label="关系类型筛选" value={relationType} onChange={(event) => setRelationType(event.target.value)}>{relationTypes.map((item) => <option key={item} value={item}>{item === '全部' ? '全部关系类型' : item}</option>)}</select>}
+      {mode === 'relations' && <select aria-label="实体类型筛选" value={entityType} onChange={(event) => setEntityType(event.target.value)}>{entityTypes.map((item) => <option key={item} value={item}>{item === '全部' ? '全部实体类型' : item}</option>)}</select>}
+      {mode === 'relations' && <select aria-label="关系类型筛选" value={relationType} onChange={(event) => setRelationType(event.target.value)}>{relationTypes.map((item) => <option key={item} value={item}>{item === '全部' ? '全部关系类型' : item}</option>)}</select>}
       <button type="button" className="graph-view-search-submit" onClick={runSearch}><Icon name="search" size={14}/>查询</button>
       <button type="button" className="graph-view-reset-filter" onClick={resetFilters}>重置</button>
+      </>}
       <span className="graph-view-result-count">{resultText}</span>
     </div>
-    {mode === 'graph' && <div className="graph-result-display">
-      {graphData.nodes.length ? <GraphInstanceCanvas nodes={graphData.nodes} relations={graphData.relations} selection={selection} totalEntityTypeCount={entityTypes.length - 1} onSelect={setSelection}/> : <div className="graph-result-canvas-empty standalone"><Icon name="search" size={24}/><strong>没有找到匹配实例</strong><span>请调整实体类型、关系类型或搜索条件。</span><button type="button" onClick={resetFilters}>清空筛选</button></div>}
-      <aside className="graph-result-inspector">
+    {mode === 'graph' && <div className="graph-result-preview-display">
+      <GraphInstancePreview key={`${graph.id}:${keyword}:${entityType}:${relationType}:${previewRevision}`} nodes={graphData.nodes} relations={graphData.relations} selection={selection} onSelect={setSelection} onReset={resetFilters}/>
+      <Drawer open={Boolean(selectedNode || selectedRelation)} title={selectedRelation?.name || selectedNode?.name || '详情'} eyebrow={selectedRelation ? '关系详情' : '实体详情'} className="graph-preview-inspector-drawer" onClose={() => setSelection(null)}>
         {selectedRelation ? (
           <section className="graph-inspector-panel">
-            <header><div><span>关系详情</span><h3>{selectedRelation.name}</h3></div><i className="relation-marker">关系</i></header>
             <div className="graph-inspector-path">
               <button type="button" onClick={() => { const node = nodeById.get(selectedRelation.sourceId); if (node) focusNode(node) }}>{nodeById.get(selectedRelation.sourceId)?.name}</button>
               <span>→ {selectedRelation.name} →</span>
@@ -1243,7 +1138,7 @@ function KnowledgeGraphDisplay({ graph }: { graph: GraphVersion }) {
           </section>
         ) : selectedNode ? (
           <section className="graph-inspector-panel">
-            <header><div><span>实体详情</span><h3>{selectedNode.name}</h3></div><i style={{ color: selectedNode.color, background: `${selectedNode.color}14`, borderColor: `${selectedNode.color}42` }}>{selectedNode.typeName}</i></header>
+            <div className="graph-preview-detail-meta"><i style={{ background: selectedNode.color }}/>{selectedNode.typeName}</div>
             <div className="graph-result-inspector-section">
               <strong>属性信息</strong>
               <div className="graph-result-property-list">
@@ -1261,10 +1156,8 @@ function KnowledgeGraphDisplay({ graph }: { graph: GraphVersion }) {
               </div>
             </div>
           </section>
-        ) : (
-          <section className="graph-result-inspector-empty"><Icon name="graph" size={24}/><strong>选择实体或关系</strong><p>点击画布中的实例节点或关系线，查看真实属性。</p></section>
-        )}
-      </aside>
+        ) : null}
+      </Drawer>
     </div>}
     {mode === 'entities' && <section className="graph-instance-list-view"><div className="graph-entity-browser"><aside className="graph-entity-type-nav"><header><div><strong>实体类型</strong><span>{entityTypes.length - 1} 个类型 · {dataset.nodes.length} 个实例</span></div></header><label className="graph-entity-type-search"><Icon name="search" size={14}/><input value={entityTypeKeyword} onChange={(event) => setEntityTypeKeyword(event.target.value)} placeholder="搜索实体类型" aria-label="搜索实体类型"/></label><div className="graph-entity-type-list"><button type="button" className={entityType === '全部' ? 'active' : ''} onClick={() => setEntityType('全部')}><span>全部实体类型</span><b>{dataset.nodes.length}</b></button>{visibleEntityTypes.map((type) => <button type="button" className={entityType === type ? 'active' : ''} key={type} onClick={() => setEntityType(type)}><span><i style={{ background: dataset.nodes.find((node) => node.typeName === type)?.color }}/>{type}</span><b>{entityTypeCounts.get(type) || 0}</b></button>)}</div></aside><div className="graph-entity-instance-content"><div className="graph-entity-instance-heading"><div><strong>{entityType === '全部' ? '全部实体实例' : entityType}</strong><span>共 {entityRows.length} 条</span></div></div><div className="table-container graph-instance-table"><table><thead><tr><th>实体实例</th><th>实体类型</th><th>关键属性</th><th>数据来源</th><th>操作</th></tr></thead><tbody>{entityRows.length ? entityRows.map((node) => <tr key={node.id}><td><button type="button" className="graph-entity-name-button" onClick={() => openEntityDetail(node)}><strong>{node.name}</strong><small>{node.typeCode}</small></button></td><td><span className="graph-type-cell"><i style={{ background: node.color }}/>{node.typeName}</span></td><td><span className="graph-property-summary" title={node.properties.map((item) => `${item.label}：${item.value}`).join('；')}>{node.properties.slice(0, 2).map((item) => `${item.label}：${item.value}`).join('；')}</span></td><td><span className="graph-code-cell" title={node.sourceName}>{node.sourceName}</span></td><td><button type="button" className="table-action" onClick={() => openEntityDetail(node)}>查看属性</button></td></tr>) : <tr><td colSpan={5}><div className="graph-table-empty">没有符合条件的实体实例</div></td></tr>}</tbody></table></div></div></div></section>}
     {mode === 'relations' && <section className="graph-instance-list-view"><div className="table-container graph-instance-table"><table><thead><tr><th>源实体</th><th>关系类型</th><th>目标实体</th><th>关系属性</th><th>数据来源</th><th>操作</th></tr></thead><tbody>{relationRows.length ? relationRows.map((relation) => <tr key={relation.id}><td><strong>{nodeById.get(relation.sourceId)?.name}</strong><small>{nodeById.get(relation.sourceId)?.typeName}</small></td><td><span className="graph-relation-type">{relation.name}</span></td><td><strong>{nodeById.get(relation.targetId)?.name}</strong><small>{nodeById.get(relation.targetId)?.typeName}</small></td><td><span className="graph-property-summary" title={relation.properties.map((item) => `${item.label}：${item.value}`).join('；')}>{relation.properties.map((item) => `${item.label}：${item.value}`).join('；') || '—'}</span></td><td><span className="graph-code-cell" title={relation.sourceName}>{relation.sourceName}</span></td><td><button type="button" className="table-action" onClick={() => focusRelation(relation)}>查看关系</button></td></tr>) : <tr><td colSpan={6}><div className="graph-table-empty">没有符合条件的关系实例</div></td></tr>}</tbody></table></div></section>}
