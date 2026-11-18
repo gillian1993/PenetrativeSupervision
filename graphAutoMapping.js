@@ -1,3 +1,4 @@
+import { mappingGroup, mappingConfig } from './graphMappingConfig.js'
 const mappingType = (row) => row.mapping_type || row.type
 const targetCode = (row) => row.target_code || row.targetCode
 const sourceField = (row) => row.source_field || row.sourceField
@@ -62,8 +63,8 @@ function relationCandidate(relation, elements, mappedEntities, mappedProperties,
   const targets = mappedProperties.filter((item) => item.ownerCode === relation.targetCode)
   const candidates = []
   for (const left of owners) for (const right of targets) {
-    const leftKey = mappedEntities.get(relation.ownerCode).some((item) => item.sourceId === left.sourceId && item.keyField === left.sourceField)
-    const rightKey = mappedEntities.get(relation.targetCode).some((item) => item.sourceId === right.sourceId && item.keyField === right.sourceField)
+    const leftKey = mappedEntities.get(relation.ownerCode).some((item) => item.sourceId === left.sourceId && item.groupId === left.groupId && item.keyField === left.sourceField && item.tableName === left.tableName)
+    const rightKey = mappedEntities.get(relation.targetCode).some((item) => item.sourceId === right.sourceId && item.groupId === right.groupId && item.keyField === right.sourceField && item.tableName === right.tableName)
     const leftField = compact(left.sourceField)
     const rightField = compact(right.sourceField)
     if (leftKey && ownerToken.length >= 3 && rightField.includes(ownerToken) && /(?:id|code|no)$/.test(rightField)) candidates.push({ sourceId: right.sourceId, targetCode: relation.code, sourceField: `${left.targetCode} = ${right.targetCode}`, transform: '关联方式：关联条件；生成规则：按起点实例、关系类型和终点实例去重', score: 100 })
@@ -78,8 +79,12 @@ function relationCandidate(relation, elements, mappedEntities, mappedProperties,
     const title = compact(`${table.tableName} ${table.displayName}`)
     if (!(title.includes(ownerToken) && title.includes(targetToken)) && !(relationName.length >= 3 && title.includes(relationName)) && !(relationCode.length >= 4 && title.includes(relationCode))) continue
     const fields = fieldsFor(table)
-    const start = fields.filter((field) => compact(field).includes(ownerToken) && /(?:id|code|no)$/.test(compact(field)))
-    const end = fields.filter((field) => compact(field).includes(targetToken) && /(?:id|code|no)$/.test(compact(field)))
+    let start = fields.filter((field) => compact(field).includes(ownerToken) && /(?:id|code|no)$/.test(compact(field)))
+    let end = fields.filter((field) => compact(field).includes(targetToken) && /(?:id|code|no)$/.test(compact(field)))
+    // Generic endpoint columns are unambiguous only on a table explicitly named for this relation.
+    if (!start.length && !end.length && relationCode.length >= 4 && title.includes(relationCode) && fields.includes('start_id') && fields.includes('end_id')) {
+      start = ['start_id']; end = ['end_id']
+    }
     if (start.length === 1 && end.length === 1 && start[0] !== end[0]) tableCandidates.push({ sourceId: source.id, targetCode: relation.code, sourceField: table.tableName, transform: `关联方式：关系表；起点字段：${start[0]}；终点字段：${end[0]}`, score: 100 })
   }
   return tableCandidates.length === 1 ? tableCandidates[0] : null
@@ -100,12 +105,16 @@ export function suggestGraphMappings(structureElements, sources, metadataBySourc
   const mappedEntities = new Map()
   for (const row of existingEntities) {
     const rows = mappedEntities.get(targetCode(row)) || []
-    rows.push({ sourceId: row.sourceId, keyField: keyField(transform(row)) })
+    rows.push({ sourceId: row.sourceId, groupId: mappingGroup(row), tableName: sourceField(row), keyField: keyField(transform(row)) })
     mappedEntities.set(targetCode(row), rows)
   }
-  for (const plan of entityPlans) mappedEntities.set(plan.targetCode, [{ sourceId: plan.sourceId, keyField: plan.keyField }])
-  const mappedProperties = existing.filter((row) => mappingType(row) === '属性' || mappingType(row) === '节点实例').map((row) => ({ sourceId: row.sourceId, targetCode: targetCode(row), sourceField: sourceField(row), ownerCode: elements.find((item) => item.code === targetCode(row))?.ownerCode })).filter((item) => mappedEntities.get(item.ownerCode)?.some((entity) => entity.sourceId === item.sourceId))
-  for (const plan of entityPlans) for (const property of plan.properties) mappedProperties.push({ sourceId: plan.sourceId, targetCode: property.targetCode, sourceField: property.sourceField, ownerCode: elements.find((item) => item.code === property.targetCode)?.ownerCode })
+  for (const plan of entityPlans) mappedEntities.set(plan.targetCode, [{ sourceId: plan.sourceId, groupId: '', tableName: plan.tableName, keyField: plan.keyField }])
+  const mappedProperties = existing.filter((row) => mappingType(row) === '属性' || mappingType(row) === '节点实例').map((row) => {
+    const ownerCode = elements.find((item) => item.code === targetCode(row))?.ownerCode
+    const entity = mappedEntities.get(ownerCode)?.find((item) => item.sourceId === row.sourceId && item.groupId === mappingGroup(row))
+    return { sourceId: row.sourceId, groupId: mappingGroup(row), targetCode: targetCode(row), sourceField: sourceField(row), tableName: mappingConfig(row).sourceTable || entity?.tableName, ownerCode, valid: Boolean(entity) }
+  }).filter((item) => item.valid)
+  for (const plan of entityPlans) for (const property of plan.properties) mappedProperties.push({ sourceId: plan.sourceId, groupId: '', tableName: plan.tableName, targetCode: property.targetCode, sourceField: property.sourceField, ownerCode: elements.find((item) => item.code === property.targetCode)?.ownerCode })
   const relationPlans = []
   for (const relation of elements.filter((item) => item.type === 'relation')) {
     if (existingRelations.has(relation.code)) continue

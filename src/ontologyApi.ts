@@ -1,9 +1,15 @@
+import { withDemoBatch } from './knowledgeGraphDemoScope'
 import type { OntologyElement, OntologyRecord } from './ontologyLocalStore'
 
 export type OntologyCreatePayload = Pick<OntologyRecord, 'id' | 'name' | 'scope' | 'domain' | 'description'>
 export type OntologyUpdatePayload = Partial<Pick<OntologyRecord, 'name' | 'scope' | 'domain' | 'description'>>
 export type OntologyElementPayload = Omit<OntologyElement, 'id'>
 export type OntologyDraftPayload = OntologyUpdatePayload & { elements: OntologyElement[]; groups: string[]; expected: OntologyRecord }
+export interface OntologyReferenceSummary {
+  total: number
+  summary: string
+  items: Array<{ type: string; label: string; unit: string; count: number; objects: Array<{ id: string; name: string }>; truncated: boolean }>
+}
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, {
@@ -17,7 +23,8 @@ async function request<T>(url: string, init?: RequestInit): Promise<T> {
 
 export const ontologyApi = {
   list: () => request<OntologyRecord[]>('/api/ontologies'),
-  create: (payload: OntologyCreatePayload) => request<OntologyRecord>('/api/ontologies', { method: 'POST', body: JSON.stringify(payload) }),
+  references: (id: string) => request<OntologyReferenceSummary>(`/api/ontologies/${encodeURIComponent(id)}/references`),
+  create: (payload: OntologyCreatePayload) => request<OntologyRecord>('/api/ontologies', { method: 'POST', body: JSON.stringify(withDemoBatch(payload)) }),
   update: (id: string, payload: OntologyUpdatePayload) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) }),
   saveDraft: (id: string, payload: OntologyDraftPayload) => request<OntologyRecord>(`/api/ontologies/${encodeURIComponent(id)}/draft`, { method: 'PUT', body: JSON.stringify(payload) }),
   delete: (id: string) => request<{ ok: boolean; message: string }>(`/api/ontologies/${encodeURIComponent(id)}`, { method: 'DELETE' }),

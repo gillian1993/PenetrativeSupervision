@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto'
 import { Readable } from 'node:stream'
 import ExcelJS from 'exceljs'
 import mysql from 'mysql2/promise'
+import { readApiPayload } from './sourceMetadata.js'
+import { entityJoins, joinEntityRows, propertyTable, sameMappingGroup, sortEntitySources, relationConfiguration } from './graphMappingConfig.js'
 
 const rowLimit = 2000
 const relationLimit = 5000
@@ -17,7 +19,6 @@ const sourceValue = (row, field) => {
 }
 const hashId = (prefix, value) => `${prefix}-${createHash('sha1').update(value).digest('hex').slice(0, 20)}`
 const keyField = (rule) => String(rule || '').match(/主键字段[：:]\s*([^；;]+)/)?.[1]?.trim() || ''
-const relationFields = (value) => String(value || '').split(/\s*=\s*|\s*\+\s*/).map((part) => part.trim()).filter(Boolean)
 const tooManyRows = (sourceName, table) => Object.assign(new Error(`${sourceName} 的 ${table} 超过 ${rowLimit} 行，当前同步上限为单表 ${rowLimit} 行`), { status: 409 })
 
 async function fileRows(pool, source, tables) {
@@ -59,16 +60,8 @@ async function fileRows(pool, source, tables) {
 
 async function apiRows(source, tables) {
   const config = parseJson(source.access_config, {})
-  const headers = { Accept: 'application/json' }
-  if (config.authType === 'Token') headers.Authorization = `Bearer ${config.token}`
-  if (config.authType === 'API Key') headers['X-API-Key'] = config.token
-  if (config.authType === 'Basic Auth') headers.Authorization = `Basic ${Buffer.from(config.token || '').toString('base64')}`
-  let response
-  try { response = await fetch(config.apiUrl, { method: config.method || 'GET', headers, signal: AbortSignal.timeout(10000) }) }
-  catch { throw Object.assign(new Error(`${source.name} 接口读取失败，请检查地址与网络`), { status: 502 }) }
-  if (!response.ok) throw Object.assign(new Error(`${source.name} 接口返回 HTTP ${response.status}`), { status: 502 })
   let payload
-  try { payload = await response.json() } catch { throw Object.assign(new Error(`${source.name} 接口未返回 JSON 数据`), { status: 422 }) }
+  try { payload = await readApiPayload(config) } catch (error) { throw Object.assign(new Error(`${source.name}：${error.message}`), { status: error.status || 502 }) }
   const result = new Map()
   for (const table of tables) {
     const rows = Array.isArray(payload?.[table]) ? payload[table] : tables.length === 1 ? Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.items) ? payload.items : null : null
@@ -114,40 +107,53 @@ export async function buildGraphDataset(pool, sources, mappingsBySource, structu
   const nodes = new Map()
   const relationMappings = []
   const sourceStats = []
+  const entityInputs = []
   for (const source of [...sources].sort((a, b) => String(a.id).localeCompare(String(b.id)))) {
     const mappings = mappingsBySource.get(source.id) || []
     const entities = mappings.filter((item) => item.mapping_type === '实体类型')
-    const relationTables = mappings.filter((item) => item.mapping_type === '关系' && /关联方式[：:]\s*关系表/.test(item.transform_rule || ''))
+    const relationTables = mappings.filter((item) => item.mapping_type === '关系').map((item) => relationConfiguration(item, elements.get(item.target_code))).filter((config) => config?.origin.kind === 'table').map((config) => config.origin.table)
     if (!entities.length && !mappings.some((item) => item.mapping_type === '关系')) throw Object.assign(new Error(`${source.name} 尚未配置实体或关系映射`), { status: 409 })
-    const tables = [...new Set([...entities, ...relationTables].map((item) => item.source_field).filter(Boolean))]
+    if (source.mode !== '数据库接入' && entities.some((item) => entityJoins(item).length)) throw Object.assign(new Error(`${source.name} 的关联表仅支持同一数据库连接`), { status: 409 })
+    const tables = [...new Set(entities.map((item) => item.source_field).concat(relationTables, entities.flatMap((item) => entityJoins(item).map((join) => join.table))).filter(Boolean))]
     const data = tables.length ? await readSource(pool, source, tables) : new Map()
     const stats = { sourceId: source.id, sourceName: source.name, rows: [...data.values()].reduce((total, rows) => total + rows.length, 0), entities: 0 }
     for (const mapping of entities) {
-      const type = elements.get(mapping.target_code)
-      if (!type || type.type !== 'class') throw Object.assign(new Error(`${source.name} 的实体类型映射目标已失效`), { status: 409 })
-      const uniqueField = keyField(mapping.transform_rule)
-      if (!uniqueField) throw Object.assign(new Error(`${type.name} 未配置实体唯一标识`), { status: 409 })
-      const properties = mappings.filter((item) => item.mapping_type === '属性' && elements.get(item.target_code)?.ownerCode === type.code)
-      for (const [index, row] of (data.get(mapping.source_field) || []).entries()) {
-        const identifier = sourceValue(row, uniqueField)
-        if (!identifier) throw Object.assign(new Error(`${source.name} 的 ${mapping.source_field} 第 ${index + 2} 行缺少唯一标识 ${uniqueField}`), { status: 422 })
-        const values = Object.fromEntries(properties.map((item) => [item.target_code, sourceValue(row, item.source_field)]))
-        const display = properties.find((item) => /名称|姓名|标题|name/i.test(elements.get(item.target_code)?.name || ''))
-        const name = display ? values[display.target_code] || identifier : sourceValue(row, 'name') || identifier
-        const id = hashId('node', `${type.code}|${identifier}`)
-        const existing = nodes.get(id)
-        if (existing) {
-          for (const [code, value] of Object.entries(values)) if (value && !existing.values[code]) existing.values[code] = value
-          if (existing.name === existing.identifier && name !== identifier) existing.name = name
-          if (!existing.sourceName.includes(source.name)) existing.sourceName += `、${source.name}`
-          continue
-        }
-        nodes.set(id, { id, name, typeCode: type.code, typeName: type.name, identifier, sourceName: source.name, values })
-        stats.entities++
-      }
+      const properties = mappings.filter((item) => item.mapping_type === '属性' && elements.get(item.target_code)?.ownerCode === mapping.target_code && sameMappingGroup(item, mapping))
+      entityInputs.push({ ...mapping, source_id: source.id, source, data, properties, stats })
     }
     relationMappings.push(...mappings.filter((item) => item.mapping_type === '关系').map((item) => ({ ...item, sourceName: source.name, data })))
     sourceStats.push(stats)
+  }
+  for (const mapping of sortEntitySources(entityInputs)) {
+    const { source, data, properties, stats } = mapping
+    const type = elements.get(mapping.target_code)
+    if (!type || type.type !== 'class') throw Object.assign(new Error(`${source.name} 的实体类型映射目标已失效`), { status: 409 })
+    const uniqueField = keyField(mapping.transform_rule)
+    if (!uniqueField) throw Object.assign(new Error(`${type.name} 未配置实体唯一标识`), { status: 409 })
+    const identifiers = new Set()
+    for (const [index, { row, tables: joinedTables }] of joinEntityRows(mapping, data, source.name).entries()) {
+      const identifier = sourceValue(row, uniqueField)
+      if (!identifier) throw Object.assign(new Error(`${source.name} 的 ${mapping.source_field} 第 ${index + 2} 行缺少唯一标识 ${uniqueField}`), { status: 422 })
+      if (identifiers.has(identifier)) throw Object.assign(new Error(`${source.name} 的 ${mapping.source_field} 第 ${index + 2} 行唯一标识 ${uniqueField}=${identifier} 重复`), { status: 422 })
+      identifiers.add(identifier)
+      const values = Object.fromEntries(properties.map((item) => {
+        const table = propertyTable(mapping, item)
+        if (!joinedTables.has(table)) throw Object.assign(new Error(`${type.name} 的属性 ${item.target_code} 引用的来源表 ${table} 已移除，请重新配置映射`), { status: 422 })
+        return [item.target_code, sourceValue(joinedTables.get(table), item.source_field)]
+      }))
+      const display = properties.find((item) => /名称|姓名|标题|name/i.test(elements.get(item.target_code)?.name || ''))
+      const name = display ? values[display.target_code] || identifier : sourceValue(row, 'name') || identifier
+      const id = hashId('node', `${type.code}|${identifier}`)
+      const existing = nodes.get(id)
+      if (existing) {
+        for (const [code, value] of Object.entries(values)) if (value && !existing.values[code]) existing.values[code] = value
+        if (existing.name === existing.identifier && name !== identifier) existing.name = name
+        if (!existing.sourceName.includes(source.name)) existing.sourceName += `、${source.name}`
+        continue
+      }
+      nodes.set(id, { id, name, typeCode: type.code, typeName: type.name, identifier, sourceName: source.name, values })
+      stats.entities++
+    }
   }
   if (!nodes.size) throw Object.assign(new Error('所选数据源没有可生成的实体记录，请检查来源数据和映射'), { status: 422 })
   const nodeRows = [...nodes.values()]
@@ -160,35 +166,35 @@ export async function buildGraphDataset(pool, sources, mappingsBySource, structu
   for (const mapping of relationMappings) {
     const relation = elements.get(mapping.target_code)
     if (!relation || relation.type !== 'relation') throw Object.assign(new Error(`关系映射目标 ${mapping.target_code} 已失效`), { status: 409 })
-    if (/关联方式[：:]\s*关系表/.test(mapping.transform_rule || '')) {
-      const startField = String(mapping.transform_rule || '').match(/起点字段[：:]\s*([^；;]+)/)?.[1]?.trim()
-      const endField = String(mapping.transform_rule || '').match(/终点字段[：:]\s*([^；;]+)/)?.[1]?.trim()
-      if (!startField || !endField) throw Object.assign(new Error(`${relation.name} 缺少关系表两端标识字段`), { status: 409 })
-      for (const [index, row] of (mapping.data.get(mapping.source_field) || []).entries()) {
-        const start = sourceValue(row, startField)
-        const end = sourceValue(row, endField)
-        if (!start || !end) throw Object.assign(new Error(`${mapping.sourceName} 的 ${mapping.source_field} 第 ${index + 2} 行缺少关系端点标识`), { status: 422 })
-        const owner = nodes.get(hashId('node', `${relation.ownerCode}|${start}`))
-        const target = nodes.get(hashId('node', `${relation.targetCode}|${end}`))
-        if (!owner || !target) throw Object.assign(new Error(`${mapping.sourceName} 的 ${mapping.source_field} 第 ${index + 2} 行关联实体不存在，请检查两端标识或实体映射`), { status: 422 })
-        const id = hashId('rel', `${relation.code}|${owner.id}|${target.id}`)
-        relations.set(id, { id, name: relation.name, typeCode: relation.code, sourceId: owner.id, targetId: target.id, sourceName: mapping.sourceName, properties: [] })
-        if (relations.size > relationLimit) throw Object.assign(new Error(`关系实例超过 ${relationLimit} 条，请缩小来源范围`), { status: 409 })
+    const config = relationConfiguration(mapping, relation)
+    const ownedProperty = (code, type) => code === '$identifier' || elements.get(code)?.type === 'property' && elements.get(code)?.ownerCode === type
+    if (!config || !ownedProperty(config.start.match, relation.ownerCode) || !ownedProperty(config.end.match, relation.targetCode)) throw Object.assign(new Error(`${relation.name} 的实体匹配字段无效`), { status: 409 })
+    const nodeValue = (node, field) => field === '$identifier' ? node.identifier : node.values[field] || ''
+    const indexFor = (type, field) => {
+      const index = new Map()
+      for (const node of nodeRows.filter((item) => item.typeCode === type)) {
+        const value = nodeValue(node, field)
+        if (value) index.set(value, [...(index.get(value) || []), node])
       }
-      continue
+      return index
     }
-    const [sourceProperty, targetProperty] = relationFields(mapping.source_field)
-    if (!sourceProperty || !targetProperty) throw Object.assign(new Error(`${relation.name} 未配置两端关联属性`), { status: 409 })
-    if (elements.get(sourceProperty)?.ownerCode !== relation.ownerCode || elements.get(targetProperty)?.ownerCode !== relation.targetCode) throw Object.assign(new Error(`${relation.name} 的关联属性与起点、终点实体类型不匹配`), { status: 409 })
-    const targets = new Map()
-    for (const node of nodeRows.filter((item) => item.typeCode === relation.targetCode)) {
-      const value = node.values[targetProperty]
-      if (value) targets.set(value, [...(targets.get(value) || []), node])
-    }
-    for (const owner of nodeRows.filter((item) => item.typeCode === relation.ownerCode)) {
-      const value = owner.values[sourceProperty]
-      if (!value) continue
-      for (const target of targets.get(value) || []) {
+    const owners = indexFor(relation.ownerCode, config.start.match)
+    const targets = indexFor(relation.targetCode, config.end.match)
+    const entityOrigin = config.origin.kind === 'entity'
+    if (entityOrigin && ![config.start.field, config.end.field].every((field) => ownedProperty(field, config.origin.entityCode))) throw Object.assign(new Error(`${relation.name} 的来源实体字段无效`), { status: 409 })
+    const records = entityOrigin ? nodeRows.filter((node) => node.typeCode === config.origin.entityCode).map((node) => ({ start: nodeValue(node, config.start.field), end: nodeValue(node, config.end.field) }))
+      : (mapping.data.get(config.origin.table) || []).map((row) => ({ start: sourceValue(row, config.start.field), end: sourceValue(row, config.end.field) }))
+    for (const [index, record] of records.entries()) {
+      if (!record.start || !record.end) {
+        if (entityOrigin) continue
+        throw Object.assign(new Error(`${mapping.sourceName} 的 ${config.origin.table} 第 ${index + 2} 行缺少关系端点标识`), { status: 422 })
+      }
+      const starts = owners.get(record.start) || [], ends = targets.get(record.end) || []
+      if (!starts.length || !ends.length) {
+        if (entityOrigin) continue
+        throw Object.assign(new Error(`${mapping.sourceName} 的 ${config.origin.table} 第 ${index + 2} 行关联实体不存在，请检查两端标识或实体映射`), { status: 422 })
+      }
+      for (const owner of starts) for (const target of ends) {
         const id = hashId('rel', `${relation.code}|${owner.id}|${target.id}`)
         relations.set(id, { id, name: relation.name, typeCode: relation.code, sourceId: owner.id, targetId: target.id, sourceName: mapping.sourceName, properties: [] })
         if (relations.size > relationLimit) throw Object.assign(new Error(`关系实例超过 ${relationLimit} 条，请缩小来源范围`), { status: 409 })

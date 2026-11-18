@@ -108,7 +108,7 @@ export function ListPagination({ total, page, pageSize, onChange }: {
       <button type="button" aria-label="上一页" disabled={page <= 1} onClick={() => onChange(page - 1, pageSize)}>‹</button>
       {visiblePages.map((item, index) => <span className="pagination-page-wrap" key={item}>{index > 0 && item - visiblePages[index - 1] > 1 && <i>…</i>}<button type="button" className={item === page ? 'active' : ''} onClick={() => onChange(item, pageSize)}>{item}</button></span>)}
       <button type="button" aria-label="下一页" disabled={page >= pageCount} onClick={() => onChange(page + 1, pageSize)}>›</button>
-      <select aria-label="每页条数" value={pageSize} onChange={(event) => onChange(1, Number(event.target.value))}><option value={10}>10 条/页</option><option value={20}>20 条/页</option><option value={50}>50 条/页</option></select>
+      <select aria-label="每页条数" value={pageSize} onChange={(event) => onChange(1, Number(event.target.value))}><option value={5}>5 条/页</option><option value={10}>10 条/页</option><option value={20}>20 条/页</option><option value={50}>50 条/页</option></select>
     </div>
   </div>
 }

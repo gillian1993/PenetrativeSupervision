@@ -11,7 +11,11 @@
     "rule-catalog:preview": "node scripts/importRuleCatalog.js",
     "rule-catalog:import": "node scripts/importRuleCatalog.js --apply",
     "rule-catalog:sync-rules": "node scripts/syncRuleCatalogAssets.mjs",
-    "rule-catalog:type-align": "node scripts/applyRuleTypeAlignmentFixes.mjs"
+    "rule-catalog:type-align": "node scripts/applyRuleTypeAlignmentFixes.mjs",
+    "graph-demo:preview": "node scripts/prepareKnowledgeGraphDemo.mjs",
+    "graph-demo:prepare": "node scripts/prepareKnowledgeGraphDemo.mjs --apply",
+    "graph-demo:reset": "node scripts/prepareKnowledgeGraphDemo.mjs --reset",
+    "graph-demo:verify": "node scripts/verifyKnowledgeGraphDemo.mjs"
   },
   "dependencies": {
     "cytoscape": "^3.34.3",

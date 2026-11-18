@@ -1,3 +1,5 @@
+import { KnowledgeGraphDemoBar, useKnowledgeGraphDemoScope } from '../knowledgeGraphDemo'
+import { GraphPublicationChecklist, GraphQualityPanel } from './GraphQualityPanel'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { GraphInstancePreview, graphEntityColor } from './GraphInstancePreview'
@@ -213,7 +215,7 @@ function AccessConfigFields({ mode, config, onChange, readonly = false, actions 
   if (mode === '文件导入') return null
   return <Panel className="source-connection-panel" title="数据库接入配置" actions={actions} subtitle={readonly ? '数据库连接信息；密码不明文回显。' : '填写连接信息，可先测试当前配置是否可用。'}>
     <div className="form-section two-column">
-      <Field label="数据库类型 *"><select value={config.databaseType || 'MySQL'} disabled={readonly} onChange={(event) => onChange({ databaseType: event.target.value, port: databaseDefaultPorts[event.target.value] || config.port })}>{Object.keys(databaseDefaultPorts).map((item) => <option key={item}>{item}</option>)}</select></Field>
+      <Field label="数据库类型 *"><select value={config.databaseType || 'MySQL'} disabled={readonly} onChange={(event) => onChange({ databaseType: event.target.value, port: databaseDefaultPorts[event.target.value] || config.port })}>{Object.keys(databaseDefaultPorts).map((item) => <option key={item} disabled={item !== 'MySQL'}>{item}{item !== 'MySQL' ? '（待支持）' : ''}</option>)}</select></Field>
       <Field label="数据库地址/IP *"><input value={config.host || ''} disabled={readonly} onChange={(event) => onChange({ host: event.target.value })} placeholder="例如 10.10.1.12"/></Field>
       <Field label="端口 *"><input value={config.port || ''} disabled={readonly} onChange={(event) => onChange({ port: event.target.value })} placeholder="例如 3306"/></Field>
       <Field label="数据库名/Schema *"><input value={config.databaseName || ''} disabled={readonly} onChange={(event) => onChange({ databaseName: event.target.value })} placeholder="例如 erp_procurement"/></Field>
@@ -421,6 +423,7 @@ export function DataSourceCreatePage() {
   </section>
 }
 export function DataAccessPage() {
+  const demoScope = useKnowledgeGraphDemoScope()
   const navigate = useNavigate()
   const setToast = useAppStore((state) => state.setToast)
   const [dataSources, setDataSources] = useState<DataSourceItem[]>([])
@@ -432,7 +435,8 @@ export function DataAccessPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [togglingSourceId, setTogglingSourceId] = useState('')
-  const filteredSources = useMemo(() => { const normalizedKeyword = keyword.trim().toLowerCase(); return dataSources.filter((item) => { const matchesKeyword = !normalizedKeyword || [item.name, item.id, item.mode, item.range, item.owner, item.status].join(' ').toLowerCase().includes(normalizedKeyword); const matchesStatus = status === '全部' || sourceUsageStatus(item) === status; return matchesKeyword && matchesStatus }) }, [dataSources, keyword, status])
+  const filteredSources = useMemo(() => { const normalizedKeyword = keyword.trim().toLowerCase(); return dataSources.filter((item) => { const matchesKeyword = !normalizedKeyword || [item.name, item.id, item.mode, item.range, item.owner, item.status].join(' ').toLowerCase().includes(normalizedKeyword); const matchesStatus = status === '全部' || sourceUsageStatus(item) === status; return demoScope.includes('source', item.id) && matchesKeyword && matchesStatus }) }, [dataSources, keyword, status, demoScope.status, demoScope.all])
+  useEffect(() => { setPage(current => Math.min(current, Math.max(1, Math.ceil(filteredSources.length / pageSize)))) }, [filteredSources.length, pageSize, demoScope.all])
   const pagedSources = filteredSources.slice((page - 1) * pageSize, page * pageSize)
   const load = async () => {
     setLoading(true)
@@ -686,6 +690,7 @@ const graphViewable = (graph: GraphVersion) => graph.status === '待发布' || g
 const graphDeletable = (graph: GraphVersion) => ['草稿', '待发布'].includes(graph.status)
 
 export function GraphResultListPage({ embedded = false }: { embedded?: boolean }) {
+  const demoScope = useKnowledgeGraphDemoScope()
   const navigate = useNavigate()
   const setToast = useAppStore((state) => state.setToast)
   const [graphs, setGraphs] = useState<GraphVersion[]>([])
@@ -728,9 +733,10 @@ export function GraphResultListPage({ embedded = false }: { embedded?: boolean }
   const rows = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLowerCase()
     const ontologyNames = new Map(ontologies.map((item) => [item.id, item.name]))
-    const matched = graphs.filter((item) => (status === '全部' || item.status === status) && (!normalizedKeyword || [item.id, item.graphCode, item.graphName, item.tag, ontologyNames.get(item.ontologyId) || item.ontologyId, item.range, ...item.sourceNames].join(' ').toLowerCase().includes(normalizedKeyword)))
-    return matched
-  }, [graphs, keyword, ontologies, status])
+    const matched = graphs.filter((item) => demoScope.includes('graph', item.id) && (status === '全部' || item.status === status) && (!normalizedKeyword || [item.id, item.graphCode, item.graphName, item.tag, ontologyNames.get(item.ontologyId) || item.ontologyId, item.range, ...item.sourceNames].join(' ').toLowerCase().includes(normalizedKeyword)))
+    return demoScope.status.ready && !demoScope.all ? matched.sort((a,b) => {const rank=(item:GraphVersion)=>item.graphName==='采购全流程监管图谱'?0:item.status==='已发布'?1:item.status==='待发布'?2:3;return rank(a)-rank(b)}) : matched
+  }, [graphs, keyword, ontologies, status, demoScope.status, demoScope.all])
+  useEffect(() => { setPage(current => Math.min(current, Math.max(1, Math.ceil(rows.length / pageSize)))) }, [rows.length, pageSize, demoScope.all])
   const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize)
 
   const publish = async () => {
@@ -791,7 +797,7 @@ export function GraphResultListPage({ embedded = false }: { embedded?: boolean }
         <ListPagination total={rows.length} page={page} pageSize={pageSize} onChange={(nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) }}/>
       </> : <EmptyState title="没有符合条件的知识图谱" description="请调整筛选条件，或点击“新建图谱”创建结果。"/>}
     </section>
-    <Modal open={!!publishTarget} title="发布知识图谱" description={publishTarget ? `${graphDisplayName(publishTarget)} · ${publishTarget.id}` : ''} confirmText="确认发布" onClose={() => setPublishTarget(null)} onConfirm={() => void publish()}><PublishChecklist/></Modal>
+    <Modal open={!!publishTarget} title="发布知识图谱" description={publishTarget ? `${graphDisplayName(publishTarget)} · ${publishTarget.id}` : ''} confirmText="确认发布" onClose={() => setPublishTarget(null)} onConfirm={() => void publish()}><GraphPublicationChecklist graphId={publishTarget?.id || ''}/></Modal>
     <Modal open={!!unpublishTarget} title="取消发布知识图谱" description={unpublishTarget ? `${graphDisplayName(unpublishTarget)} · ${unpublishTarget.id}` : ''} confirmText="确认取消发布" onClose={() => setUnpublishTarget(null)} onConfirm={() => void unpublish()}><div className="alert-box"><Icon name="warning"/><span>取消发布后，当前图谱会回到待发布状态；可继续编辑、重新发布或删除。</span></div></Modal>
     <Modal open={!!deleteTarget} title="删除未发布图谱" description={deleteTarget ? `${graphDisplayName(deleteTarget)} · ${deleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setDeleteTarget(null)} onConfirm={() => void remove()}><div className="alert-box danger"><Icon name="warning"/><span>仅草稿或待发布的知识图谱可以删除，已发布版本会继续保留。</span></div></Modal>
     {graphSync.controls}
@@ -805,6 +811,8 @@ export function GraphResultDetailPage() {
   const [graph, setGraph] = useState<GraphVersion | null>(null)
   const [ontologyName, setOntologyName] = useState('')
   const [loading, setLoading] = useState(true)
+  const [tab, setTab] = useState('display')
+  const [publishOpen, setPublishOpen] = useState(false)
   const [error, setError] = useState('')
 
   const load = async (quiet = false) => {
@@ -847,6 +855,7 @@ export function GraphResultDetailPage() {
     try {
       const updated = await dataGraphApi.publishGraph(graph.id)
       setGraph(updated)
+      setPublishOpen(false)
       setToast(`${graphDisplayName(updated)} 已发布`)
     } catch (actionError) {
       setToast(actionError instanceof Error ? actionError.message : '知识图谱发布失败')
@@ -854,7 +863,7 @@ export function GraphResultDetailPage() {
   }
   if (loading) return <div className="loading-state page-loading"><i/><span>正在加载知识图谱详情…</span></div>
   if (!graph) return <><button className="back-button" onClick={() => navigate('/graphs/results')}>‹ 返回知识图谱</button><EmptyState title="知识图谱不可访问" description={error || '请返回知识图谱列表重新选择。'}/></>
-  const entityTypeCount = new Set((graph.structureElements || []).filter((item) => item.type === 'class').map((item) => item.code)).size || 7
+  const entityTypeCount = new Set((graph.structureElements || []).filter((item) => item.type === 'class').map((item) => item.code)).size
   return <>
     <div className="graph-result-page service-detail-page">
       <header className="graph-result-page-header">
@@ -867,7 +876,7 @@ export function GraphResultDetailPage() {
           <div className="page-actions graph-result-page-actions">
             <Button onClick={() => graphSync.openHistory(graph)}>同步记录</Button>
             {graphViewable(graph) && <Button className="graph-result-sync-button" icon="refresh" disabled={graphSync.busyFor(graph)} onClick={() => graphSync.openSync(graph)}>{graphSync.busyFor(graph) ? '同步中…' : '同步数据'}</Button>}
-            {graph.status === '待发布' && <Button variant="primary" disabled={graphSync.busyFor(graph)} onClick={() => void publish()}>发布</Button>}
+            {graph.status === '待发布' && <Button variant="primary" disabled={graphSync.busyFor(graph)} onClick={() => setPublishOpen(true)}>发布</Button>}
           </div>
         </div>
         <div className="graph-result-header-meta">
@@ -885,7 +894,9 @@ export function GraphResultDetailPage() {
         </section>
       </header>
       {graph.generationFailed && <div className="alert-box graph-generation-notice"><Icon name="warning"/><span>上次生成未完成，请调整图谱映射后重试。当前图谱已保留为草稿。</span></div>}
-      <section className="graph-result-workspace-panel"><header className="graph-result-workspace-header"><div><h2>图谱展示</h2><p>{graph.instanceDataset ? '查看生成后的实体实例、实例关系与属性信息。' : '历史示例图谱；更新数据后展示真实实例。'}</p></div><span className="graph-result-workspace-note">当前图谱只读展示</span></header><KnowledgeGraphDisplay graph={graph} onRefresh={() => load(true)}/></section>
+      <div className="kg-graph-detail-tabs"><Tabs value={tab} onChange={setTab} items={[{key:'display',label:'图谱展示'},{key:'quality',label:'生成检查',count:graph.blockers+graph.warnings},{key:'governance',label:'实例治理'},{key:'versions',label:'版本与来源'}]}/></div>
+      {tab==='display' ? <><section className="graph-result-workspace-panel"><header className="graph-result-workspace-header"><div><h2>图谱展示</h2><p>{graph.instanceDataset ? '查看生成后的实体实例、实例关系与属性信息。' : '尚未生成实际实例，请完成映射并生成图谱。'}</p></div><span className="graph-result-workspace-note">当前图谱只读展示</span></header><KnowledgeGraphDisplay graph={graph} onRefresh={() => load(true)}/></section></> : <GraphQualityPanel graph={graph} tab={tab} onChanged={() => load(true)}/>}
+      <Modal open={publishOpen} title="发布知识图谱" confirmText="确认发布" onClose={()=>setPublishOpen(false)} onConfirm={()=>void publish()}><GraphPublicationChecklist graphId={graph.id}/></Modal>
       {graphSync.controls}
     </div>
   </>
@@ -995,43 +1006,13 @@ type GraphRelationInstance = {
 }
 type GraphDisplayMode = 'graph' | 'entities' | 'relations'
 type GraphDisplaySelection = { kind: 'node' | 'edge'; id: string } | null
-function createGraphInstanceDataset(graph: GraphVersion) {
-  const primarySource = graph.sourceNames.find((name) => /ERP|采购|供应商|业务/.test(name)) || '集团ERP采购视图'
-  const financeSource = graph.sourceNames.find((name) => /银行|财务|付款|结算/.test(name)) || '资金结算数据'
-  const nodes: GraphEntityInstance[] = [
-    { id: 'supplier-1', name: '华星科技有限公司', typeCode: 'PROC.Supplier', typeName: '供应商', identifier: '91330106MA27X8KQ6T', sourceName: primarySource, color: '#176dff', x: 180, y: 260, properties: [{ label: '供应商编码', value: 'SUP-000318' }, { label: '统一社会信用代码', value: '91330106MA27X8KQ6T' }, { label: '供应商状态', value: '准入' }, { label: '注册资本', value: '5,000 万元' }] },
-    { id: 'supplier-2', name: '中信装备有限公司', typeCode: 'PROC.Supplier', typeName: '供应商', identifier: '91110108MA01C6D92R', sourceName: primarySource, color: '#176dff', x: 180, y: 430, properties: [{ label: '供应商编码', value: 'SUP-000472' }, { label: '统一社会信用代码', value: '91110108MA01C6D92R' }, { label: '供应商状态', value: '准入' }, { label: '注册资本', value: '8,600 万元' }] },
-    { id: 'project-1', name: '2026年云平台基础设施采购项目', typeCode: 'PROC.PurchaseProject', typeName: '采购项目', identifier: 'PRJ-2026-0718', sourceName: primarySource, color: '#d97706', x: 370, y: 220, properties: [{ label: '项目编码', value: 'PRJ-2026-0718' }, { label: '采购方式', value: '公开招标' }, { label: '预算金额', value: '2,680 万元' }, { label: '采购部门', value: '基础设施部' }] },
-    { id: 'project-2', name: '数据安全设备采购项目', typeCode: 'PROC.PurchaseProject', typeName: '采购项目', identifier: 'PRJ-2026-0642', sourceName: primarySource, color: '#d97706', x: 370, y: 420, properties: [{ label: '项目编码', value: 'PRJ-2026-0642' }, { label: '采购方式', value: '邀请招标' }, { label: '预算金额', value: '860 万元' }, { label: '采购部门', value: '安全运营部' }] },
-    { id: 'contract-1', name: '云平台设备采购合同', typeCode: 'PROC.Contract', typeName: '合同', identifier: 'HT-2026-00821', sourceName: primarySource, color: '#1f9d74', x: 560, y: 300, properties: [{ label: '合同编码', value: 'HT-2026-00821' }, { label: '合同金额', value: '2,486 万元' }, { label: '签订日期', value: '2026-07-12' }, { label: '履约状态', value: '履约中' }] },
-    { id: 'reviewer-1', name: '张明远', typeCode: 'PROC.Reviewer', typeName: '评审人员', identifier: 'EMP-008672', sourceName: primarySource, color: '#b453b6', x: 370, y: 70, properties: [{ label: '人员编码', value: 'EMP-008672' }, { label: '所属单位', value: '集团采购中心' }, { label: '专家类别', value: '信息技术' }, { label: '在库状态', value: '正常' }] },
-    { id: 'payment-1', name: '付款单 FK-202607-018', typeCode: 'PROC.Payment', typeName: '付款记录', identifier: 'FK-202607-018', sourceName: financeSource, color: '#5965b3', x: 720, y: 300, properties: [{ label: '付款单号', value: 'FK-202607-018' }, { label: '付款金额', value: '745.8 万元' }, { label: '付款日期', value: '2026-07-19' }, { label: '付款状态', value: '已支付' }] },
-    { id: 'qualification-1', name: '信息安全管理体系认证', typeCode: 'PROC.SupplierQualification', typeName: '供应商资质', identifier: 'CERT-ISO27001-2026', sourceName: primarySource, color: '#168aad', x: 100, y: 80, properties: [{ label: '资质编码', value: 'CERT-ISO27001-2026' }, { label: '资质类型', value: 'ISO 27001' }, { label: '颁发机构', value: '中国质量认证中心' }, { label: '有效期至', value: '2027-12-31' }] },
-    { id: 'product-1', name: '高性能计算服务器', typeCode: 'PROC.Product', typeName: '采购标的', identifier: 'ITEM-SRV-480G', sourceName: primarySource, color: '#667085', x: 560, y: 80, properties: [{ label: '物料编码', value: 'ITEM-SRV-480G' }, { label: '物料分类', value: '计算设备' }, { label: '采购数量', value: '120 台' }, { label: '技术规格', value: '双路 64 核 / 512GB' }] },
-  ]
-  const relations: GraphRelationInstance[] = [
-    { id: 'rel-1', name: '参与投标', typeCode: 'PROC.participate_bid', sourceId: 'supplier-1', targetId: 'project-1', sourceName: primarySource, properties: [{ label: '投标批次', value: 'BID-2026-0718-A' }, { label: '投标时间', value: '2026-06-18 10:32' }] },
-    { id: 'rel-2', name: '参与投标', typeCode: 'PROC.participate_bid', sourceId: 'supplier-2', targetId: 'project-1', sourceName: primarySource, properties: [{ label: '投标批次', value: 'BID-2026-0718-B' }, { label: '投标时间', value: '2026-06-18 11:06' }] },
-    { id: 'rel-3', name: '参与投标', typeCode: 'PROC.participate_bid', sourceId: 'supplier-1', targetId: 'project-2', sourceName: primarySource, properties: [{ label: '投标批次', value: 'BID-2026-0642-A' }, { label: '投标时间', value: '2026-05-22 09:18' }] },
-    { id: 'rel-4', name: '形成合同', typeCode: 'PROC.forms_contract', sourceId: 'project-1', targetId: 'contract-1', sourceName: primarySource, properties: [{ label: '形成日期', value: '2026-07-12' }] },
-    { id: 'rel-5', name: '签订', typeCode: 'PROC.signs', sourceId: 'supplier-1', targetId: 'contract-1', sourceName: primarySource, properties: [{ label: '签订角色', value: '乙方' }, { label: '签订日期', value: '2026-07-12' }] },
-    { id: 'rel-6', name: '参与评审', typeCode: 'PROC.reviews', sourceId: 'reviewer-1', targetId: 'project-1', sourceName: primarySource, properties: [{ label: '评审轮次', value: '第 1 轮' }, { label: '评审日期', value: '2026-06-26' }] },
-    { id: 'rel-7', name: '产生付款', typeCode: 'PROC.generates_payment', sourceId: 'contract-1', targetId: 'payment-1', sourceName: financeSource, properties: [{ label: '付款阶段', value: '首付款' }, { label: '付款比例', value: '30%' }] },
-    { id: 'rel-8', name: '具备资质', typeCode: 'PROC.has_qualification', sourceId: 'supplier-1', targetId: 'qualification-1', sourceName: primarySource, properties: [{ label: '核验状态', value: '有效' }, { label: '核验时间', value: '2026-07-20' }] },
-    { id: 'rel-9', name: '采购标的', typeCode: 'PROC.purchases', sourceId: 'project-1', targetId: 'product-1', sourceName: primarySource, properties: [{ label: '采购数量', value: '120 台' }] },
-  ]
-  return {
-    nodes: nodes.map((node) => ({ ...node, color: graphEntityColor(node.typeCode, node.typeName) })),
-    relations,
-  }
-}
-
 function KnowledgeGraphDisplay({ graph, onRefresh }: { graph: GraphVersion; onRefresh?: () => Promise<void> }) {
   const dataset = useMemo(() => graph.instanceDataset ? {
     nodes: graph.instanceDataset.nodes.map((node) => ({ ...node, color: graphEntityColor(node.typeCode, node.typeName) })),
     relations: graph.instanceDataset.relations,
-  } : createGraphInstanceDataset(graph), [graph])
+  } : { nodes: [], relations: [] }, [graph])
   const [mode, setMode] = useState<GraphDisplayMode>('graph')
+  const [canvasScope, setCanvasScope] = useState<'project' | 'all'>('project')
   const [previewRevision, setPreviewRevision] = useState(0)
   const [refreshingPreview, setRefreshingPreview] = useState(false)
   const [searchValue, setSearchValue] = useState('')
@@ -1065,6 +1046,19 @@ function KnowledgeGraphDisplay({ graph, onRefresh }: { graph: GraphVersion; onRe
   }), [dataset.relations, entityType, nodeById, normalizedKeyword, relationType])
   const graphData = useMemo(() => {
     const hasEntityQuery = Boolean(normalizedKeyword) || entityType !== '全部'
+    if (!hasEntityQuery && relationType === '全部' && canvasScope === 'project' && dataset.nodes.length > 80) {
+      const root = dataset.nodes.find(node => /采购项目/.test(node.typeName)) || dataset.nodes[0]
+      const ids = new Set<string>(root ? [root.id] : [])
+      for (let depth = 0; depth < 2; depth++) {
+        const frontier = new Set(ids)
+        for (const edge of dataset.relations) {
+          if (ids.size >= 40) break
+          if (frontier.has(edge.sourceId)) ids.add(edge.targetId)
+          if (frontier.has(edge.targetId)) ids.add(edge.sourceId)
+        }
+      }
+      return { nodes: dataset.nodes.filter(node => ids.has(node.id)).map((node,index)=>{const angle=index/Math.max(1,ids.size)*Math.PI*2;return {...node,x:node.id===root?.id?500:500+Math.cos(angle)*(index<18?210:360),y:node.id===root?.id?350:350+Math.sin(angle)*(index<18?210:360)}}), relations: dataset.relations.filter(edge => ids.has(edge.sourceId) && ids.has(edge.targetId)) }
+    }
     const matchedIds = new Set(entityRows.map((node) => node.id))
     const relationPool = dataset.relations.filter((relation) => relationType === '全部' || relation.name === relationType)
     const relations = hasEntityQuery ? relationPool.filter((relation) => matchedIds.has(relation.sourceId) || matchedIds.has(relation.targetId)) : relationPool
@@ -1073,7 +1067,7 @@ function KnowledgeGraphDisplay({ graph, onRefresh }: { graph: GraphVersion; onRe
     relations.forEach((relation) => { visibleIds.add(relation.sourceId); visibleIds.add(relation.targetId) })
     if (!hasEntityQuery && relationType === '全部') dataset.nodes.forEach((node) => visibleIds.add(node.id))
     return { nodes: dataset.nodes.filter((node) => visibleIds.has(node.id)), relations: relations.filter((relation) => visibleIds.has(relation.sourceId) && visibleIds.has(relation.targetId)) }
-  }, [dataset.nodes, dataset.relations, entityRows, entityType, normalizedKeyword, relationType])
+  }, [dataset.nodes, dataset.relations, entityRows, entityType, normalizedKeyword, relationType, canvasScope])
   const selectedNode = selection?.kind === 'node' && graphData.nodes.some((node) => node.id === selection.id) ? nodeById.get(selection.id) || null : null
   const selectedRelation = selection?.kind === 'edge'
     ? graphData.relations.find((relation) => relation.id === selection.id) || null
@@ -1098,6 +1092,7 @@ function KnowledgeGraphDisplay({ graph, onRefresh }: { graph: GraphVersion; onRe
   const openEntityDetail = (node: GraphEntityInstance) => setEntityDetail(node)
 
   return <div className="graph-result-workspace">
+    {mode === 'graph' && dataset.nodes.length > 80 && <div className="kg-canvas-scope"><span>画布范围</span><button className={canvasScope === 'project' ? 'active' : ''} onClick={() => { resetFilters(); setCanvasScope('project') }}>项目关联</button><button className={canvasScope === 'all' ? 'active' : ''} onClick={() => { resetFilters(); setCanvasScope('all') }}>全部图谱</button><small>总计 {dataset.nodes.length} 个实体；检索可访问完整数据</small></div>}
     <div className="graph-result-view-tabs" role="tablist" aria-label="图谱展示方式">
       {[{ key: 'graph', label: '图谱视图' }, { key: 'entities', label: '实体实例', count: dataset.nodes.length }, { key: 'relations', label: '关系实例', count: dataset.relations.length }].map((item) => <button type="button" role="tab" aria-selected={mode === item.key} className={mode === item.key ? 'active' : ''} key={item.key} onClick={() => { setMode(item.key as GraphDisplayMode); setSelection(null); if (item.key !== 'entities') setEntityDetail(null); if (item.key === 'graph') { setEntityType('全部'); setRelationType('全部') } }}><span>{item.label}</span>{item.count !== undefined && <b>{item.count}</b>}</button>)}
     </div>
@@ -1224,7 +1219,7 @@ export function GraphManagementPage() {
       ? { eyebrow: '知识图谱', title: '知识图谱', description: '完成图谱映射、生成和展示，发布后供监管分析使用。' }
       : { eyebrow: '知识图谱 / 图谱模型', title: '图谱模型', description: '维护实体类型、属性字段和关系类型。' }
   return <>
-    <PageHeader eyebrow={tabMeta.eyebrow} title={tabMeta.title} description={tabMeta.description}/>
+    <PageHeader eyebrow={tabMeta.eyebrow} title={tabMeta.title} description={tabMeta.description}/><KnowledgeGraphDemoBar/>
     {tab === 'sources' ? <div className="embedded-data-access"><DataAccessPage/></div> : tab === 'results' ? <div className="embedded-graph-results"><GraphResultListPage embedded/></div> : <div className="embedded-graph-structure"><GraphStructureListPage embedded/></div>}
   </>
 }

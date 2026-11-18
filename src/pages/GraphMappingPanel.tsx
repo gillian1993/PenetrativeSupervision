@@ -4,12 +4,14 @@ import { dataGraphApi, type AutoMappingPreview, type MappingItem, type SourceMet
 import { useAppStore } from '../store'
 import type { DataSourceItem, GraphStructureElement, GraphStructureElementType } from '../types'
 import { Button, Drawer, EmptyState, Field, Icon, Modal, StatusTag, Tabs } from '../ui'
+import { entityConfigurationIssue, propertyMappingAvailable, mappingGroup, relationConfiguration, relationConfigurationIssue, type MappingConfig, type RelationConfiguration } from '../../graphMappingConfig'
+import { EntitySourcesConfig } from './EntitySourcesConfig'
+import { RelationMappingConfig } from './RelationMappingConfig'
 
 type MappingMode = 'entity' | 'relations'
 type MappingFilter = 'all' | 'mapped' | 'unmapped'
 type MappingTab = 'entityTypes' | 'properties' | 'relations'
 type StructureEditorState = { type: GraphStructureElementType; target?: GraphStructureElement }
-type EntitySourceDraft = { entityCode: string; sourceId: string; table: string; key: string; isNew: boolean }
 
 interface GraphMappingPanelProps {
   ontologyId: string
@@ -19,32 +21,23 @@ interface GraphMappingPanelProps {
   allowedSourceIds?: string[]
   graphId?: string
   onElementsChange?: (elements: GraphStructureElement[]) => void
+  onSavingChange?: (saving: boolean) => void
 }
 
 const mappingKindLabel: Record<MappingTab, string> = { entityTypes: '实体类型映射', properties: '属性映射', relations: '关系映射' }
 const structureTypeLabel: Record<GraphStructureElementType, string> = { class: '实体类型', property: '属性字段', relation: '关系类型' }
 const targetMappingType: Record<MappingTab, MappingItem['type']> = { entityTypes: '实体类型', properties: '属性', relations: '关系' }
 const unique = (values: string[]) => [...new Set(values.map((item) => item.trim()).filter(Boolean))]
-const metadataFields = (item: SourceMetadataItem) => unique(item.fields?.length ? item.fields : [`${item.tableName}.id`, `${item.tableName}.code`, `${item.tableName}.name`])
-const sourceFieldsWithCurrent = (fields: string[], current: string) => unique([current, ...fields])
-const mappingRulePart = (rule: string, label: string) => rule.match(new RegExp(`${label}[：:]\\s*([^；;]+)`))?.[1]?.trim() || ''
-const recommendedKeyField = (fields: string[]) => fields.find((item) => /(^|[._])(id|code|key|no)$/i.test(item)) || ''
-const entityTransformRule = (keyField: string) => `主键字段：${keyField}`
-const relationGenerateRule = '按起点实例、关系类型和终点实例去重'
-const propertyRelationTransformRule = () => `关联方式：关联条件；生成规则：${relationGenerateRule}`
-const relationFieldParts = (sourceField: string) => sourceField.split(/\s*=\s*|\s*\+\s*/).map((item) => item.trim()).filter(Boolean)
 const requiredProperty = (target: GraphStructureElement) => /必填|主标识/.test(target.constraint || '')
 const mappingErrorMessage = (error: unknown, fallback: string) => {
   const message = error instanceof Error ? error.message : ''
   return /failed to fetch|networkerror|network request/i.test(message) ? fallback : message || fallback
 }
 
-export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, ontologyElements, allowedSourceIds, graphId, onElementsChange }: GraphMappingPanelProps) {
+export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, ontologyElements, allowedSourceIds, graphId, onElementsChange, onSavingChange }: GraphMappingPanelProps) {
   const navigate = useNavigate()
   const setToast = useAppStore((state) => state.setToast)
   const [sources, setSources] = useState<DataSourceItem[]>([])
-  const [selectedMappingSourceId, setSelectedMappingSourceId] = useState('')
-  const [entitySourceDrafts, setEntitySourceDrafts] = useState<Record<string, EntitySourceDraft>>({})
   const [metadataBySource, setMetadataBySource] = useState<Record<string, SourceMetadataItem[]>>({})
   const [mappingsBySource, setMappingsBySource] = useState<Record<string, MappingItem[]>>({})
   const [loadingSources, setLoadingSources] = useState(true)
@@ -54,24 +47,22 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
   const [autoPreview, setAutoPreview] = useState<AutoMappingPreview | null>(null)
   const [autoLoading, setAutoLoading] = useState(false)
   const [autoApplying, setAutoApplying] = useState(false)
-  const [relationPropertyDraft, setRelationPropertyDraft] = useState({ relationCode: '', ownerPropertyCode: '', targetPropertyCode: '' })
   const [selectedEntityCode, setSelectedEntityCode] = useState('')
   const [selectedRelationCode, setSelectedRelationCode] = useState('')
   const [typeKeyword, setTypeKeyword] = useState('')
   const [savingKey, setSavingKey] = useState('')
+  const [pendingConfig, setPendingConfig] = useState(false)
+  useEffect(() => { onSavingChange?.(Boolean(savingKey) || pendingConfig || autoApplying) }, [savingKey, pendingConfig, autoApplying, onSavingChange])
+  useEffect(() => () => onSavingChange?.(false), [onSavingChange])
   const [structureEditor, setStructureEditor] = useState<StructureEditorState | null>(null)
   const [elementForm, setElementForm] = useState<Omit<GraphStructureElement, 'id'>>({ type: 'class', code: '', name: '', ownerCode: '', targetCode: '', dataType: '实体类型', constraint: '', description: '', sourceType: 'custom' })
 
   const allowedSourceKey = allowedSourceIds?.join('|') || ''
   const eligibleSources = useMemo(() => sources.filter((item) => !allowedSourceIds || allowedSourceIds.includes(item.id)), [allowedSourceKey, allowedSourceIds, sources])
   const enabledEligibleSources = eligibleSources.filter((item) => item.status === '启用')
-  const sourceTableFields = (sourceId: string, tableName: string) => {
-    const table = (metadataBySource[sourceId] || []).find((item) => item.tableName === tableName)
-    return table ? metadataFields(table) : []
-  }
   const allMappings = eligibleSources.flatMap((source) => mappingsBySource[source.id] || [])
-  const mappingIndex = new Map(allMappings.map((row) => [`${row.sourceId}|${row.type}|${row.targetCode}`, row]))
-  const sourceMapping = (sourceId: string, type: MappingItem['type'], code: string) => mappingIndex.get(`${sourceId}|${type}|${code}`) || null
+  const mappingIndex = new Map(allMappings.map((row) => [`${row.sourceId}|${row.type}|${row.targetCode}|${mappingGroup(row)}`, row]))
+  const sourceMapping = (sourceId: string, type: MappingItem['type'], code: string, groupId = '') => mappingIndex.get(`${sourceId}|${type}|${code}|${groupId}`) || null
   const targetEntityTypes = useMemo(() => ontologyElements.filter((item) => item.type === 'class'), [ontologyElements])
   const targetProperties = useMemo(() => ontologyElements.filter((item) => item.type === 'property'), [ontologyElements])
   const targetRelations = useMemo(() => ontologyElements.filter((item) => item.type === 'relation'), [ontologyElements])
@@ -80,51 +71,33 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
   const relationByTarget = new Map([...relationMappings].reverse().map((row) => [row.targetCode, row]))
   const activeEntityType = targetEntityTypes.find((item) => item.code === selectedEntityCode) || targetEntityTypes[0] || null
   const activeRelation = targetRelations.find((item) => item.code === selectedRelationCode) || targetRelations[0] || null
-  const entitySourceMappings = activeEntityType ? entityTypeMappings.filter((row) => row.targetCode === activeEntityType.code) : []
-  const entitySourceDraftKey = (entityCode: string, sourceId: string) => `${entityCode}|${sourceId}`
-  const entityDraftForType = activeEntityType ? Object.values(entitySourceDrafts).find((draft) => draft.entityCode === activeEntityType.code) : null
-  const activeEntitySource = eligibleSources.find((source) => source.id === selectedMappingSourceId && (entitySourceMappings.some((row) => row.sourceId === source.id) || Boolean(activeEntityType && entitySourceDrafts[entitySourceDraftKey(activeEntityType.code, source.id)]))) || eligibleSources.find((source) => source.id === entityDraftForType?.sourceId) || eligibleSources.find((source) => entitySourceMappings.some((row) => row.sourceId === source.id)) || null
-  const activeEntityMapping = activeEntityType && activeEntitySource ? sourceMapping(activeEntitySource.id, '实体类型', activeEntityType.code) : null
-  const activeEntitySourceDraft = activeEntityType && activeEntitySource ? entitySourceDrafts[entitySourceDraftKey(activeEntityType.code, activeEntitySource.id)] || null : null
   const activeRelationMapping = activeRelation ? relationByTarget.get(activeRelation.code) || null : null
   const activeEntityProperties = activeEntityType ? targetProperties.filter((item) => item.ownerCode === activeEntityType.code) : []
-  const hasValidPropertyMapping = (property: GraphStructureElement) => eligibleSources.some((source) => {
-    if (source.status !== '启用') return false
-    const entity = sourceMapping(source.id, '实体类型', property.ownerCode || '')
-    const mapping = sourceMapping(source.id, '属性', property.code)
-    if (!entity || !mapping) return false
-    const fields = sourceTableFields(source.id, entity.sourceField)
-    return fields.includes(mappingRulePart(entity.transform || '', '主键字段')) && fields.includes(mapping.sourceField)
+  const hasValidPropertyMapping = (property: GraphStructureElement) => entityTypeMappings.some((entity) => {
+    if (entity.targetCode !== property.ownerCode || !enabledEligibleSources.some((source) => source.id === entity.sourceId)) return false
+    return propertyMappingAvailable(entity, sourceMapping(entity.sourceId, '属性', property.code, mappingGroup(entity)), metadataBySource[entity.sourceId] || [])
   })
+  const availableEntityCodes = unique(entityTypeMappings.filter((entity) => enabledEligibleSources.some((source) => source.id === entity.sourceId) && !entityConfigurationIssue(entity, metadataBySource[entity.sourceId] || [])).map((entity) => entity.targetCode))
+  const availablePropertyCodes = targetProperties.filter(hasValidPropertyMapping).map((property) => property.code)
   const relationMappingStatus = (mapping: MappingItem | null) => {
     if (!mapping) return '未配置'
+    if (!enabledEligibleSources.some((source) => source.id === mapping.sourceId)) return '待补全'
+    if (mapping.status === '待检查') return '待补全'
     const relation = targetRelations.find((item) => item.code === mapping.targetCode)
     if (!relation) return '需调整'
-    if (/关联方式[：:]\s*关系表/.test(mapping.transform || '')) {
-      const fields = sourceTableFields(mapping.sourceId, mapping.sourceField)
-      const start = mappingRulePart(mapping.transform || '', '起点字段')
-      const end = mappingRulePart(mapping.transform || '', '终点字段')
-      const ownerMapped = entityTypeMappings.some((item) => item.targetCode === relation.ownerCode && sourceTableFields(item.sourceId, item.sourceField).includes(mappingRulePart(item.transform || '', '主键字段')))
-      const targetMapped = entityTypeMappings.some((item) => item.targetCode === relation.targetCode && sourceTableFields(item.sourceId, item.sourceField).includes(mappingRulePart(item.transform || '', '主键字段')))
-      return ownerMapped && targetMapped && start !== end && fields.includes(start) && fields.includes(end) ? '已配置' : '待补全'
-    }
-    const [ownerPropertyCode, targetPropertyCode] = relationFieldParts(mapping.sourceField)
-    const ownerProperty = targetProperties.find((item) => item.code === ownerPropertyCode && item.ownerCode === relation.ownerCode)
-    const targetProperty = targetProperties.find((item) => item.code === targetPropertyCode && item.ownerCode === relation.targetCode)
-    const ownerMapped = ownerProperty ? hasValidPropertyMapping(ownerProperty) : false
-    const targetMapped = targetProperty ? hasValidPropertyMapping(targetProperty) : false
-    return ownerProperty && targetProperty && ownerMapped && targetMapped ? '已配置' : '待补全'
+    return relationConfigurationIssue(relationConfiguration(mapping, relation), relation, ontologyElements, availableEntityCodes, availablePropertyCodes, metadataBySource[mapping.sourceId] || []) ? '待补全' : '已配置'
   }
   const entityMappingStatus = (target: GraphStructureElement) => {
     const mappings = entityTypeMappings.filter((row) => row.targetCode === target.code)
     if (!mappings.length) return '未配置'
     if (mappings.some((mapping) => eligibleSources.find((source) => source.id === mapping.sourceId)?.status !== '启用')) return '待补全'
-    if (mappings.some((mapping) => !sourceTableFields(mapping.sourceId, mapping.sourceField).includes(mappingRulePart(mapping.transform || '', '主键字段')))) return '待补全'
+    if (mappings.some((mapping) => entityConfigurationIssue(mapping, metadataBySource[mapping.sourceId] || []))) return '待补全'
+    if (mappings.some((mapping) => targetProperties.some((property) => property.ownerCode === target.code && sourceMapping(mapping.sourceId, '属性', property.code, mappingGroup(mapping)) && !propertyMappingAvailable(mapping, sourceMapping(mapping.sourceId, '属性', property.code, mappingGroup(mapping)), metadataBySource[mapping.sourceId] || [])))) return '待补全'
     const requiredProperties = targetProperties.filter((item) => item.ownerCode === target.code && requiredProperty(item))
     const hasMissingRequired = requiredProperties.some((property) => {
       return !mappings.some((mapping) => {
-        const propertyMapping = sourceMapping(mapping.sourceId, '属性', property.code)
-        return propertyMapping && sourceTableFields(mapping.sourceId, mapping.sourceField).includes(propertyMapping.sourceField)
+        const propertyMapping = sourceMapping(mapping.sourceId, '属性', property.code, mappingGroup(mapping))
+        return propertyMappingAvailable(mapping, propertyMapping, metadataBySource[mapping.sourceId] || [])
       })
     })
     return hasMissingRequired ? '待补全' : '已配置'
@@ -191,22 +164,15 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
     if (!targetRelations.some((item) => item.code === selectedRelationCode)) setSelectedRelationCode(targetRelations[0]?.code || '')
   }, [selectedRelationCode, targetRelations])
 
-  useEffect(() => {
-    const isTableMapping = /关联方式[：:]\s*关系表/.test(activeRelationMapping?.transform || '')
-    const [ownerPropertyCode, targetPropertyCode] = relationFieldParts(isTableMapping ? '' : activeRelationMapping?.sourceField || '')
-    setRelationPropertyDraft({ relationCode: activeRelation?.code || '', ownerPropertyCode: ownerPropertyCode || '', targetPropertyCode: targetPropertyCode || '' })
-  }, [activeRelation?.code, activeRelationMapping?.id, activeRelationMapping?.sourceField, activeRelationMapping?.transform])
-
-  const saveInlineMapping = async (sourceId: string, tab: MappingTab, target: GraphStructureElement, sourceField: string, transform: string) => {
+  const saveInlineMapping = async (sourceId: string, tab: MappingTab, target: GraphStructureElement, sourceField: string, transform: string, config?: MappingConfig, groupId = '') => {
     if (!sourceId || !sourceField.trim() || !transform.trim()) return false
-    const mapping = sourceMapping(sourceId, targetMappingType[tab], target.code)
+    const mapping = sourceMapping(sourceId, targetMappingType[tab], target.code, groupId)
     const key = `${sourceId}:${tab}:${target.code}`
     setSavingKey(key)
     try {
-      if (mapping) await dataGraphApi.updateMapping(sourceId, mapping.id, { ontologyId, targetCode: target.code, targetType: target.type, sourceField: sourceField.trim(), transform: transform.trim() }, graphId)
-      else await dataGraphApi.createMapping(sourceId, { ontologyId, targetCode: target.code, targetType: target.type, sourceField: sourceField.trim(), transform: transform.trim(), type: targetMappingType[tab] }, graphId)
-      const rows = await dataGraphApi.mappings(sourceId, undefined, ontologyId, graphId)
-      setMappingsBySource((current) => ({ ...current, [sourceId]: rows }))
+      if (mapping) await dataGraphApi.updateMapping(sourceId, mapping.id, { ontologyId, targetCode: target.code, targetType: target.type, sourceField: sourceField.trim(), transform: transform.trim(), config }, graphId)
+      else await dataGraphApi.createMapping(sourceId, { ontologyId, targetCode: target.code, targetType: target.type, sourceField: sourceField.trim(), transform: transform.trim(), config, groupId, type: targetMappingType[tab] }, graphId)
+      await refreshAllMappings()
       setToast(`${mappingKindLabel[tab]}已保存`)
       return true
     } catch (error) {
@@ -220,6 +186,10 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
   const refreshMappings = async (sourceId: string) => {
     const rows = await dataGraphApi.mappings(sourceId, undefined, ontologyId, graphId)
     setMappingsBySource((current) => ({ ...current, [sourceId]: rows }))
+  }
+  const refreshAllMappings = async () => {
+    const entries = await Promise.all(eligibleSources.map(async (source) => [source.id, await dataGraphApi.mappings(source.id, undefined, ontologyId, graphId)] as const))
+    setMappingsBySource(Object.fromEntries(entries))
   }
 
   const autoMappingPayload = () => ({ ontologyId, sourceIds: eligibleSources.map((source) => source.id), structureElements: ontologyElements, graphId })
@@ -263,7 +233,7 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
     setSavingKey(`delete:${mapping.id}`)
     try {
       await dataGraphApi.deleteMapping(mapping.sourceId, mapping.id, ontologyId, graphId)
-      await refreshMappings(mapping.sourceId)
+      await refreshAllMappings()
       setToast(`${label}已移除`)
     } catch (error) {
       setToast(mappingErrorMessage(error, '映射规则移除失败，请稍后重试'))
@@ -272,54 +242,30 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
     }
   }
 
-  const saveEntityConfig = async (sourceId: string, sourceTable: string, keyField: string) => {
-    if (!activeEntityType || !sourceTable || !keyField) return
-    const target = activeEntityType
-    const saved = await saveInlineMapping(sourceId, 'entityTypes', target, sourceTable, entityTransformRule(keyField))
-    if (saved) setEntitySourceDrafts((current) => {
-      const next = { ...current }
-      delete next[entitySourceDraftKey(target.code, sourceId)]
-      return next
-    })
-  }
-
-  const savePropertyField = (sourceId: string, target: GraphStructureElement, sourceField: string) => {
-    if (!sourceField) return
-    void saveInlineMapping(sourceId, 'properties', target, sourceField, sourceMapping(sourceId, '属性', target.code)?.transform || '直接映射')
-  }
-
-  const savePropertyRelation = (ownerPropertyCode: string, targetPropertyCode: string) => {
-    if (!activeRelation || !ownerPropertyCode || !targetPropertyCode) return
-    const sourceId = [activeRelationMapping?.sourceId, ...entityTypeMappings.filter((item) => item.targetCode === activeRelation.targetCode || item.targetCode === activeRelation.ownerCode).map((item) => item.sourceId)].find((id) => enabledEligibleSources.some((source) => source.id === id))
-    if (sourceId) void saveRelationRule(sourceId, `${ownerPropertyCode} = ${targetPropertyCode}`, propertyRelationTransformRule())
-  }
-
-  const saveRelationRule = async (sourceId: string, field: string, transform: string) => {
-    if (!activeRelation || !sourceId || !field || !transform) return
-    const key = `relation:${activeRelation.code}`
-    setSavingKey(key)
+  const saveRelationRule = async (sourceId: string, config: RelationConfiguration) => {
+    if (!activeRelation || !sourceId) return false
+    setSavingKey(`relation:${activeRelation.code}`)
     try {
-      await dataGraphApi.createMapping(sourceId, { ontologyId, targetCode: activeRelation.code, targetType: 'relation', sourceField: field, transform, type: '关系' }, graphId)
-      if (activeRelationMapping && activeRelationMapping.sourceId !== sourceId) await dataGraphApi.deleteMapping(activeRelationMapping.sourceId, activeRelationMapping.id, ontologyId, graphId)
-      const ids = new Set([sourceId, activeRelationMapping?.sourceId].filter((id): id is string => Boolean(id)))
-      await Promise.all([...ids].map(refreshMappings))
+      const sourceField = config.origin.kind === 'table' ? config.origin.table : config.origin.entityCode
+      await dataGraphApi.createMapping(sourceId, { ontologyId, targetCode: activeRelation.code, targetType: 'relation', sourceField, transform: '关联方式：统一字段映射', config: { relation: config }, type: '关系' }, graphId)
+      for (const previous of relationMappings.filter((item) => item.targetCode === activeRelation.code && item.sourceId !== sourceId)) await dataGraphApi.deleteMapping(previous.sourceId, previous.id, ontologyId, graphId)
+      await refreshAllMappings()
       setToast('关系映射已保存')
+      return true
     } catch (error) {
       setToast(mappingErrorMessage(error, '关系映射保存失败，请稍后重试'))
-    } finally {
-      setSavingKey('')
-    }
+      return false
+    } finally { setSavingKey('') }
   }
 
   const removeEntitySourceMapping = async (mapping: MappingItem) => {
     if (!activeEntityType || !window.confirm(`确认移除${activeEntityType.name}在当前数据源的映射吗？该来源下的属性映射也会移除。`)) return
-    const properties = activeEntityProperties.map((property) => sourceMapping(mapping.sourceId, '属性', property.code)).filter((item): item is MappingItem => Boolean(item))
+    const properties = activeEntityProperties.map((property) => sourceMapping(mapping.sourceId, '属性', property.code, mappingGroup(mapping))).filter((item): item is MappingItem => Boolean(item))
     setSavingKey(`delete:${mapping.id}`)
     try {
       for (const property of properties) await dataGraphApi.deleteMapping(mapping.sourceId, property.id, ontologyId, graphId)
       await dataGraphApi.deleteMapping(mapping.sourceId, mapping.id, ontologyId, graphId)
-      await refreshMappings(mapping.sourceId)
-      setSelectedMappingSourceId('')
+      await refreshAllMappings()
       setToast('来源映射已移除')
     } catch (error) {
       await refreshMappings(mapping.sourceId)
@@ -338,14 +284,13 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
   const entityTypeName = (code?: string) => ontologyElements.find((item) => item.type === 'class' && item.code === code)?.name || code || '未指定'
   const mappingListStatus = (target: GraphStructureElement, mapping: MappingItem | null, tab: 'entityTypes' | 'relations') => {
     const status = tab === 'entityTypes' ? entityMappingStatus(target) : relationMappingStatus(mapping)
-    return status === '已配置' ? '已映射' : '未映射'
+    return status === '已配置' ? '已映射' : status === '未配置' ? '未映射' : '待检查'
   }
 
   const focusEntity = (code: string) => {
     if (!code) return
     setMode('entity')
     setSelectedEntityCode(code)
-    setSelectedMappingSourceId('')
   }
 
   const changeFilter = (value: MappingFilter) => {
@@ -424,7 +369,7 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
     }
     const nextElements = structureEditor.target ? ontologyElements.map((item) => item.id === structureEditor.target?.id ? current : item) : [...ontologyElements, current]
     onElementsChange?.(nextElements)
-    if (current.type === 'class') { setSelectedEntityCode(current.code); setSelectedMappingSourceId('') }
+    if (current.type === 'class') setSelectedEntityCode(current.code)
     if (current.type === 'relation') setSelectedRelationCode(current.code)
     setStructureEditor(null)
     setToast(`${structureTypeLabel[current.type]}已保存到当前图谱结构`)
@@ -441,98 +386,15 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
   const renderStructureActions = (target: GraphStructureElement, type: 'class' | 'relation') => <div className="mapping-structure-actions"><details className="mapping-structure-menu"><summary className="mapping-structure-icon" title="更多操作" aria-label={`${target.name}更多操作`}><Icon name="more" size={16}/></summary><div><button type="button" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); openStructureEditor(type, target) }}><Icon name="edit" size={14}/>编辑</button><button type="button" className="danger-link" onClick={(event) => { event.currentTarget.closest('details')?.removeAttribute('open'); removeStructureElement(target) }}><Icon name="trash" size={14}/>移除</button></div></details></div>
 
   const renderEntityMapping = () => {
-    if (!activeEntityType) return <EmptyState title="暂无实体类型" description="先新增实体类型，再选择来源表进行映射。" action={<Button variant="primary" icon="plus" onClick={() => openStructureEditor('class')}>新增实体类型</Button>}/>
-    const sourceId = activeEntitySource?.id || ''
-    const currentSourceTable = activeEntitySourceDraft?.table ?? activeEntityMapping?.sourceField ?? ''
-    const currentTableFields = sourceTableFields(sourceId, currentSourceTable)
-    const configuredKeyField = mappingRulePart(activeEntityMapping?.transform || '', '主键字段')
-    const entityKeyField = activeEntitySourceDraft?.key ?? configuredKeyField
-    const suggestedKeyField = recommendedKeyField(currentTableFields)
-    const matchedPropertyCount = activeEntityProperties.filter((property) => currentTableFields.includes(sourceMapping(sourceId, '属性', property.code)?.sourceField || '')).length
-    const entitySaving = savingKey === `${sourceId}:entityTypes:${activeEntityType.code}`
-    const tableOptions = enabledEligibleSources.flatMap((source) => (metadataBySource[source.id] || []).map((table) => ({ sourceId: source.id, tableName: table.tableName, value: JSON.stringify([source.id, table.tableName]) })))
-    const selectedTableValue = currentSourceTable ? JSON.stringify([sourceId, currentSourceTable]) : ''
-    const currentTableAvailable = tableOptions.some((option) => option.value === selectedTableValue)
-    const selectSourceTable = (value: string) => {
-      const option = tableOptions.find((item) => item.value === value)
-      if (!option) return
-      const existingMapping = sourceMapping(option.sourceId, '实体类型', activeEntityType.code)
-      setSelectedMappingSourceId(option.sourceId)
-      setEntitySourceDrafts((current) => {
-        const next = { ...current }
-        Object.keys(next).filter((key) => key.startsWith(`${activeEntityType.code}|`)).forEach((key) => { delete next[key] })
-        if (existingMapping?.sourceField !== option.tableName) next[entitySourceDraftKey(activeEntityType.code, option.sourceId)] = { entityCode: activeEntityType.code, sourceId: option.sourceId, table: option.tableName, key: '', isNew: !existingMapping }
-        return next
-      })
-    }
+    if (!activeEntityType) return <EmptyState title="暂无实体类型" description="先新增实体类型，再配置来源表。" action={<Button variant="primary" icon="plus" onClick={() => openStructureEditor('class')}>新增实体类型</Button>}/>
     return <div className="mapping-config-layout">
       <aside className="mapping-type-list"><header className="mapping-type-list-header"><div><h3>实体类型</h3><small>共 {targetEntityTypes.length} 项</small></div><button type="button" className="mapping-structure-icon" title="新增实体类型" aria-label="新增实体类型" onClick={() => openStructureEditor('class')}><Icon name="plus" size={16}/></button></header><label className="mapping-type-search"><Icon name="search" size={14}/><input value={typeKeyword} onChange={(event) => setTypeKeyword(event.target.value)} placeholder="搜索实体类型" aria-label="搜索实体类型"/></label>{renderListFilter()}<div className="mapping-type-items">{visibleEntityTypes.map((target) => <div className={`mapping-type-item${target.code === activeEntityType.code ? ' active' : ''}`} key={target.id}><button type="button" className="mapping-type-select" onClick={() => focusEntity(target.code)}><Icon name="file" size={16}/><span><strong>{target.name}</strong><small>{target.code}</small></span><StatusTag>{mappingListStatus(target, null, 'entityTypes')}</StatusTag></button>{renderStructureActions(target, 'class')}</div>)}{!visibleEntityTypes.length && <p className="mapping-list-empty">未找到匹配的实体类型</p>}</div></aside>
-      <section className="mapping-config-panel">
-        <header className="mapping-config-header">
-          <div className="mapping-config-heading"><h2>{activeEntityType.name}</h2><span className="mapping-code" title={activeEntityType.code}>{activeEntityType.code}</span></div>
-          <div className="mapping-config-header-meta"><StatusTag>{mappingListStatus(activeEntityType, activeEntityMapping, 'entityTypes')}</StatusTag>{entitySaving && <span className="mapping-saving">保存中…</span>}</div>
-        </header>
-        <div className="mapping-entity-table-picker">
-          <label htmlFor="mapping-source-table">来源表 / 视图 <span aria-hidden="true">*</span></label>
-          <div className="mapping-entity-table-control">
-            <select id="mapping-source-table" value={selectedTableValue} disabled={entitySaving} onChange={(event) => selectSourceTable(event.target.value)}><option value="" disabled>请选择来源表 / 视图</option>{currentSourceTable && !currentTableAvailable && <option value={selectedTableValue}>{activeEntitySource?.name || sourceId} · {currentSourceTable}（当前不可用）</option>}{enabledEligibleSources.map((source) => <optgroup label={source.name} key={source.id}>{(metadataBySource[source.id] || []).map((table) => { const mapping = sourceMapping(source.id, '实体类型', activeEntityType.code); return <option value={JSON.stringify([source.id, table.tableName])} key={table.id}>{source.name} · {table.tableName}{table.displayName && table.displayName !== table.tableName ? `（${table.displayName}）` : ''}{mapping?.sourceField === table.tableName ? ' · 已映射' : ''}</option> })}</optgroup>)}</select>
-            <div className="mapping-entity-table-meta"><span>从上一步已选且可用的数据源中选择；每个数据源可配置一张表{entitySourceMappings.length > 0 ? ` · 已映射 ${entitySourceMappings.length} 张` : ''}</span>{activeEntityMapping && !activeEntitySourceDraft && <button type="button" className="mapping-inline-link danger-link" disabled={savingKey === `delete:${activeEntityMapping.id}`} onClick={() => void removeEntitySourceMapping(activeEntityMapping)}>移除当前映射</button>}</div>
-            {!tableOptions.length && <p className="mapping-form-help mapping-form-help-error">所选数据源暂无可用来源表，请先完成来源结构解析。</p>}
-            {activeEntitySourceDraft && <button type="button" className="mapping-inline-link mapping-entity-table-cancel" onClick={() => {
-          const draftKey = entitySourceDraftKey(activeEntityType.code, sourceId)
-          setEntitySourceDrafts((current) => { const next = { ...current }; delete next[draftKey]; return next })
-          if (activeEntitySourceDraft.isNew) setSelectedMappingSourceId('')
-        }}>{activeEntitySourceDraft.isNew ? '取消选择' : '取消更换'}</button>}
-          </div>
-        </div>
-        {activeEntitySource && currentSourceTable ? <>
-        <div className="mapping-entity-form">
-          <div className="mapping-form-row">
-            <label htmlFor="mapping-entity-key">实体唯一标识 <span aria-hidden="true">*</span></label>
-            <div className="mapping-form-control">
-              <select id="mapping-entity-key" className={entityKeyField && !currentTableFields.includes(entityKeyField) ? 'mapping-select-error' : undefined} value={entityKeyField} disabled={!currentSourceTable || entitySaving} aria-invalid={Boolean(entityKeyField && !currentTableFields.includes(entityKeyField))} aria-describedby={currentSourceTable && !entityKeyField ? 'mapping-key-help' : undefined} onChange={(event) => {
-                const key = event.target.value
-                setEntitySourceDrafts((current) => ({ ...current, [entitySourceDraftKey(activeEntityType.code, sourceId)]: { entityCode: activeEntityType.code, sourceId, table: currentSourceTable, key, isNew: activeEntitySourceDraft?.isNew ?? false } }))
-                if (key) void saveEntityConfig(sourceId, currentSourceTable, key)
-              }}><option value="" disabled>{currentSourceTable ? '请选择唯一标识字段' : '请先选择来源表 / 视图'}</option>{sourceFieldsWithCurrent(currentTableFields, entityKeyField).map((field) => <option value={field} key={field}>{field}{field === suggestedKeyField && !entityKeyField ? '（推荐）' : ''}{!currentTableFields.includes(field) ? '（当前表不存在）' : ''}</option>)}</select>
-              {currentSourceTable && !entityKeyField && <p id="mapping-key-help" className="mapping-form-help">{suggestedKeyField ? `推荐 ${suggestedKeyField}，请确认该字段能稳定标识实体。` : '请选择能稳定标识实体的字段。'}</p>}
-              {currentSourceTable && entityKeyField && !currentTableFields.includes(entityKeyField) && <p className="mapping-form-help mapping-form-help-error">当前来源表中不存在该字段，请重新选择。</p>}
-            </div>
-          </div>
-        </div>
-        {activeEntityMapping && currentSourceTable && entityKeyField && currentTableFields.includes(entityKeyField) && !activeEntitySourceDraft && <section className="mapping-entity-properties">
-          <header className="mapping-entity-properties-header"><div><strong>属性字段映射</strong><span>已匹配 {matchedPropertyCount}/{activeEntityProperties.length}</span></div><div className="mapping-inline-actions"><Button icon="plus" onClick={() => openStructureEditor('property', undefined, { ownerCode: activeEntityType.code })}>新增属性</Button></div></header>
-          <div className="table-container mapping-field-table"><table><thead><tr><th>图谱属性</th><th>类型 / 约束</th><th>来源字段</th><th>操作</th></tr></thead><tbody>{activeEntityProperties.length ? activeEntityProperties.map((property) => { const mapping = sourceMapping(sourceId, '属性', property.code); const currentField = mapping?.sourceField || ''; const propertySaving = savingKey === `${sourceId}:properties:${property.code}`; const propertyDeleting = savingKey === `delete:${mapping?.id || ''}`; return <tr key={property.id}><td><strong>{property.name}</strong><small className="cell-sub">{property.code}</small></td><td><span>{property.dataType || '文本'}</span><small className="cell-sub">{property.constraint || '无特殊约束'}</small></td><td><select value={currentField} disabled={propertySaving || propertyDeleting || entitySaving || !currentSourceTable} onChange={(event) => savePropertyField(sourceId, property, event.target.value)}><option value="">{currentSourceTable ? '请选择来源字段' : '请先选择来源表'}</option>{sourceFieldsWithCurrent(currentTableFields, currentField).map((field) => <option value={field} key={field}>{field}{!currentTableFields.includes(field) ? '（当前表不存在）' : ''}</option>)}</select></td><td>{mapping ? <div className="mapping-row-actions"><button type="button" className="mapping-row-edit danger-link" disabled={propertyDeleting} onClick={() => void removeMapping(mapping, `${property.name}属性映射`)}>{propertyDeleting ? '移除中…' : '移除'}</button></div> : null}</td></tr> }) : <tr><td colSpan={4}><EmptyState title="暂无属性字段" description="请先在当前图谱结构中新增属性。"/></td></tr>}</tbody></table></div>
-        </section>}
-        </> : <p className="mapping-entity-table-empty">选择来源表后，即可配置唯一标识和属性字段。</p>}
-      </section>
+      <EntitySourcesConfig key={activeEntityType.code} entity={activeEntityType} properties={activeEntityProperties} mappings={allMappings} sources={eligibleSources} metadata={metadataBySource} disabled={Boolean(savingKey) || autoApplying} onSave={saveInlineMapping} onRemove={(mapping, label) => void removeMapping(mapping, label)} onRemoveSource={(mapping) => void removeEntitySourceMapping(mapping)} onAddProperty={() => openStructureEditor('property', undefined, { ownerCode: activeEntityType.code })} onPendingChange={setPendingConfig}/>
     </div>
   }
 
   const renderRelationMapping = () => {
-    if (!activeRelation) return <EmptyState title="暂无关系类型" description="请先在图谱模型结构中补充关系类型。"/>
-    const relationSaving = savingKey === 'relation:' + activeRelation.code
-    const ownerName = entityTypeName(activeRelation.ownerCode)
-    const targetName = entityTypeName(activeRelation.targetCode)
-    const mappedPropertiesForEntity = (entityCode: string) => targetProperties.filter((property) => property.ownerCode === entityCode && hasValidPropertyMapping(property))
-    const ownerProperties = mappedPropertiesForEntity(activeRelation.ownerCode || '')
-    const targetPropertiesForRelation = mappedPropertiesForEntity(activeRelation.targetCode || '')
-    const isTableMapping = /关联方式[：:]\s*关系表/.test(activeRelationMapping?.transform || '')
-    const [savedOwnerPropertyCode, savedTargetPropertyCode] = relationFieldParts(isTableMapping ? '' : activeRelationMapping?.sourceField || '')
-    const draftOwnerPropertyCode = relationPropertyDraft.relationCode === activeRelation.code ? relationPropertyDraft.ownerPropertyCode : savedOwnerPropertyCode
-    const draftTargetPropertyCode = relationPropertyDraft.relationCode === activeRelation.code ? relationPropertyDraft.targetPropertyCode : savedTargetPropertyCode
-    const ownerPropertyCode = ownerProperties.some((property) => property.code === draftOwnerPropertyCode) ? draftOwnerPropertyCode : ''
-    const targetPropertyCode = targetPropertiesForRelation.some((property) => property.code === draftTargetPropertyCode) ? draftTargetPropertyCode : ''
-    const sourceOfProperty = (code: string) => {
-      const mapping = allMappings.find((item) => item.type === '属性' && item.targetCode === code && enabledEligibleSources.some((source) => source.id === item.sourceId))
-      const source = eligibleSources.find((item) => item.id === mapping?.sourceId)
-      return mapping ? [source?.name || mapping.sourceId, mapping.sourceField].join(' · ') : ''
-    }
-    const changePropertyAssociation = (field: 'ownerPropertyCode' | 'targetPropertyCode', value: string) => {
-      const next = { relationCode: activeRelation.code, ownerPropertyCode, targetPropertyCode, [field]: value }
-      setRelationPropertyDraft(next)
-      if (next.ownerPropertyCode && next.targetPropertyCode) savePropertyRelation(next.ownerPropertyCode, next.targetPropertyCode)
-    }
+    if (!activeRelation) return <EmptyState title="暂无关系类型" description="请先在当前图谱结构中补充关系类型。"/>
     return <div className="mapping-config-layout">
       <aside className="mapping-type-list relation-type-list">
         <header className="mapping-type-list-header"><div><h3>关系类型</h3><small>共 {targetRelations.length} 项</small></div><button type="button" className="mapping-structure-icon" title="新增关系类型" aria-label="新增关系类型" onClick={() => openStructureEditor('relation', undefined, { ownerCode: activeRelation.ownerCode })}><Icon name="plus" size={16}/></button></header>
@@ -547,16 +409,11 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
         })}{!visibleRelations.length && <p className="mapping-list-empty">未找到匹配的关系类型</p>}</div>
       </aside>
       <section className="mapping-config-panel mapping-relation-config">
-        <header className="mapping-config-header"><div><h2>{activeRelation.name}</h2><p>选择两端已映射的属性，建立实体之间的关联。</p></div><div className="mapping-config-header-meta"><StatusTag>{mappingListStatus(activeRelation, activeRelationMapping, 'relations')}</StatusTag><span className="mapping-code">{activeRelation.code}</span></div></header>
+        <header className="mapping-config-header"><div><h2>{activeRelation.name}</h2><p>选择两端实体关联字段，可选用中间表提供关系记录。</p></div><div className="mapping-config-header-meta"><StatusTag>{mappingListStatus(activeRelation, activeRelationMapping, 'relations')}</StatusTag><span className="mapping-code">{activeRelation.code}</span></div></header>
         <div className="mapping-relation-form-panel">
-          <div className="mapping-relation-form-title"><div><strong>关联属性</strong><p>关系映射只作用于当前知识图谱</p></div><div className="mapping-relation-actions">{relationSaving && <span className="mapping-saving">保存中…</span>}{activeRelationMapping && <button type="button" className="mapping-inline-link danger-link" disabled={relationSaving} onClick={() => void removeMapping(activeRelationMapping, activeRelation.name + '关系映射')}>移除映射</button>}</div></div>
-          <div className="mapping-relation-route"><div className="mapping-relation-endpoint"><span>起点实体类型</span><strong>{ownerName}</strong><small>{activeRelation.ownerCode || '未指定'}</small></div><span className="mapping-relation-arrow" aria-hidden="true">→</span><div className="mapping-relation-endpoint"><span>终点实体类型</span><strong>{targetName}</strong><small>{activeRelation.targetCode || '未指定'}</small></div></div>
-          {isTableMapping && activeRelationMapping && <div className="mapping-relation-existing"><strong>当前使用关系表映射</strong><span>{eligibleSources.find((source) => source.id === activeRelationMapping.sourceId)?.name || activeRelationMapping.sourceId} · {activeRelationMapping.sourceField} · {mappingRulePart(activeRelationMapping.transform || '', '起点字段')} → {mappingRulePart(activeRelationMapping.transform || '', '终点字段')}</span><small>选择下方两端属性后，将替换此映射。</small></div>}
-          <div className="mapping-relation-attribute-fields">
-            <div className="mapping-relation-attribute-field"><label htmlFor="relation-owner-property"><em>*</em>源实体关联属性</label><div><select id="relation-owner-property" value={ownerPropertyCode} disabled={relationSaving || !ownerProperties.length} onChange={(event) => changePropertyAssociation('ownerPropertyCode', event.target.value)}><option value="">{ownerProperties.length ? '请选择已映射属性' : '暂无已映射属性'}</option>{ownerProperties.map((property) => <option value={property.code} key={property.code}>{property.name} · {property.code}</option>)}</select>{ownerPropertyCode && <small className="mapping-relation-lineage">{sourceOfProperty(ownerPropertyCode)}</small>}<button type="button" className="mapping-inline-link" onClick={() => focusEntity(activeRelation.ownerCode || '')}>去完善{ownerName}属性{activeRelation.ownerCode === activeRelation.targetCode ? '（源）' : ''}</button></div></div>
-            <div className="mapping-relation-attribute-field"><label htmlFor="relation-target-property"><em>*</em>目标实体关联属性</label><div><select id="relation-target-property" value={targetPropertyCode} disabled={relationSaving || !targetPropertiesForRelation.length} onChange={(event) => changePropertyAssociation('targetPropertyCode', event.target.value)}><option value="">{targetPropertiesForRelation.length ? '请选择已映射属性' : '暂无已映射属性'}</option>{targetPropertiesForRelation.map((property) => <option value={property.code} key={property.code}>{property.name} · {property.code}</option>)}</select>{targetPropertyCode && <small className="mapping-relation-lineage">{sourceOfProperty(targetPropertyCode)}</small>}<button type="button" className="mapping-inline-link" onClick={() => focusEntity(activeRelation.targetCode || '')}>去完善{targetName}属性{activeRelation.ownerCode === activeRelation.targetCode ? '（目标）' : ''}</button></div></div>
-          </div>
-          <p className="mapping-relation-form-note">请从两端实体类型中选择已完成字段映射的属性。</p>
+          <div className="mapping-relation-form-title"><div><strong>关联配置</strong><p>关系映射只作用于当前知识图谱</p></div><div className="mapping-relation-actions">{savingKey && <span className="mapping-saving">保存中…</span>}{activeRelationMapping && <button type="button" className="mapping-inline-link danger-link" disabled={Boolean(savingKey)} onClick={() => void removeMapping(activeRelationMapping, activeRelation.name + '关系映射')}>移除映射</button>}</div></div>
+          <div className="mapping-relation-route"><div className="mapping-relation-endpoint"><span>起点实体类型</span><strong>{entityTypeName(activeRelation.ownerCode)}</strong><small>{activeRelation.ownerCode}</small></div><span className="mapping-relation-arrow">→</span><div className="mapping-relation-endpoint"><span>终点实体类型</span><strong>{entityTypeName(activeRelation.targetCode)}</strong><small>{activeRelation.targetCode}</small></div></div>
+          <RelationMappingConfig key={`${activeRelation.code}:${activeRelationMapping?.id || 'new'}`} relation={activeRelation} mapping={activeRelationMapping} elements={ontologyElements} mappings={allMappings} sources={enabledEligibleSources} metadata={metadataBySource} entityCodes={availableEntityCodes} propertyCodes={availablePropertyCodes} disabled={Boolean(savingKey) || autoApplying} onSave={saveRelationRule} onPendingChange={setPendingConfig}/>
         </div>
       </section>
     </div>
@@ -576,7 +433,7 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
       {loadingDetail ? <div className="loading-state"><i/><span>正在加载候选数据源映射…</span></div> : <div className="mapping-workspace">
         <div className="mapping-tabs-toolbar">
           <Tabs value={mode} onChange={(value) => { setMode(value as MappingMode); setFilter('all'); setTypeKeyword('') }} items={[{ key: 'entity', label: `实体映射 ${configuredEntityTypeCount}/${targetEntityTypes.length}` }, { key: 'relations', label: `关系映射 ${configuredRelationCount}/${targetRelations.length}` }]}/>
-          <Button variant="primary" icon="refresh" disabled={autoLoading || autoApplying || !enabledEligibleSources.length} onClick={() => void previewAutoMapping()}>{autoLoading ? '正在匹配…' : '批量自动映射'}</Button>
+          <Button variant="primary" icon="refresh" disabled={Boolean(savingKey) || pendingConfig || autoLoading || autoApplying || !enabledEligibleSources.length} onClick={() => void previewAutoMapping()}>{autoLoading ? '正在匹配…' : '批量自动映射'}</Button>
         </div>
         {!enabledEligibleSources.length && <p className="mapping-source-warning"><Icon name="warning" size={15}/>候选数据源均未启用，请返回上一步选择可用数据源。</p>}
         {mode === 'entity' ? renderEntityMapping() : renderRelationMapping()}

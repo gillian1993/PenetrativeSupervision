@@ -1,3 +1,5 @@
+import { OntologyDeleteDialog } from './OntologyDeleteDialog'
+import { useKnowledgeGraphDemoScope } from '../knowledgeGraphDemo'
 import { useEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -34,9 +36,9 @@ const codeSegment = (code: string, fallback: string) => {
   return value || fallback
 }
 const isReadonlyOntology = (status: string) => status !== '草稿'
-const deleteOntologyNotice = '仅未被场景、规则、数据源或知识图谱引用的草稿模型可以删除，操作不可恢复。'
 export function OntologyListPage({ embedded = false }: { embedded?: boolean } = {}) {
   const navigate = useNavigate()
+  const demoScope = useKnowledgeGraphDemoScope()
   const ontologies = useOntologyStore((state) => state.ontologies)
   const loadOntologies = useOntologyStore((state) => state.loadOntologies)
   const enableOntology = useOntologyStore((state) => state.enableOntology)
@@ -57,12 +59,13 @@ export function OntologyListPage({ embedded = false }: { embedded?: boolean } = 
   const [editingStoppedId, setEditingStoppedId] = useState('')
 
   const rows = useMemo(() => ontologies
-    .filter((item) => (!keyword || `${productText(item.name)}${item.id}${displayOntologyDomain(item)}`.toLowerCase().includes(keyword.toLowerCase())) && (status === '全部' || item.status === status))
+    .filter((item) => demoScope.includes('model', item.id) && (!keyword || `${productText(item.name)}${item.id}${displayOntologyDomain(item)}`.toLowerCase().includes(keyword.toLowerCase())) && (status === '全部' || item.status === status))
     .sort((a, b) => {
       const domainDiff = ontologyDomainOrder.indexOf(displayOntologyDomain(a)) - ontologyDomainOrder.indexOf(displayOntologyDomain(b))
       const structureDiff = Number(ontologyHasStructure(b)) - Number(ontologyHasStructure(a))
       return domainDiff || structureDiff || a.name.localeCompare(b.name, 'zh-CN') || a.id.localeCompare(b.id)
-    }), [ontologies, keyword, status])
+    }), [ontologies, keyword, status, demoScope.status, demoScope.all])
+  useEffect(() => { setPage(current => Math.min(current, Math.max(1, Math.ceil(rows.length / pageSize)))) }, [rows.length, pageSize, demoScope.all])
   const pagedRows = rows.slice((page - 1) * pageSize, page * pageSize)
   const refresh = async () => {
     const result = await loadOntologies()
@@ -97,12 +100,14 @@ export function OntologyListPage({ embedded = false }: { embedded?: boolean } = 
   }
 
   const remove = async () => {
-    if (!listDeleteTarget) return
+    if (!listDeleteTarget) return { ok: false, message: '未选择图谱模型' }
     const result = await deleteOntology(listDeleteTarget.id)
     setToast(result.message)
-    if (!result.ok) return
+    if (!result.ok) return result
     addAudit({ operator: '陈洁', organization: '数据管理部', action: '删除图谱模型', objectType: '图谱模型', objectId: listDeleteTarget.id, summary: productText(listDeleteTarget.name), result: '成功', risk: '高危' })
     setListDeleteTarget(null)
+    void demoScope.refresh().catch(() => {})
+    return result
   }
 
   const editStopped = async (item: (typeof ontologies)[number]) => {
@@ -122,7 +127,7 @@ export function OntologyListPage({ embedded = false }: { embedded?: boolean } = 
     <section className="standard-list-page">
       <ListToolbar keyword={keyword} placeholder="搜索模型名称、编码或领域" onKeywordChange={(value) => { setKeyword(value); setPage(1) }} onSearch={() => setPage(1)} onRefresh={() => void refresh()} primaryAction={<Button className="compact" variant="primary" icon="plus" onClick={() => navigate('/ontology/new')}>新建图谱模型</Button>}/>
       {rows.length === 0 ? <EmptyState title="没有符合条件的图谱模型" description="请调整筛选条件或新建图谱模型。"/> : <>
-<div className="table-container standard-list-table"><table className="ontology-model-list-table"><thead><tr><th>模型名称</th><th>监管领域</th><th>模型结构</th><th><label className="table-header-filter"><span>状态</span><Icon name="filter" size={14}/><select aria-label="模型状态" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}><option>全部</option><option>草稿</option><option>启用</option><option>停用</option></select></label></th><th>更新时间</th><th>操作</th></tr></thead><tbody>{pagedRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/ontology/${item.id}`)}><strong>{productText(item.name)}</strong><span>{item.id}</span></button></td><td>{displayOntologyDomain(item)}</td><td><span className="metrics-inline"><b>{item.classes}</b> 个实体类型 · <b>{item.properties}</b> 个属性 · <b>{item.relations}</b> 个关系</span></td><td><ListStatus>{item.status}</ListStatus></td><td>{item.updatedAt}</td><td><div className="list-row-actions"><button onClick={() => navigate(`/ontology/${item.id}`)}>{isReadonlyOntology(item.status) ? '查看' : '编辑'}</button>{item.status === '停用' && <button disabled={Boolean(editingStoppedId)} onClick={() => void editStopped(item)}>编辑</button>}{item.status === '停用' && <button onClick={() => setEnableTarget(item)}>启用</button>}{item.status === '草稿' && <button onClick={() => setTarget(item)}>启用</button>}{item.status === '启用' && <button onClick={() => setDisableTarget(item)}>停用</button>}{item.status === '草稿' && <button className="danger-link" onClick={() => setListDeleteTarget(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
+<div className="table-container standard-list-table"><table className="ontology-model-list-table"><thead><tr><th>模型名称</th><th>监管领域</th><th>模型结构</th><th><label className="table-header-filter"><span>状态</span><Icon name="filter" size={14}/><select aria-label="模型状态" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1) }}><option>全部</option><option>草稿</option><option>启用</option><option>停用</option></select></label></th><th>更新时间</th><th>操作</th></tr></thead><tbody>{pagedRows.map((item) => <tr key={item.id}><td><button className="table-link title-cell" onClick={() => navigate(`/ontology/${item.id}`)}><strong>{productText(item.name)}</strong><span>{item.id}</span></button></td><td>{displayOntologyDomain(item)}</td><td><span className="metrics-inline"><b>{item.classes}</b> 个实体类型 · <b>{item.properties}</b> 个属性 · <b>{item.relations}</b> 个关系</span></td><td><ListStatus>{item.status}</ListStatus></td><td>{item.updatedAt}</td><td><div className="list-row-actions"><button onClick={() => navigate(`/ontology/${item.id}`)}>{isReadonlyOntology(item.status) ? '查看' : '编辑'}</button>{item.status === '停用' && <button disabled={Boolean(editingStoppedId)} onClick={() => void editStopped(item)}>编辑</button>}{item.status === '停用' && <button onClick={() => setEnableTarget(item)}>启用</button>}{item.status === '草稿' && <button onClick={() => setTarget(item)}>启用</button>}{item.status === '启用' && <button onClick={() => setDisableTarget(item)}>停用</button>}{['草稿', '停用'].includes(item.status) && <button className="danger-link" onClick={() => setListDeleteTarget(item)}>删除</button>}</div></td></tr>)}</tbody></table></div>
         <ListPagination total={rows.length} page={page} pageSize={pageSize} onChange={(nextPage, nextSize) => { setPage(nextPage); setPageSize(nextSize) }}/>
       </>}
     </section>
@@ -130,7 +135,7 @@ export function OntologyListPage({ embedded = false }: { embedded?: boolean } = 
     <Modal open={!!target} title="启用图谱模型" description={target ? `${productText(target.name)} · ${target.id}` : ''} confirmText="确认启用" onClose={() => setTarget(null)} onConfirm={enable}><div className="alert-box"><Icon name="check"/><span>启用后，当前图谱模型可被新建知识图谱引用；系统会自动检查模型结构是否完整。</span></div></Modal>
     <Modal open={!!disableTarget} title="停用图谱模型" description={disableTarget ? `${productText(disableTarget.name)} · ${disableTarget.id}` : ''} confirmText="确认停用" onClose={() => setDisableTarget(null)} onConfirm={disable}><div className="alert-box"><Icon name="warning"/><span>停用后该图谱模型不再允许新建图谱引用，已经生成的知识图谱不受影响。</span></div></Modal>
     <Modal open={!!enableTarget} title="启用图谱模型" description={enableTarget ? `${productText(enableTarget.name)} · ${enableTarget.id}` : ''} confirmText="确认启用" onClose={() => setEnableTarget(null)} onConfirm={enableStopped}><div className="alert-box"><Icon name="check"/><span>启用后该图谱模型可以重新被新建知识图谱选择。</span></div></Modal>
-    <Modal open={!!listDeleteTarget} title="删除图谱模型" description={listDeleteTarget ? `${productText(listDeleteTarget.name)} · ${listDeleteTarget.id}` : ''} confirmText="确认删除" danger onClose={() => setListDeleteTarget(null)} onConfirm={remove}><div className="alert-box danger"><Icon name="warning"/><span>{deleteOntologyNotice}</span></div></Modal>
+    <OntologyDeleteDialog model={listDeleteTarget ? { ...listDeleteTarget, name: productText(listDeleteTarget.name) } : null} onClose={() => setListDeleteTarget(null)} onConfirm={remove}/>
   </>
 }
 export function OntologyCreatePage() {
@@ -612,7 +617,7 @@ export function OntologyEditorPage() {
     </Drawer>
     <Modal open={!!groupDialog} title={groupDialog?.mode === 'rename' ? '重命名实体分组' : '新增实体分组'} description={groupDialog?.mode === 'rename' ? `当前名称：${groupDialog.currentName}` : '为当前图谱模型新增一个实体分组。'} confirmText={groupDialog?.mode === 'rename' ? '保存修改' : '创建分组'} onClose={() => setGroupDialog(null)} onConfirm={() => void submitGroupDialog()}><Field label="分组名称 *"><input value={groupNameDraft} maxLength={120} onChange={(event) => setGroupNameDraft(event.target.value)} placeholder="请输入分组名称"/></Field></Modal>
     <Modal open={Boolean(groupDeleteTarget)} title="删除实体分组" description={groupDeleteTarget} confirmText="确认删除" danger onClose={() => setGroupDeleteTarget('')} onConfirm={() => void removeGroup()}><div className="alert-box danger"><Icon name="warning"/><span>{groupDeleteTarget && classOptions.some((entity) => (entity.groupName || '未分组') === groupDeleteTarget) ? `组内 ${classOptions.filter((entity) => (entity.groupName || '未分组') === groupDeleteTarget).length} 个实体类型将移至“未分组”，属性和关系不会删除。` : '删除后该空分组将无法恢复；实体类型不会被删除。'}</span></div></Modal>
-    <Modal open={cancelCreateOpen} title="取消新建图谱模型" description={`${productText(item.name)} · ${item.id}`} confirmText={cancelingCreate ? '正在取消…' : '确认取消'} danger onClose={() => { if (!cancelingCreate) setCancelCreateOpen(false) }} onConfirm={cancelCreation}><div className="alert-box danger"><Icon name="warning"/><span>取消后将删除当前草稿以及已配置的实体类型、属性字段和关系类型；已经生成的知识图谱不受影响。</span></div></Modal>
+    <Modal open={cancelCreateOpen} title="取消新建图谱模型" description={`${productText(item.name)} · ${item.id}`} confirmText={cancelingCreate ? '正在取消…' : '确认取消'} danger onClose={() => { if (!cancelingCreate) setCancelCreateOpen(false) }} onConfirm={cancelCreation}><div className="alert-box danger"><Icon name="warning"/><span>取消后将从管理列表移除当前草稿，模型结构和操作记录仍会保留以供追溯。</span></div></Modal>
     <Modal open={discardChangesOpen} title="放弃本次修改？" description={`${productText(item.name)} · ${item.id}`} confirmText="放弃修改" danger onClose={() => setDiscardChangesOpen(false)} onConfirm={discardBasicChanges}><div className="alert-box danger"><Icon name="warning"/><span>尚未保存的基本信息、实体类型、属性字段、关系类型和分组修改将被放弃，模型恢复到最近一次保存的状态。</span></div></Modal>
     <Modal open={!!deleteTarget} title={`删除${deleteTargetLabel}`} description={deleteTarget ? `${deleteTarget.name} · ${deleteTarget.code}` : ''} confirmText={deleteBlockedByReferences ? '知道了' : '确认删除'} danger={!deleteBlockedByReferences} onClose={() => setDeleteTarget(null)} onConfirm={removeElement}><div className={`alert-box ${deleteBlockedByReferences ? '' : 'danger'}`}><Icon name="warning"/><span>{deleteTargetNotice}</span></div></Modal>
   </>

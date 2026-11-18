@@ -6,6 +6,10 @@ import { assessGraphMappingCoverage } from './graphMappingCoverage.js'
 import { suggestGraphMappings } from './graphAutoMapping.js'
 import { initializeGraphSyncHistory, listGraphSyncRecords, runTrackedGraphSync, withGraphSyncMetadata } from './graphSyncHistory.js'
 import { withSourceOperation } from './dataSourceLifecycle.js'
+import { discoverSourceMetadata, readApiPayload } from './sourceMetadata.js'
+import { refreshGraphQuality, governGraph } from './graphQuality.js'
+import { registerDemoAsset, inheritDemoAsset } from './knowledgeGraphDemoRegistry.js'
+import { mappingConfig, normalizeMappingConfig, entityConfigurationIssue, entityJoins, propertyMappingAvailable, invalidateDependentRelations, mappingGroup, sameMappingGroup, relationConfiguration, relationConfigurationIssue } from './graphMappingConfig.js'
 
 const json=(value)=>JSON.stringify(value??null)
 const parseJson=(value,fallback)=>{if(value===null||value===undefined||value==='')return fallback;if(typeof value==='object')return value;try{return JSON.parse(value)}catch{return fallback}}
@@ -38,8 +42,8 @@ const seedGraphs=[
 
 function splitList(value){return String(value||'').split(',').map((item)=>item.trim()).filter(Boolean)}
 function normalizeSourceMode(mode){const text=String(mode||'').trim();if(['数据库接入','接口接入','文件导入'].includes(text))return text;if(text==='数据库视图'||text==='数据库表'||text==='数据库视图/表')return'数据库接入';if(text==='API'||text==='API接口')return'接口接入';if(text==='批量文件')return'文件导入';if(text.includes('消息')||text.includes('日志'))return'接口接入';return'数据库接入'}
-function normalizeAccessConfig(mode,config={}){const source=config&&typeof config==='object'?config:{};if(mode==='数据库接入')return{databaseType:String(source.databaseType||'MySQL'),host:String(source.host||'').trim(),port:String(source.port||'').trim(),databaseName:String(source.databaseName||'').trim(),username:String(source.username||'').trim(),password:String(source.password||'')};if(mode==='接口接入')return{apiUrl:String(source.apiUrl||'').trim(),method:String(source.method||'GET'),authType:String(source.authType||'Token'),token:String(source.token||'')};if(mode==='文件导入')return{fileName:String(source.fileName||'').trim()};return{}}
-function redactAccessConfig(mode,value){const config=normalizeAccessConfig(mode,parseJson(value,{}));if(mode==='数据库接入')return{databaseType:config.databaseType,host:config.host,port:config.port,databaseName:config.databaseName,username:config.username,passwordConfigured:Boolean(config.password)};if(mode==='接口接入')return{apiUrl:config.apiUrl,method:config.method,authType:config.authType,tokenConfigured:Boolean(config.token)};if(mode==='文件导入')return{fileName:config.fileName};return{}}
+function normalizeAccessConfig(mode,config={}){const source=config&&typeof config==='object'?config:{};if(mode==='数据库接入')return{databaseType:String(source.databaseType||'MySQL'),host:String(source.host||'').trim(),port:String(source.port||'').trim(),databaseName:String(source.databaseName||'').trim(),username:String(source.username||'').trim(),password:String(source.password||''),tables:Array.isArray(source.tables)?source.tables.map(String):[]};if(mode==='接口接入')return{apiUrl:String(source.apiUrl||'').trim(),method:String(source.method||'GET'),authType:String(source.authType||'Token'),token:String(source.token||'')};if(mode==='文件导入')return{fileName:String(source.fileName||'').trim()};return{}}
+function redactAccessConfig(mode,value){const config=normalizeAccessConfig(mode,parseJson(value,{}));if(mode==='数据库接入')return{databaseType:config.databaseType,host:config.host,port:config.port,databaseName:config.databaseName,username:config.username,passwordConfigured:Boolean(config.password),tables:config.tables};if(mode==='接口接入')return{apiUrl:config.apiUrl,method:config.method,authType:config.authType,tokenConfigured:Boolean(config.token)};if(mode==='文件导入')return{fileName:config.fileName};return{}}
 function validateAccessConfig(mode,config){if(mode==='数据库接入'){if(!config.host||!config.port||!config.databaseName||!config.username||!config.password)throw Object.assign(new Error('请完整填写数据库接入配置'),{status:400})}else if(mode==='接口接入'){if(!config.apiUrl||!config.method||!config.authType)throw Object.assign(new Error('请完整填写接口接入配置'),{status:400});if(config.authType!=='无认证'&&!config.token)throw Object.assign(new Error('请填写接口 Token/密钥'),{status:400})}}
 function mapSource(row){const mode=normalizeSourceMode(row.mode);return{id:row.id,name:row.name,mode,range:row.data_range,owner:row.owner,ontologyIds:splitList(row.ontology_ids),ontologyNames:splitList(row.ontology_names),lastSuccess:row.last_success,status:row.status==='异常'?'草稿':row.status,connectionStatus:['正常','异常'].includes(row.connection_status)?row.connection_status:'未测试',lastTestedAt:formatTime(row.last_tested_at),connectionMessage:row.connection_message||'',accessConfig:redactAccessConfig(mode,row.access_config),fileCount:Number(row.file_count||0)}}
 function sourceFieldsForTable(tableName){
@@ -58,20 +62,20 @@ function canonicalMappingType(value){const type=String(value||'').trim();if(type
 function mappingElementType(value){return value==='实体类型'?'class':value==='关系'?'relation':'property'}
 function declaredTargetType(value){const type=String(value||'').trim();return ['class','property','relation'].includes(type)?type:''}
 function assertMappingTarget(targets,declaredType,mappingType){const expected=mappingElementType(mappingType);const targetType=targets[0]?.element_type||declaredTargetType(declaredType);if(!targetType)throw Object.assign(new Error('目标元素不属于当前图谱结构版本'),{status:409});if(targetType!==expected)throw Object.assign(new Error(`${mappingType}映射目标类型不匹配，请重新选择`),{status:409})}
-function mapMapping(row){return{id:String(row.id),sourceId:row.source_id,ontologyId:row.ontology_id||'ONT-PROC',type:canonicalMappingType(row.mapping_type),sourceField:row.source_field,transform:row.transform_rule,targetCode:row.target_code,confidence:Number(row.confidence),status:row.status,revision:Number(row.revision||1),setStatus:row.set_status||row.status,lastValidatedAt:row.last_validated_at?formatTime(row.last_validated_at):'—'}}
+function mapMapping(row){return{id:String(row.id),sourceId:row.source_id,ontologyId:row.ontology_id||'ONT-PROC',type:canonicalMappingType(row.mapping_type),groupId:mappingGroup(row),sourceField:row.source_field,transform:row.transform_rule,config:mappingConfig(row),targetCode:row.target_code,confidence:Number(row.confidence),status:row.status,revision:Number(row.revision||1),setStatus:row.set_status||row.status,lastValidatedAt:row.last_validated_at?formatTime(row.last_validated_at):'—'}}
 function mapSync(row){return{id:row.id,sourceId:row.source_id,sourceName:row.source_name,mode:row.sync_mode,startedAt:formatTime(row.started_at),processed:Number(row.processed_count),errors:Number(row.error_count),duration:row.duration_text,result:row.result}}
 function isGraphGenerationFailed(value){return['生成失败','失败','校验中'].includes(String(value||''))}
-function normalizeGraphStatus(value){const status=String(value||'');if(isGraphGenerationFailed(status))return'草稿';if(status==='已归档')return'已发布';return status||'草稿'}
+function normalizeGraphStatus(value){const status=String(value||'');if(isGraphGenerationFailed(status))return'草稿';return status||'草稿'}
 function normalizeGraphTag(value){const text=String(value||'').trim();return text.slice(0,40)||'通用图谱'}
 function normalizeStructureElements(value){return (Array.isArray(value)?value:[]).map((item,index)=>({id:String(item.id||`GEL-${index+1}`),type:declaredTargetType(item.type),code:String(item.code||'').trim(),name:String(item.name||'').trim(),ownerCode:String(item.ownerCode||''),targetCode:String(item.targetCode||''),dataType:String(item.dataType||''),constraint:String(item.constraint||''),description:String(item.description||''),sourceType:['model','custom','modified'].includes(String(item.sourceType||''))?String(item.sourceType):'model'})).filter((item)=>item.type&&item.code&&item.name)}
 function requiredStructureCodes(structureElements){return normalizeStructureElements(structureElements).filter((item)=>item.type==='property'&&/必填|主标识/.test(item.constraint)).map((item)=>item.code)}
 function mapGraph(row){return{id:row.id,ontologyId:row.ontology_id,ontologyVersion:row.ontology_version,mappingVersion:row.mapping_version,tag:normalizeGraphTag(row.graph_tag),range:row.data_range,entities:Number(row.entity_count),relations:Number(row.relation_count),events:Number(row.event_count),blockers:Number(row.blockers),warnings:Number(row.warnings),status:normalizeGraphStatus(row.status),generationFailed:isGraphGenerationFailed(row.status),publishedAt:row.published_at?formatTime(row.published_at):'—'}}
 function mapGraphVersion(row){return{id:row.id,graphCode:row.graph_code||row.ontology_id,graphName:row.graph_name||row.ontology_version,tag:normalizeGraphTag(row.graph_tag),ontologyId:row.ontology_id,ontologyVersion:row.ontology_version,mappingVersion:row.mapping_version,range:row.data_range,sourceIds:String(row.source_ids||'').split(',').filter(Boolean),sourceNames:String(row.source_names||'').split(',').filter(Boolean),entities:Number(row.entity_count),relations:Number(row.relation_count),events:Number(row.event_count),blockers:Number(row.blockers),warnings:Number(row.warnings),status:normalizeGraphStatus(row.status),generationFailed:isGraphGenerationFailed(row.status),publishedAt:row.published_at?formatTime(row.published_at):'—',structureElements:normalizeStructureElements(parseJson(row.structure_snapshot,[]))}}
 function mapIssue(row){return{id:row.id,graphId:row.graph_id,title:row.title,level:row.level,description:row.description,sourceRef:row.source_ref,status:row.status}}
-function mapGovernance(row){return{id:row.id,graphId:row.graph_id,objectType:row.object_type,candidates:parseJson(row.candidate_json,[]),evidence:row.evidence,suggestion:row.suggestion,level:row.level,status:row.status,result:row.result||'',reason:row.reason||''}}
+function mapGovernance(row){return{id:row.id,graphId:row.graph_id,objectType:row.object_type,candidates:parseJson(row.candidate_json,[]).map(value=>typeof value==='string'?value:value.name),evidence:row.evidence,suggestion:row.suggestion,level:row.level,status:row.status,result:row.result||'',reason:row.reason||''}}
 function mapMappingSnapshot(row){const rows=parseJson(row.snapshot_json,[]);return{graphId:row.graph_id,sourceId:row.source_id,ontologyId:row.ontology_id,revision:Number(row.mapping_revision||1),status:row.mapping_status,mappingCount:Number(row.mapping_count||0),createdAt:row.created_at?formatTime(row.created_at):'—',rows:Array.isArray(rows)?rows.map((item)=>mapMapping({...item,revision:row.mapping_revision,set_status:row.mapping_status,last_validated_at:row.created_at})):[]}}
 async function ensureMappingSet(pool,sourceId,ontologyId){await pool.query("INSERT IGNORE INTO semantic_mapping_sets (source_id,ontology_id,revision,status) VALUES (?,?,1,'待校验')",[sourceId,ontologyId]);const [rows]=await pool.query('SELECT * FROM semantic_mapping_sets WHERE source_id=? AND ontology_id=?',[sourceId,ontologyId]);return rows[0]}
-async function backfillGraphMappingSnapshots(pool){const [links]=await pool.query('SELECT gvs.graph_id,gvs.source_id,gv.ontology_id FROM graph_version_sources gvs JOIN graph_versions gv ON gv.id=gvs.graph_id LEFT JOIN graph_version_mapping_snapshots snap ON snap.graph_id=gvs.graph_id AND snap.source_id=gvs.source_id WHERE snap.graph_id IS NULL');for(const link of links){const set=await ensureMappingSet(pool,link.source_id,link.ontology_id);const [rows]=await pool.query('SELECT id,source_id,ontology_id,mapping_type,source_field,transform_rule,target_code,confidence,status,updated_at FROM semantic_mappings WHERE source_id=? AND ontology_id=? ORDER BY mapping_type,id',[link.source_id,link.ontology_id]);await pool.query('INSERT IGNORE INTO graph_version_mapping_snapshots (graph_id,source_id,ontology_id,mapping_revision,mapping_status,mapping_count,snapshot_json) VALUES (?,?,?,?,?,?,?)',[link.graph_id,link.source_id,link.ontology_id,Number(set?.revision||1),'历史回填',rows.length,json(rows)])}}
+async function backfillGraphMappingSnapshots(pool){const [links]=await pool.query('SELECT gvs.graph_id,gvs.source_id,gv.ontology_id FROM graph_version_sources gvs JOIN graph_versions gv ON gv.id=gvs.graph_id LEFT JOIN graph_version_mapping_snapshots snap ON snap.graph_id=gvs.graph_id AND snap.source_id=gvs.source_id WHERE snap.graph_id IS NULL');for(const link of links){const set=await ensureMappingSet(pool,link.source_id,link.ontology_id);const [rows]=await pool.query('SELECT id,source_id,ontology_id,mapping_group,mapping_type,source_field,transform_rule,mapping_config,target_code,confidence,status,updated_at FROM semantic_mappings WHERE source_id=? AND ontology_id=? ORDER BY mapping_type,id',[link.source_id,link.ontology_id]);await pool.query('INSERT IGNORE INTO graph_version_mapping_snapshots (graph_id,source_id,ontology_id,mapping_revision,mapping_status,mapping_count,snapshot_json) VALUES (?,?,?,?,?,?,?)',[link.graph_id,link.source_id,link.ontology_id,Number(set?.revision||1),'历史回填',rows.length,json(rows)])}}
 
 async function seedMetadata(pool,sourceId){
   const rows=sourceId==='SRC-ERP'?
@@ -137,7 +141,11 @@ export async function initializeDataGraphDatabase(pool){
   await pool.query(`CREATE TABLE IF NOT EXISTS graph_instance_datasets (graph_id VARCHAR(64) PRIMARY KEY,dataset_json JSON NOT NULL,source_stats_json JSON NOT NULL,synced_at DATETIME NOT NULL,CONSTRAINT fk_graph_dataset_graph FOREIGN KEY (graph_id) REFERENCES graph_versions(id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`)
   await initializeGraphSyncHistory(pool)
   await ensureColumn(pool,'semantic_mappings','ontology_id',"ontology_id VARCHAR(64) NOT NULL DEFAULT 'ONT-PROC' AFTER source_id")
-  await pool.query("DELETE duplicate FROM semantic_mappings duplicate JOIN semantic_mappings keep ON keep.source_id=duplicate.source_id AND keep.ontology_id=duplicate.ontology_id AND keep.source_field=duplicate.source_field AND keep.target_code=duplicate.target_code AND keep.id<duplicate.id WHERE duplicate.mapping_type IN ('实体类型','属性','关系','事件','事件实例','节点实例') AND keep.mapping_type IN ('实体类型','属性','关系','事件','事件实例','节点实例')")
+  await ensureColumn(pool,'semantic_mappings','mapping_config','mapping_config JSON NULL')
+  await ensureColumn(pool,'semantic_mappings','mapping_group',"mapping_group VARCHAR(64) NOT NULL DEFAULT ''")
+  const [mappingIndex]=await pool.query("SHOW INDEX FROM semantic_mappings WHERE Key_name='uk_mapping'")
+  if(!mappingIndex.some(row=>row.Column_name==='ontology_id')||!mappingIndex.some(row=>row.Column_name==='mapping_group'))await pool.query('ALTER TABLE semantic_mappings DROP INDEX uk_mapping, ADD UNIQUE KEY uk_mapping (source_id,ontology_id,mapping_group,mapping_type,source_field,target_code)')
+  await pool.query("DELETE duplicate FROM semantic_mappings duplicate JOIN semantic_mappings keep ON keep.source_id=duplicate.source_id AND keep.ontology_id=duplicate.ontology_id AND keep.mapping_group=duplicate.mapping_group AND keep.source_field=duplicate.source_field AND keep.target_code=duplicate.target_code AND keep.id<duplicate.id WHERE duplicate.mapping_type IN ('实体类型','属性','关系','事件','事件实例','节点实例') AND keep.mapping_type IN ('实体类型','属性','关系','事件','事件实例','节点实例')")
   await pool.query("UPDATE semantic_mappings sm JOIN ontology_elements oe ON oe.ontology_id=sm.ontology_id AND oe.code=sm.target_code SET sm.mapping_type=CASE WHEN oe.element_type='class' THEN '实体类型' WHEN oe.element_type='property' THEN '属性' ELSE sm.mapping_type END WHERE sm.mapping_type IN ('属性','事件','事件实例','节点实例') AND oe.element_type IN ('class','property')")
   await pool.query("UPDATE semantic_mappings SET transform_rule=REPLACE(REPLACE(transform_rule,'事件标识','节点标识'),'事件ID','节点ID')")
   const [legacyClassMappings]=await pool.query("SELECT sm.id,sm.source_id,sm.source_field,oe.code FROM semantic_mappings sm JOIN ontology_elements oe ON oe.ontology_id=sm.ontology_id AND oe.code=sm.target_code WHERE sm.mapping_type='实体类型' AND oe.element_type='class'")
@@ -191,15 +199,15 @@ export async function initializeDataGraphDatabase(pool){
 
 const sourceSelect=`SELECT ds.*,(SELECT GROUP_CONCAT(dss.ontology_id ORDER BY dss.ontology_id) FROM data_source_structures dss WHERE dss.source_id=ds.id) AS ontology_ids,(SELECT GROUP_CONCAT(COALESCE(o.name,dss.ontology_id) ORDER BY dss.ontology_id) FROM data_source_structures dss LEFT JOIN ontologies o ON o.id=dss.ontology_id WHERE dss.source_id=ds.id) AS ontology_names,(SELECT COUNT(*) FROM data_source_files dsf WHERE dsf.source_id=ds.id) AS file_count FROM data_sources ds`
 function normalizeSourceOntologyIds(payload){return [...new Set((Array.isArray(payload.ontologyIds)?payload.ontologyIds:[payload.ontologyId]).map((item)=>String(item||'').trim()).filter(Boolean))]}
-function inferSourceSyncMode(mode){const text=String(mode||'');if(text.includes('消息'))return'事件';if(text.includes('文件'))return'全量';return'增量'}
+function inferSourceSyncMode(){return '手动全量快照'}
 async function ensureSourceUsesOntology(pool,sourceId,ontologyId){const [rows]=await pool.query('SELECT COUNT(*) AS total FROM data_source_structures WHERE source_id=? AND ontology_id=?',[sourceId,ontologyId]);if(!Number(rows[0].total))throw Object.assign(new Error('该数据源未绑定当前图谱结构，请先在数据源配置中选择适用图谱结构'),{status:409})}
 async function listSources(pool){const [rows]=await pool.query(`${sourceSelect} ORDER BY ds.updated_at DESC,ds.id ASC`);return rows.map(mapSource)}
-async function createSource(pool,payload){if(!String(payload.name||'').trim())throw Object.assign(new Error('请填写数据源名称'),{status:400});const mode=normalizeSourceMode(payload.mode);const accessConfig=normalizeAccessConfig(mode,payload.accessConfig);validateAccessConfig(mode,accessConfig);const [rows]=await pool.query("SELECT MAX(CAST(SUBSTRING(id,5) AS UNSIGNED)) AS total FROM data_sources WHERE id REGEXP '^SRC-[0-9]+$'");const id='SRC-'+String(Number(rows[0].total||0)+1).padStart(3,'0');await pool.query('INSERT INTO data_sources (id,name,mode,data_range,owner,sync_mode,access_config,last_success,status,connection_status) VALUES (?,?,?,?,?,?,?,?,?,?)',[id,String(payload.name).trim(),mode,String(payload.range||''),payload.owner||'张海',inferSourceSyncMode(mode),json(accessConfig),'未同步','草稿','未测试']);return mapSource((await pool.query(`${sourceSelect} WHERE ds.id=?`,[id]))[0][0])}
+async function createSource(pool,payload){if(!String(payload.name||'').trim())throw Object.assign(new Error('请填写数据源名称'),{status:400});const mode=normalizeSourceMode(payload.mode);const accessConfig=normalizeAccessConfig(mode,payload.accessConfig);validateAccessConfig(mode,accessConfig);const [rows]=await pool.query("SELECT MAX(CAST(SUBSTRING(id,5) AS UNSIGNED)) AS total FROM data_sources WHERE id REGEXP '^SRC-[0-9]+$'");const id='SRC-'+String(Number(rows[0].total||0)+1).padStart(3,'0');await pool.query('INSERT INTO data_sources (id,name,mode,data_range,owner,sync_mode,access_config,last_success,status,connection_status) VALUES (?,?,?,?,?,?,?,?,?,?)',[id,String(payload.name).trim(),mode,String(payload.range||''),payload.owner||'张海',inferSourceSyncMode(mode),json(accessConfig),'未同步','草稿','未测试']);await registerDemoAsset(pool,'source',id,payload.demoBatch);return mapSource((await pool.query(`${sourceSelect} WHERE ds.id=?`,[id]))[0][0])}
 function sourceCandidateConfig(source,mode,patch){
   const config=normalizeAccessConfig(mode,patch)
   if(source&&normalizeSourceMode(source.mode)===mode){
     const stored=normalizeAccessConfig(mode,parseJson(source.access_config,{}))
-    if(mode==='数据库接入'&&!config.password)config.password=stored.password
+    if(mode==='数据库接入'){if(!config.password)config.password=stored.password;if(!patch?.tables)config.tables=stored.tables}
     if(mode==='接口接入'&&!config.token)config.token=stored.token
   }
   return config
@@ -252,7 +260,7 @@ async function parseSourceWorkbook(name,content){
     else await workbook.xlsx.load(content)
   }catch{throw sourceFileError(`${name} 无法解析，请检查文件内容`,422)}
   const sheets=[]
-  for(const sheet of workbook.worksheets){
+  for(const [sheetIndex,sheet] of workbook.worksheets.entries()){
     const header=sheet.getRow(1)
     if(header.cellCount>200)throw sourceFileError(`${name} 的字段数量不能超过 200`,422)
     const fields=[];const used=new Map()
@@ -262,7 +270,7 @@ async function parseSourceWorkbook(name,content){
       const count=(used.get(label)||0)+1;used.set(label,count)
       fields.push(count===1?label:`${label}_${count}`)
     }
-    if(fields.length)sheets.push({name:sheet.name,fields,rowCount:Math.max(0,sheet.actualRowCount-1)})
+    if(fields.length){if(sheet.actualRowCount-1>2000)throw sourceFileError(`${name} 的 ${sheet.name} 超过单表 2000 行的构建上限`,422);sheets.push({name:sheet.name,index:sheetIndex+1,fields,rowCount:Math.max(0,sheet.actualRowCount-1)})}
   }
   if(!sheets.length)throw sourceFileError(`${name} 没有可读取的表头`,422)
   return sheets
@@ -290,7 +298,7 @@ async function uploadSourceFile(pool,id,req){
     for(let index=0;index<sheets.length;index++){
       const sheet=sheets[index]
       const label=/\.csv$/i.test(name)?name:`${name} · ${sheet.name}`
-      await connection.query('INSERT INTO data_source_metadata (source_id,file_id,table_name,display_name,field_count,fields_json,summary) VALUES (?,?,?,?,?,?,?)',[id,fileId,`file_${fileId}_sheet_${index+1}`,label.slice(0,160),sheet.fields.length,json(sheet.fields),`${sheet.rowCount} 行 · ${sheet.fields.length} 个字段`.slice(0,500)])
+      await connection.query('INSERT INTO data_source_metadata (source_id,file_id,table_name,display_name,field_count,fields_json,summary) VALUES (?,?,?,?,?,?,?)',[id,fileId,`file_${fileId}_sheet_${sheet.index}`,label.slice(0,160),sheet.fields.length,json(sheet.fields),`${sheet.rowCount} 行 · ${sheet.fields.length} 个字段`.slice(0,500)])
     }
     await syncSourceFileName(connection,id)
     await connection.commit()
@@ -307,8 +315,14 @@ async function deleteSourceFile(pool,id,fileId){
     await connection.beginTransaction()
     const [files]=await connection.query('SELECT id FROM data_source_files WHERE source_id=? AND id=? FOR UPDATE',[id,fileId])
     if(!files.length){await connection.rollback();throw sourceFileError('文件不存在',404)}
-    const [mappings]=await connection.query('SELECT COUNT(*) AS total FROM semantic_mappings WHERE source_id=?',[id])
-    if(Number(mappings[0].total)){await connection.rollback();throw sourceFileError('该数据源已有字段映射，请先移除映射后再删除文件',409)}
+    const [objects]=await connection.query('SELECT table_name FROM data_source_metadata WHERE source_id=? AND file_id=?',[id,fileId])
+    const names=new Set(objects.map(row=>row.table_name))
+    const usesFile=rows=>rows.some(row=>row.source_id===id&&names.has(row.source_field))
+    const [mappings]=await connection.query('SELECT source_id,source_field FROM semantic_mappings WHERE source_id=?',[id])
+    if(usesFile(mappings))throw sourceFileError('该文件已有实体或关系映射，请先移除对应映射',409)
+    const [snapshots]=await connection.query('SELECT snapshot_json FROM graph_version_mapping_snapshots WHERE source_id=?',[id])
+    const [drafts]=await connection.query('SELECT mappings_snapshot FROM graph_edit_drafts')
+    if(snapshots.some(row=>usesFile(parseJson(row.snapshot_json,[])))||drafts.some(row=>usesFile(parseJson(row.mappings_snapshot,[]))))throw sourceFileError('该文件被图谱快照或编辑草稿引用，不能删除',409)
     await connection.query('DELETE FROM data_source_metadata WHERE source_id=? AND file_id=?',[id,fileId])
     await connection.query('DELETE FROM data_source_files WHERE source_id=? AND id=?',[id,fileId])
     await syncSourceFileName(connection,id)
@@ -345,10 +359,8 @@ async function runSourceConnectionTest(mode,accessConfig){
     const controller=new AbortController()
     const timeout=setTimeout(()=>controller.abort(),10000)
     try{
-      const response=await fetch(endpoint,{method:accessConfig.method,headers,signal:controller.signal})
-      await response.body?.cancel()
-      if(!response.ok)throw Object.assign(new Error(`接口返回 HTTP ${response.status}，请检查地址、请求方式和认证配置`),{status:502})
-      return `接口调用成功，HTTP ${response.status}`
+      await readApiPayload(accessConfig)
+      return '接口调用成功，HTTP 200，已验证 JSON 响应'
     }catch(error){
       if(error?.status)throw error
       if(error?.name==='AbortError')throw Object.assign(new Error('接口调用超时（10秒），请检查服务是否可达'),{status:504})
@@ -405,10 +417,22 @@ async function metadata(pool,id){
 async function parseMetadata(pool,id){const source=await getSource(pool,id);if(!source)throw Object.assign(new Error('数据源不存在'),{status:404});if(normalizeSourceMode(source.mode)==='文件导入')return metadata(pool,id);await seedMetadata(pool,id);await seedMappings(pool,id);return metadata(pool,id)}
 async function mappings(pool,id,type=''){const params=[id];let where='WHERE sm.source_id=?';if(type){where+=' AND sm.mapping_type=?';params.push(type)}const [rows]=await pool.query(`SELECT sm.*,sms.revision,sms.status AS set_status,sms.last_validated_at FROM semantic_mappings sm LEFT JOIN semantic_mapping_sets sms ON sms.source_id=sm.source_id AND sms.ontology_id=sm.ontology_id ${where} ORDER BY sm.mapping_type,sm.id`,params);return rows.map(mapMapping)}
 async function validateMappings(pool,id){return validateMappingsForOntology(pool,id,'ONT-PROC')}
-async function getEnabledOntology(pool,id){const [rows]=await pool.query('SELECT id,name,status FROM ontologies WHERE id=?',[id]);if(!rows.length)throw Object.assign(new Error('图谱模型不存在'),{status:404});if(rows[0].status!=='启用')throw Object.assign(new Error('只有启用状态的图谱模型才能用于图谱构建'),{status:409});return {...rows[0],version:''}}
-async function parseMetadataForOntology(pool,id,ontologyId){const source=await getSource(pool,id);if(!source)throw Object.assign(new Error('数据源不存在'),{status:404});await getEnabledOntology(pool,ontologyId);if(normalizeSourceMode(source.mode)!=='文件导入'){await seedMetadata(pool,id);await seedOntologyMappings(pool,id,ontologyId)}await ensureMappingSet(pool,id,ontologyId);await pool.query("UPDATE semantic_mapping_sets SET status='待校验',last_validated_at=NULL WHERE source_id=? AND ontology_id=?",[id,ontologyId]);return metadata(pool,id)}
+async function getEnabledOntology(pool,id){const [rows]=await pool.query('SELECT id,name,status,version FROM ontologies WHERE id=?',[id]);if(!rows.length)throw Object.assign(new Error('图谱模型不存在'),{status:404});if(rows[0].status!=='启用')throw Object.assign(new Error('只有启用状态的图谱模型才能用于图谱构建'),{status:409});return rows[0]}
+async function parseMetadataForOntology(pool,id,ontologyId){
+  const source=await getSource(pool,id)
+  if(!source)throw Object.assign(new Error('数据源不存在'),{status:404})
+  await getEnabledOntology(pool,ontologyId)
+  if(normalizeSourceMode(source.mode)!=='文件导入'){
+    const discovered=await discoverSourceMetadata(source)
+    const db=await pool.getConnection()
+    try{await db.beginTransaction();await db.query('DELETE FROM data_source_metadata WHERE source_id=? AND file_id IS NULL',[id]);for(const row of discovered)await db.query('INSERT INTO data_source_metadata (source_id,table_name,display_name,field_count,fields_json,summary) VALUES (?,?,?,?,?,?)',[id,row.tableName,row.displayName,row.fields.length,json(row.fields),row.summary]);await db.commit()}catch(error){await db.rollback();throw error}finally{db.release()}
+  }
+  await ensureMappingSet(pool,id,ontologyId)
+  return metadata(pool,id)
+}
 async function getGraphEditDraft(pool,graphId){const [rows]=await pool.query('SELECT * FROM graph_edit_drafts WHERE graph_id=?',[graphId]);return rows[0]||null}
 function draftMappingRows(draft,sourceId,ontologyId,type=''){return parseJson(draft?.mappings_snapshot,[]).filter((item)=>item.source_id===sourceId&&item.ontology_id===ontologyId&&(!type||item.mapping_type===type)).map((item)=>({...item,revision:Number(draft.mapping_revision||1),set_status:draft.dirty?'待发布修改':'已绑定',last_validated_at:null}))}
+function requestedMappingGroup(payload,type){const group=type==='关系'?'':String(payload.groupId||'');if(!/^[A-Za-z0-9_-]{0,64}$/.test(group))throw Object.assign(new Error('来源映射标识无效'),{status:400});return group}
 async function ensureGraphEditDraft(pool,graphId,graphRow=null){
   const existing=await getGraphEditDraft(pool,graphId)
   if(existing)return existing
@@ -425,7 +449,7 @@ async function ensureGraphEditDraft(pool,graphId,graphRow=null){
   }
   const [setRows]=sourceIds.length?await pool.query('SELECT MAX(revision) AS revision FROM semantic_mapping_sets WHERE ontology_id=? AND source_id IN (?)',[graph.ontology_id,sourceIds]):[[{revision:1}]]
   const revision=Number(setRows[0]?.revision||1)
-  await pool.query('INSERT INTO graph_edit_drafts (graph_id,graph_code,graph_name,graph_tag,ontology_id,data_range,source_ids_json,structure_snapshot,mappings_snapshot,dirty,mapping_revision) VALUES (?,?,?,?,?,?,?,?,?,0,?)',[graphId,graph.graph_code||graph.ontology_id,graph.graph_name||`${graph.ontology_id} 监管图谱`,normalizeGraphTag(graph.graph_tag),graph.ontology_id,graph.data_range,json(sourceIds),json(parseJson(graph.structure_snapshot,[])),json(mappingsSnapshot),revision])
+  await pool.query('INSERT IGNORE INTO graph_edit_drafts (graph_id,graph_code,graph_name,graph_tag,ontology_id,data_range,source_ids_json,structure_snapshot,mappings_snapshot,dirty,mapping_revision) VALUES (?,?,?,?,?,?,?,?,?,0,?)',[graphId,graph.graph_code||graph.ontology_id,graph.graph_name||`${graph.ontology_id} 监管图谱`,normalizeGraphTag(graph.graph_tag),graph.ontology_id,graph.data_range,json(sourceIds),json(parseJson(graph.structure_snapshot,[])),json(mappingsSnapshot),revision])
   return getGraphEditDraft(pool,graphId)
 }
 async function updateGraphEditDraft(pool,graphId,patch={},bumpRevision=false){
@@ -441,6 +465,15 @@ async function mappingsForOntology(pool,id,ontologyId,type='',graphId=''){
   if(graphId){const draft=await ensureGraphEditDraft(pool,graphId);return draftMappingRows(draft,id,ontologyId,type).map(mapMapping)}
   const params=[id,ontologyId];let where='WHERE sm.source_id=? AND sm.ontology_id=?';if(type){where+=' AND sm.mapping_type=?';params.push(type)}const [rows]=await pool.query(`SELECT sm.*,sms.revision,sms.status AS set_status,sms.last_validated_at FROM semantic_mappings sm LEFT JOIN semantic_mapping_sets sms ON sms.source_id=sm.source_id AND sms.ontology_id=sm.ontology_id ${where} ORDER BY sm.mapping_type,sm.id`,params);return rows.map(mapMapping)
 }
+async function markMappingDependents(pool,ontologyId,previous,next){
+  if(!previous||!['实体类型','属性'].includes(previous.mapping_type))return
+  const [elements]=await pool.query("SELECT code,owner_code AS ownerCode,target_code AS targetCode FROM ontology_elements WHERE ontology_id=? AND element_type='relation'",[ontologyId])
+  const [rows]=await pool.query("SELECT * FROM semantic_mappings WHERE ontology_id=? AND mapping_type='关系'",[ontologyId])
+  const marked=invalidateDependentRelations(rows,elements.map((item)=>({...item,type:'relation'})),previous,next).filter((item,index)=>item!==rows[index])
+  if(!marked.length)return
+  await pool.query("UPDATE semantic_mappings SET status='待检查' WHERE id IN (?)",[marked.map((item)=>item.id)])
+  await pool.query("UPDATE semantic_mapping_sets SET revision=revision+1,status='待校验',last_validated_at=NULL WHERE ontology_id=? AND source_id IN (?)",[ontologyId,[...new Set(marked.map((item)=>item.source_id))]])
+}
 async function updateGraphDraftMapping(pool,graphId,sourceId,mappingId,payload){
   const draft=await ensureGraphEditDraft(pool,graphId)
   const allRows=parseJson(draft.mappings_snapshot,[])
@@ -453,8 +486,9 @@ async function updateGraphDraftMapping(pool,graphId,sourceId,mappingId,payload){
   const targetCode=String(payload.targetCode??current.target_code).trim();if(!targetCode)throw Object.assign(new Error('目标结构元素不能为空'),{status:400})
   const [targets]=await pool.query('SELECT element_type FROM ontology_elements WHERE ontology_id=? AND code=?',[ontologyId,targetCode]);assertMappingTarget(targets,payload.targetType,mappingType)
   const sourceField=String(payload.sourceField??current.source_field).trim();if(!sourceField)throw Object.assign(new Error('来源字段不能为空'),{status:400})
-  allRows[index]={...current,ontology_id:ontologyId,mapping_type:mappingType,source_field:sourceField,target_code:targetCode,transform_rule:String(payload.transform??current.transform_rule),status:'待校验'}
-  const saved=await updateGraphEditDraft(pool,graphId,{ontology_id:ontologyId,mappings_snapshot:json(allRows)},true)
+  allRows[index]={...current,ontology_id:ontologyId,mapping_type:mappingType,source_field:sourceField,target_code:targetCode,transform_rule:String(payload.transform??current.transform_rule),mapping_config:normalizeMappingConfig(mappingType,payload.config??mappingConfig(current)),status:'待校验'}
+  const reviewedRows=invalidateDependentRelations(allRows,parseJson(draft.structure_snapshot,[]),current,allRows[index])
+  const saved=await updateGraphEditDraft(pool,graphId,{ontology_id:ontologyId,mappings_snapshot:json(reviewedRows)},true)
   const updated=draftMappingRows(saved,sourceId,ontologyId).find((item)=>String(item.id)===String(mappingId))
   return updated?mapMapping(updated):undefined
 }
@@ -468,7 +502,8 @@ async function updateMappingForOntology(pool,sourceId,mappingId,payload,graphId=
   const [targets]=await pool.query('SELECT element_type FROM ontology_elements WHERE ontology_id=? AND code=?',[ontologyId,targetCode]);assertMappingTarget(targets,payload.targetType,mappingType)
   const sourceField=String(payload.sourceField??rows[0].source_field).trim();if(!sourceField)throw Object.assign(new Error('来源字段不能为空'),{status:400})
   await ensureMappingSet(pool,sourceId,ontologyId)
-  await pool.query("UPDATE semantic_mappings SET mapping_type=?,source_field=?,target_code=?,transform_rule=?,status='待校验' WHERE id=?",[mappingType,sourceField,targetCode,String(payload.transform??rows[0].transform_rule),mappingId])
+  await pool.query("UPDATE semantic_mappings SET mapping_type=?,source_field=?,target_code=?,transform_rule=?,mapping_config=?,status='待校验' WHERE id=?",[mappingType,sourceField,targetCode,String(payload.transform??rows[0].transform_rule),json(normalizeMappingConfig(mappingType,payload.config??mappingConfig(rows[0]))),mappingId])
+  await markMappingDependents(pool,ontologyId,rows[0],{...rows[0],source_field:sourceField,transform_rule:String(payload.transform??rows[0].transform_rule),mapping_config:normalizeMappingConfig(mappingType,payload.config??mappingConfig(rows[0]))})
   await pool.query("UPDATE semantic_mapping_sets SET revision=revision+1,status='待校验',last_validated_at=NULL WHERE source_id=? AND ontology_id=?",[sourceId,ontologyId])
   return (await mappingsForOntology(pool,sourceId,ontologyId)).find((item)=>item.id===String(mappingId))
 }
@@ -477,16 +512,17 @@ async function upsertGraphDraftMapping(pool,sourceId,payload,graphId){
   const ontologyId=String(payload.ontologyId||draft.ontology_id).trim();if(!ontologyId)throw Object.assign(new Error('请选择图谱结构版本'),{status:400})
   await getEnabledOntology(pool,ontologyId)
   const mappingType=canonicalMappingType(payload.type||'属性')
+  const groupId=requestedMappingGroup(payload,mappingType)
   const targetCode=String(payload.targetCode||'').trim();if(!targetCode)throw Object.assign(new Error(mappingType==='关系'?'目标图谱关系不能为空':mappingType==='实体类型'?'目标实体类型不能为空':'目标图谱属性不能为空'),{status:400})
   const sourceField=String(payload.sourceField||'').trim();if(!sourceField)throw Object.assign(new Error('来源字段不能为空'),{status:400})
   const [targets]=await pool.query('SELECT element_type FROM ontology_elements WHERE ontology_id=? AND code=?',[ontologyId,targetCode]);assertMappingTarget(targets,payload.targetType,mappingType)
   const allRows=parseJson(draft.mappings_snapshot,[])
   const mappingTypes=mappingType==='属性'?['属性','节点实例']:[mappingType]
-  const existingIndex=allRows.findIndex((item)=>item.source_id===sourceId&&item.ontology_id===ontologyId&&mappingTypes.includes(canonicalMappingType(item.mapping_type))&&item.target_code===targetCode)
-  if(existingIndex>=0)return updateGraphDraftMapping(pool,graphId,sourceId,allRows[existingIndex].id,{ontologyId,targetCode,targetType:payload.targetType,sourceField,transform:payload.transform})
-  allRows.push({id:`DRAFT-${graphId}-${sourceId}-${Date.now()}-${Math.floor(Math.random()*1000)}`,source_id:sourceId,ontology_id:ontologyId,mapping_type:mappingType,source_field:sourceField,transform_rule:String(payload.transform||'直接映射'),target_code:targetCode,confidence:100,status:'待校验'})
+  const existingIndex=allRows.findIndex((item)=>item.source_id===sourceId&&item.ontology_id===ontologyId&&mappingGroup(item)===groupId&&mappingTypes.includes(canonicalMappingType(item.mapping_type))&&item.target_code===targetCode)
+  if(existingIndex>=0)return updateGraphDraftMapping(pool,graphId,sourceId,allRows[existingIndex].id,{ontologyId,targetCode,targetType:payload.targetType,sourceField,transform:payload.transform,config:payload.config})
+  allRows.push({id:`DRAFT-${graphId}-${sourceId}-${Date.now()}-${Math.floor(Math.random()*1000)}`,source_id:sourceId,ontology_id:ontologyId,mapping_group:groupId,mapping_type:mappingType,source_field:sourceField,transform_rule:String(payload.transform||'直接映射'),mapping_config:normalizeMappingConfig(mappingType,payload.config),target_code:targetCode,confidence:100,status:'待校验'})
   const saved=await updateGraphEditDraft(pool,graphId,{ontology_id:ontologyId,mappings_snapshot:json(allRows)},true)
-  const created=draftMappingRows(saved,sourceId,ontologyId).find((item)=>item.target_code===targetCode&&canonicalMappingType(item.mapping_type)===mappingType)
+  const created=draftMappingRows(saved,sourceId,ontologyId).find((item)=>mappingGroup(item)===groupId&&item.target_code===targetCode&&canonicalMappingType(item.mapping_type)===mappingType)
   return created?mapMapping(created):undefined
 }
 async function upsertMappingForOntology(pool,sourceId,payload,graphId=''){
@@ -494,13 +530,14 @@ async function upsertMappingForOntology(pool,sourceId,payload,graphId=''){
   const ontologyId=String(payload.ontologyId||'').trim();if(!ontologyId)throw Object.assign(new Error('请选择图谱结构版本'),{status:400})
   await getEnabledOntology(pool,ontologyId)
   const mappingType=canonicalMappingType(payload.type||'属性')
+  const groupId=requestedMappingGroup(payload,mappingType)
   const targetCode=String(payload.targetCode||'').trim();if(!targetCode)throw Object.assign(new Error(mappingType==='关系'?'目标图谱关系不能为空':mappingType==='实体类型'?'目标实体类型不能为空':'目标图谱属性不能为空'),{status:400})
   const sourceField=String(payload.sourceField||'').trim();if(!sourceField)throw Object.assign(new Error('来源字段不能为空'),{status:400})
   const [targets]=await pool.query("SELECT element_type FROM ontology_elements WHERE ontology_id=? AND code=?",[ontologyId,targetCode]);assertMappingTarget(targets,payload.targetType,mappingType)
-  const mappingTypes=mappingType==='属性'?['属性','节点实例']:[mappingType];const placeholders=mappingTypes.map(()=>'?').join(',');const [existing]=await pool.query(`SELECT id FROM semantic_mappings WHERE source_id=? AND ontology_id=? AND mapping_type IN (${placeholders}) AND target_code=? ORDER BY id LIMIT 1`,[sourceId,ontologyId,...mappingTypes,targetCode])
-  if(existing.length)return updateMappingForOntology(pool,sourceId,existing[0].id,{ontologyId,targetCode,targetType:payload.targetType,sourceField,transform:payload.transform})
+  const mappingTypes=mappingType==='属性'?['属性','节点实例']:[mappingType];const placeholders=mappingTypes.map(()=>'?').join(',');const [existing]=await pool.query(`SELECT id FROM semantic_mappings WHERE source_id=? AND ontology_id=? AND mapping_group=? AND mapping_type IN (${placeholders}) AND target_code=? ORDER BY id LIMIT 1`,[sourceId,ontologyId,groupId,...mappingTypes,targetCode])
+  if(existing.length)return updateMappingForOntology(pool,sourceId,existing[0].id,{ontologyId,targetCode,targetType:payload.targetType,sourceField,transform:payload.transform,config:payload.config})
   await ensureMappingSet(pool,sourceId,ontologyId)
-  const [result]=await pool.query("INSERT INTO semantic_mappings (source_id,ontology_id,mapping_type,source_field,transform_rule,target_code,confidence,status) VALUES (?,?,?,?,?,?,100,'待校验')",[sourceId,ontologyId,mappingType,sourceField,String(payload.transform||'直接映射'),targetCode])
+  const [result]=await pool.query("INSERT INTO semantic_mappings (source_id,ontology_id,mapping_group,mapping_type,source_field,transform_rule,mapping_config,target_code,confidence,status) VALUES (?,?,?,?,?,?,?,?,100,'待校验')",[sourceId,ontologyId,groupId,mappingType,sourceField,String(payload.transform||'直接映射'),json(normalizeMappingConfig(mappingType,payload.config)),targetCode])
   await pool.query("UPDATE semantic_mapping_sets SET revision=revision+1,status='待校验',last_validated_at=NULL WHERE source_id=? AND ontology_id=?",[sourceId,ontologyId])
   return (await mappingsForOntology(pool,sourceId,ontologyId)).find((item)=>item.id===String(result.insertId))
 }
@@ -509,16 +546,18 @@ async function deleteGraphDraftMapping(pool,sourceId,mappingId,ontologyId,graphI
   const allRows=parseJson(draft.mappings_snapshot,[])
   const nextRows=allRows.filter((item)=>!(String(item.id)===String(mappingId)&&item.source_id===sourceId&&item.ontology_id===ontologyId))
   if(nextRows.length===allRows.length)throw Object.assign(new Error('当前图谱的数据映射不存在'),{status:404})
-  await updateGraphEditDraft(pool,graphId,{mappings_snapshot:json(nextRows)},true)
+  const removed=allRows.find((item)=>String(item.id)===String(mappingId)&&item.source_id===sourceId&&item.ontology_id===ontologyId)
+  await updateGraphEditDraft(pool,graphId,{mappings_snapshot:json(invalidateDependentRelations(nextRows,parseJson(draft.structure_snapshot,[]),removed,null))},true)
   return{ok:true,message:'映射规则已移除'}
 }
 async function deleteMappingForOntology(pool,sourceId,mappingId,ontologyId,graphId=''){
   if(graphId)return deleteGraphDraftMapping(pool,sourceId,mappingId,String(ontologyId||'').trim(),graphId)
   ontologyId=String(ontologyId||'').trim();if(!ontologyId)throw Object.assign(new Error('请选择图谱结构版本'),{status:400})
   await getEnabledOntology(pool,ontologyId)
-  const [rows]=await pool.query('SELECT id FROM semantic_mappings WHERE id=? AND source_id=? AND ontology_id=?',[mappingId,sourceId,ontologyId]);if(!rows.length)throw Object.assign(new Error('数据映射不存在'),{status:404})
+  const [rows]=await pool.query('SELECT * FROM semantic_mappings WHERE id=? AND source_id=? AND ontology_id=?',[mappingId,sourceId,ontologyId]);if(!rows.length)throw Object.assign(new Error('数据映射不存在'),{status:404})
   await ensureMappingSet(pool,sourceId,ontologyId)
   await pool.query('DELETE FROM semantic_mappings WHERE id=? AND source_id=? AND ontology_id=?',[mappingId,sourceId,ontologyId])
+  await markMappingDependents(pool,ontologyId,rows[0],null)
   await pool.query("UPDATE semantic_mapping_sets SET revision=revision+1,status='待校验',last_validated_at=NULL WHERE source_id=? AND ontology_id=?",[sourceId,ontologyId])
   return{ok:true,message:'映射规则已移除'}
 }
@@ -614,7 +653,7 @@ async function applyGraphAutoMapping(pool,payload){
 const graphSelect=`SELECT gv.*,(SELECT GROUP_CONCAT(gvs.source_id ORDER BY gvs.source_id) FROM graph_version_sources gvs WHERE gvs.graph_id=gv.id) AS source_ids,(SELECT GROUP_CONCAT(ds.name ORDER BY ds.id) FROM graph_version_sources gvs JOIN data_sources ds ON ds.id=gvs.source_id WHERE gvs.graph_id=gv.id) AS source_names,ged.graph_id AS draft_graph_id,ged.graph_code AS draft_graph_code,ged.graph_name AS draft_graph_name,ged.graph_tag AS draft_graph_tag,ged.ontology_id AS draft_ontology_id,ged.data_range AS draft_data_range,ged.source_ids_json AS draft_source_ids,ged.structure_snapshot AS draft_structure_snapshot,ged.dirty AS draft_dirty FROM graph_versions gv LEFT JOIN graph_edit_drafts ged ON ged.graph_id=gv.id`
 function graphStatusFilter(status,column,params){if(status==='草稿'||status==='生成失败'){params.push('草稿','生成失败','失败','校验中');return `${column} IN (?,?,?,?)`}params.push(status);return `${column}=?`}
 async function listGraphVersions(pool,url){const status=String(url.searchParams.get('status')||'');const params=[];let where='';if(status){where=` WHERE ${graphStatusFilter(status,'gv.status',params)}`}else{where=' WHERE gv.status<>?';params.push('已归档')}const [rows]=await pool.query(`${graphSelect}${where} ORDER BY gv.updated_at DESC,gv.id DESC`,params);return withGraphSyncMetadata(pool,rows.map(mapGraphVersion))}
-async function getGraphVersion(pool,id){const [rows]=await pool.query(`${graphSelect} WHERE gv.id=?`,[id]);if(!rows.length)return null;const graph=mapGraphVersion(rows[0]);const [datasets]=await pool.query('SELECT dataset_json,source_stats_json,synced_at FROM graph_instance_datasets WHERE graph_id=?',[id]);if(datasets.length){graph.instanceDataset=parseJson(datasets[0].dataset_json,{nodes:[],relations:[]});graph.sourceStats=parseJson(datasets[0].source_stats_json,[]);graph.syncedAt=formatTime(datasets[0].synced_at)}return (await withGraphSyncMetadata(pool,[graph]))[0]}
+async function getGraphVersion(pool,id){const [rows]=await pool.query(`${graphSelect} WHERE gv.id=?`,[id]);if(!rows.length)return null;const graph=mapGraphVersion(rows[0]);const [datasets]=await pool.query('SELECT dataset_json,source_stats_json,synced_at FROM graph_instance_datasets WHERE graph_id=?',[id]);if(!datasets.length){graph.entities=0;graph.relations=0;graph.events=0}else{graph.instanceDataset=parseJson(datasets[0].dataset_json,{nodes:[],relations:[]});graph.entities=graph.instanceDataset.nodes.length;graph.relations=graph.instanceDataset.relations.length;graph.events=0;graph.sourceStats=parseJson(datasets[0].source_stats_json,[]);graph.syncedAt=formatTime(datasets[0].synced_at)}return (await withGraphSyncMetadata(pool,[graph]))[0]}
 async function graphVersionDetail(pool,id){const graph=await getGraphVersion(pool,id);if(!graph)throw Object.assign(new Error('知识图谱生成结果不存在'),{status:404});return graph}
 async function materializeGraph(pool,sourceIds,ontologyId,structureElements,graphId=''){
   const uniqueIds=[...new Set(sourceIds)]
@@ -624,8 +663,8 @@ async function materializeGraph(pool,sourceIds,ontologyId,structureElements,grap
   const draft=graphId?await getGraphEditDraft(pool,graphId):null
   const mappings=new Map()
   for(const id of uniqueIds){
-    const rows=graphId?draftMappingRows(draft,id,ontologyId):(await pool.query('SELECT mapping_type,source_field,transform_rule,target_code FROM semantic_mappings WHERE source_id=? AND ontology_id=?',[id,ontologyId]))[0]
-    mappings.set(id,rows)
+    const rows=graphId?draftMappingRows(draft,id,ontologyId):(await pool.query('SELECT mapping_group,mapping_type,source_field,transform_rule,mapping_config,target_code FROM semantic_mappings WHERE source_id=? AND ontology_id=?',[id,ontologyId]))[0]
+    mappings.set(id,rows.filter(row=>structureElements.some(element=>element.code===row.target_code)))
   }
   return buildGraphDataset(pool,uniqueIds.map((id)=>byId.get(id)),mappings,structureElements)
 }
@@ -648,25 +687,26 @@ async function syncGraphVersion(pool,id){
       const date=new Date().toISOString().slice(0,10).replaceAll('-','')
       const [numbers]=await connection.query("SELECT MAX(CAST(SUBSTRING_INDEX(id,'.',-1) AS UNSIGNED)) AS suffix FROM graph_versions WHERE id LIKE ?",[`GRAPH-${date}.%`])
       resultId=`GRAPH-${date}.${Number(numbers[0].suffix||0)+1}`
-      await connection.query("INSERT INTO graph_versions (id,graph_code,graph_name,graph_tag,structure_snapshot,ontology_id,ontology_version,mapping_version,data_range,entity_count,relation_count,event_count,blockers,warnings,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,0,'待发布')",[resultId,graph.graph_code,graph.graph_name,graph.graph_tag,graph.structure_snapshot,graph.ontology_id,graph.ontology_version,graph.mapping_version,graph.data_range,dataset.nodes.length,dataset.relations.length])
+      await connection.query("INSERT INTO graph_versions (id,graph_code,graph_name,graph_tag,structure_snapshot,ontology_id,ontology_version,mapping_version,data_range,entity_count,relation_count,event_count,blockers,warnings,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,0,'待发布')",[resultId,graph.graph_code,graph.graph_name,graph.graph_tag,json(parseJson(graph.structure_snapshot,[])),graph.ontology_id,graph.ontology_version,graph.mapping_version,graph.data_range,dataset.nodes.length,dataset.relations.length])
       for(const sourceId of dependencies.sourceIds)await connection.query('INSERT INTO graph_version_sources (graph_id,source_id) VALUES (?,?)',[resultId,sourceId])
       await connection.query('INSERT INTO graph_version_mapping_snapshots (graph_id,source_id,ontology_id,mapping_revision,mapping_status,mapping_count,snapshot_json) SELECT ?,source_id,ontology_id,mapping_revision,mapping_status,mapping_count,snapshot_json FROM graph_version_mapping_snapshots WHERE graph_id=?',[resultId,id])
     }else{
       await connection.query('UPDATE graph_versions SET entity_count=?,relation_count=?,event_count=0 WHERE id=?',[dataset.nodes.length,dataset.relations.length,id])
     }
+    if(resultId!==id)await inheritDemoAsset(connection,'graph',id,resultId);
     await saveGraphDataset(connection,resultId,dataset)
-    for(const item of dataset.sourceStats)await connection.query("UPDATE data_sources SET last_success='刚刚' WHERE id=?",[item.sourceId])
+    for(const item of dataset.sourceStats)await connection.query("UPDATE data_sources SET last_success=DATE_FORMAT(NOW(),'%Y-%m-%d %H:%i:%s') WHERE id=?",[item.sourceId])
     return {id:resultId,entities:dataset.nodes.length,relations:dataset.relations.length}
   })
   return getGraphVersion(pool,result.id)
 }
-async function saveGraphDataset(connection,graphId,dataset){await connection.query('INSERT INTO graph_instance_datasets (graph_id,dataset_json,source_stats_json,synced_at) VALUES (?,?,?,NOW()) ON DUPLICATE KEY UPDATE dataset_json=VALUES(dataset_json),source_stats_json=VALUES(source_stats_json),synced_at=NOW()',[graphId,json({nodes:dataset.nodes,relations:dataset.relations}),json(dataset.sourceStats)])}
+async function saveGraphDataset(connection,graphId,dataset){await connection.query('INSERT INTO graph_instance_datasets (graph_id,dataset_json,source_stats_json,synced_at) VALUES (?,?,?,NOW()) ON DUPLICATE KEY UPDATE dataset_json=VALUES(dataset_json),source_stats_json=VALUES(source_stats_json),synced_at=NOW()',[graphId,json({nodes:dataset.nodes,relations:dataset.relations}),json(dataset.sourceStats)]);await refreshGraphQuality(connection,graphId)}
 async function listGraphMappingSnapshots(pool,id){await graphVersionDetail(pool,id);const [rows]=await pool.query('SELECT * FROM graph_version_mapping_snapshots WHERE graph_id=? ORDER BY source_id',[id]);return rows.map(mapMappingSnapshot)}
 async function assessSelectedSources(connection,ontologyId,sourceIds,structureElements,graphId=''){
   const uniqueIds=[...new Set((Array.isArray(sourceIds)?sourceIds:[]).map((item)=>String(item).trim()).filter(Boolean))]
   if(!uniqueIds.length)return{ready:false,ontologyId,items:[],issues:['请至少选择一个数据源'],mappedEntityCount:0,mappedRelationCount:0}
   const placeholders=uniqueIds.map(()=>'?').join(',')
-  const [sources]=await connection.query(`SELECT id,name,status FROM data_sources WHERE id IN (${placeholders})`,uniqueIds)
+  const [sources]=await connection.query(`SELECT id,name,mode,status,connection_status FROM data_sources WHERE id IN (${placeholders})`,uniqueIds)
   if(sources.length!==uniqueIds.length)throw Object.assign(new Error('部分数据源不存在或已被删除'),{status:409})
   const sourceMap=new Map(sources.map((item)=>[item.id,item]))
   const draft=graphId?await ensureGraphEditDraft(connection,graphId):null
@@ -677,8 +717,8 @@ async function assessSelectedSources(connection,ontologyId,sourceIds,structureEl
     const [rawRows]=graphId?[draftMappingRows(draft,sourceId,ontologyId)]:await connection.query("SELECT * FROM semantic_mappings WHERE source_id=? AND ontology_id=? AND mapping_type IN ('实体类型','属性','节点实例','关系')",[sourceId,ontologyId])
     if(!rawRows.some((row)=>['实体类型','关系'].includes(canonicalMappingType(row.mapping_type))))continue
     const set=await ensureMappingSet(connection,sourceId,ontologyId)
-    mappingsBySource.set(sourceId,rawRows)
-    const rows=rawRows.map(mapMapping)
+    mappingsBySource.set(sourceId,rawRows.filter(row=>normalizeStructureElements(structureElements).some(element=>element.code===row.target_code)))
+    const rows=rawRows.filter(row=>normalizeStructureElements(structureElements).some(element=>element.code===row.target_code)).map(mapMapping)
     const [invalidRows]=graphId?[[{total:rows.filter((item)=>item.type==='实体类型'&&!item.targetCode||item.type==='属性'&&!item.targetCode||item.type==='关系'&&!item.targetCode).length}]]:await connection.query("SELECT COUNT(*) AS total FROM semantic_mappings sm LEFT JOIN ontology_elements oe ON oe.ontology_id=sm.ontology_id AND oe.code=sm.target_code WHERE sm.source_id=? AND sm.ontology_id=? AND sm.mapping_type IN ('实体类型','属性','节点实例','关系') AND oe.element_id IS NOT NULL AND ((sm.mapping_type='实体类型' AND oe.element_type<>'class') OR (sm.mapping_type IN ('属性','节点实例') AND oe.element_type<>'property') OR (sm.mapping_type='关系' AND oe.element_type<>'relation'))",[sourceId,ontologyId])
     const resolvedTotal=rows.length
     const resolvedValid=rows.filter((item)=>item.status==='有效').length
@@ -691,17 +731,18 @@ async function assessSelectedSources(connection,ontologyId,sourceIds,structureEl
     const revision=graphId?Number(draft.mapping_revision||1):Number(set.revision||1)
     let message=`数据映射 R${revision} 已就绪，实体类型 ${resolvedEntityTypeTotal} 条，属性 ${resolvedFieldTotal} 条，关系 ${resolvedRelationTotal} 条`
     if(source.status!=='启用'){status='disabled';message=`数据源 ${source.name} 尚未启用`}
+    else if(source.connection_status==='异常'){status='invalid';message=`数据源 ${source.name} 最近连接检查异常，请重新测试`}
     else if(!resolvedTotal){status='missing';message=`${source.name} 尚未配置当前图谱结构的数据映射`}
     else if(!entityRows.length&&!rows.some((item)=>item.type==='关系')){status='missing';message=`${source.name} 尚未配置实体或关系映射`}
     else if(invalid){status='invalid';message=`${source.name} 存在${invalid}条无效数据映射`}
     else if(entityRows.some((item)=>!String(item.transform||'').match(/主键字段[：:]\s*([^；;]+)/)?.[1]?.trim())){status='invalid';message=`${source.name} 的实体映射缺少唯一标识字段`}
     else if(entityRows.length){
       const sourceMetadata=await metadata(connection,sourceId)
-      const missingEntity=entityRows.find((item)=>{const table=sourceMetadata.find((entry)=>entry.tableName===item.sourceField);const key=String(item.transform||'').match(/主键字段[：:]\s*([^；;]+)/)?.[1]?.trim();return !table||!table.fields.includes(key)})
-      if(missingEntity){status='invalid';message=`${source.name} 的 ${missingEntity.targetCode} 来源表或唯一标识字段已失效`}
+      const missingEntity=entityRows.find((item)=>entityConfigurationIssue(item,sourceMetadata)||(entityJoins(item).length&&source.mode!=='数据库接入'))
+      if(missingEntity){status='invalid';message=`${source.name} 的 ${missingEntity.targetCode}：${entityConfigurationIssue(missingEntity,sourceMetadata)||'关联表仅支持同一数据库连接'}`}
       else{
         const properties=rows.filter((item)=>item.type==='属性')
-        const missingProperty=properties.find((item)=>{const property=normalizeStructureElements(structureElements).find((element)=>element.type==='property'&&element.code===item.targetCode);const entity=entityRows.find((entry)=>entry.targetCode===property?.ownerCode);if(!entity)return false;const table=sourceMetadata.find((entry)=>entry.tableName===entity.sourceField);return !table?.fields.includes(item.sourceField)})
+        const missingProperty=properties.find((item)=>{const property=normalizeStructureElements(structureElements).find((element)=>element.type==='property'&&element.code===item.targetCode);const entity=entityRows.find((entry)=>entry.targetCode===property?.ownerCode&&sameMappingGroup(entry,item));return !entity||!propertyMappingAvailable(entity,item,sourceMetadata)})
         if(missingProperty){status='invalid';message=`${source.name} 的 ${missingProperty.targetCode} 来源字段已失效`}
       }
     }
@@ -719,19 +760,12 @@ async function assessSelectedSources(connection,ontologyId,sourceIds,structureEl
   if(coverage.missingRequiredCodes.length)issues.push(`已映射实体类型中有 ${coverage.missingRequiredCodes.length} 个必填属性尚未从候选数据源匹配：${coverage.missingRequiredCodes.slice(0,3).join('、')}${coverage.missingRequiredCodes.length>3?' 等':''}`)
   for(const row of relationRows){
     const relation=elements.find((item)=>item.type==='relation'&&item.code===row.target_code)
+    if(row.status==='待检查'){issues.push(`${relation?.name||row.target_code} 的实体来源或标识已修改，请重新保存关联配置`);invalidRelationCodes.add(row.target_code);continue}
     if(!relation||!mappedEntities.has(relation.ownerCode)||!mappedEntities.has(relation.targetCode)){issues.push(`${relation?.name||row.target_code} 的起点或终点实体尚未映射`);invalidRelationCodes.add(row.target_code);continue}
-    if(/关联方式[：:]\s*关系表/.test(row.transform_rule||'')){
-      const start=String(row.transform_rule||'').match(/起点字段[：:]\s*([^；;]+)/)?.[1]?.trim()
-      const end=String(row.transform_rule||'').match(/终点字段[：:]\s*([^；;]+)/)?.[1]?.trim()
-      const sourceMetadata=await metadata(connection,row.source_id)
-      const table=sourceMetadata.find((item)=>item.tableName===row.source_field)
-      if(!table||!start||!end||!table.fields.includes(start)||!table.fields.includes(end)){issues.push(`${relation.name} 的关系表或两端标识字段无效`);invalidRelationCodes.add(row.target_code)}
-    }else{
-      const [ownerCode,targetCode]=String(row.source_field||'').split(/\s*=\s*|\s*\+\s*/).map((item)=>item.trim())
-      const owner=elements.find((item)=>item.type==='property'&&item.code===ownerCode&&item.ownerCode===relation.ownerCode)
-      const target=elements.find((item)=>item.type==='property'&&item.code===targetCode&&item.ownerCode===relation.targetCode)
-      if(!owner||!target||!mappedProperties.has(ownerCode)||!mappedProperties.has(targetCode)){issues.push(`${relation.name} 的关联属性尚未完成映射`);invalidRelationCodes.add(row.target_code)}
-    }
+    const config=relationConfiguration(row,relation)
+    const sourceMetadata=config?.origin.kind==='table'?await metadata(connection,row.source_id):[]
+    const issue=relationConfigurationIssue(config,relation,elements,[...mappedEntities],[...mappedProperties],sourceMetadata)
+    if(issue){issues.push(`${relation.name}：${issue}`);invalidRelationCodes.add(row.target_code)}
   }
   const completeEntities=new Set([...mappedEntities].filter((code)=>!elements.some((item)=>item.type==='property'&&item.ownerCode===code&&coverage.missingRequiredCodes.includes(item.code))))
   const completeRelations=new Set(relationRows.filter((row)=>{const relation=elements.find((item)=>item.type==='relation'&&item.code===row.target_code);return relation&&!invalidRelationCodes.has(row.target_code)&&completeEntities.has(relation.ownerCode)&&completeEntities.has(relation.targetCode)}).map((row)=>row.target_code))
@@ -740,7 +774,8 @@ async function assessSelectedSources(connection,ontologyId,sourceIds,structureEl
 async function validateSelectedSources(connection,ontologyId,sourceIds,structureElements,graphId=''){if(!Array.isArray(sourceIds)||!sourceIds.length)throw Object.assign(new Error('请至少选择一个启用状态的数据源'),{status:400});const assessment=await assessSelectedSources(connection,ontologyId,sourceIds,structureElements,graphId);if(!assessment.ready){const blocked=assessment.items.find((item)=>item.status!=='ready');throw Object.assign(new Error(blocked?.message||assessment.issues[0]||'请先完成数据映射'),{status:409})}return{sourceIds:assessment.items.map((item)=>item.sourceId),mappingCount:assessment.items.reduce((sum,item)=>sum+item.mappingCount,0),items:assessment.items}}
 async function validateGraphDependencies(connection,graph){
   await getEnabledOntology(connection,graph.ontology_id)
-  const [links]=await connection.query('SELECT gvs.source_id,ds.name,ds.status FROM graph_version_sources gvs JOIN data_sources ds ON ds.id=gvs.source_id WHERE gvs.graph_id=? ORDER BY gvs.source_id',[graph.id]);if(!links.length)throw Object.assign(new Error('知识图谱未绑定数据源'),{status:409})
+  const [links]=await connection.query('SELECT gvs.source_id,ds.name,ds.status,ds.connection_status FROM graph_version_sources gvs JOIN data_sources ds ON ds.id=gvs.source_id WHERE gvs.graph_id=? ORDER BY gvs.source_id',[graph.id]);if(!links.length)throw Object.assign(new Error('知识图谱未绑定数据源'),{status:409})
+  const unhealthy=links.filter(item=>item.connection_status==='异常');if(unhealthy.length)throw Object.assign(new Error(`数据源 ${unhealthy.map(item=>item.name).join('、')} 最近连接检查异常，请重新测试`),{status:409});
   const disabled=links.filter((item)=>item.status!=='启用');if(disabled.length)throw Object.assign(new Error(`数据源 ${disabled.map((item)=>item.name).join('、')} 尚未启用`),{status:409})
   const [snapshots]=await connection.query('SELECT source_id FROM graph_version_mapping_snapshots WHERE graph_id=?',[graph.id]);if(snapshots.length!==links.length)throw Object.assign(new Error('知识图谱缺少完整的数据映射快照'),{status:409})
   return{sourceIds:links.map((item)=>item.source_id),snapshotCount:snapshots.length}
@@ -756,18 +791,18 @@ async function createGraphVersion(pool,payload){
     const dependencies=await validateSelectedSources(connection,ontologyId,payload.sourceIds,structureSnapshot)
     const dataset=await materializeGraph(connection,dependencies.sourceIds,ontologyId,structureSnapshot)
     const date=new Date().toISOString().slice(0,10).replaceAll('-','')
-    const [counts]=await connection.query('SELECT COUNT(*) AS total FROM graph_versions WHERE id LIKE ?',[`GRAPH-${date}.%`])
+    const [counts]=await connection.query("SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(id,'.',-1) AS UNSIGNED)),0) AS total FROM graph_versions WHERE id LIKE ?",[`GRAPH-${date}.%`])
     const id=`GRAPH-${date}.${Number(counts[0].total)+1}`
     const mappingVersion=dependencies.items.map((item)=>`${item.sourceId}:R${item.revision}`).join(' / ').slice(0,80)
     await connection.query("INSERT INTO graph_versions (id,graph_code,graph_name,graph_tag,structure_snapshot,ontology_id,ontology_version,mapping_version,data_range,entity_count,relation_count,event_count,blockers,warnings,status) VALUES (?,?,?,?,?,?,?,?,?,?,?,0,0,0,'待发布')",[id,graphCode,graphName,graphTag,json(structureSnapshot),ontology.id,`${ontology.name} ${ontology.version}`,mappingVersion,range,dataset.nodes.length,dataset.relations.length])
     for(const item of dependencies.items){
       await connection.query('INSERT INTO graph_version_sources (graph_id,source_id) VALUES (?,?)',[id,item.sourceId])
-      const [mappingRows]=await connection.query('SELECT id,source_id,ontology_id,mapping_type,source_field,transform_rule,target_code,confidence,status,updated_at FROM semantic_mappings WHERE source_id=? AND ontology_id=? ORDER BY mapping_type,id',[item.sourceId,ontologyId])
-      await connection.query("INSERT INTO graph_version_mapping_snapshots (graph_id,source_id,ontology_id,mapping_revision,mapping_status,mapping_count,snapshot_json) VALUES (?,?,?,?,?,?,?)",[id,item.sourceId,ontologyId,item.revision,'已绑定',mappingRows.length,json(mappingRows)])
+      const [mappingRows]=await connection.query('SELECT id,source_id,ontology_id,mapping_group,mapping_type,source_field,transform_rule,mapping_config,target_code,confidence,status,updated_at FROM semantic_mappings WHERE source_id=? AND ontology_id=? ORDER BY mapping_type,id',[item.sourceId,ontologyId])
+      await connection.query("INSERT INTO graph_version_mapping_snapshots (graph_id,source_id,ontology_id,mapping_revision,mapping_status,mapping_count,snapshot_json) VALUES (?,?,?,?,?,?,?)",[id,item.sourceId,ontologyId,item.revision,'已绑定',mappingRows.filter(row=>structureSnapshot.some(e=>e.code===row.target_code)).length,json(mappingRows.filter(row=>structureSnapshot.some(e=>e.code===row.target_code)))])
     }
     await saveGraphDataset(connection,id,dataset)
-    for(const item of dataset.sourceStats)await connection.query("UPDATE data_sources SET last_success='刚刚' WHERE id=?",[item.sourceId])
-    await connection.commit()
+    for(const item of dataset.sourceStats)await connection.query("UPDATE data_sources SET last_success=DATE_FORMAT(NOW(),'%Y-%m-%d %H:%i:%s') WHERE id=?",[item.sourceId])
+    await registerDemoAsset(connection,'graph',id,payload.demoBatch);await connection.commit()
     return await getGraphVersion(pool,id)
   }catch(error){await connection.rollback();throw error}finally{connection.release()}
 }
@@ -790,11 +825,11 @@ async function createGraphDraft(pool,payload){
     await connection.beginTransaction()
     const draft=graphDraftValues(payload)
     const date=new Date().toISOString().slice(0,10).replaceAll('-','')
-    const [counts]=await connection.query('SELECT COUNT(*) AS total FROM graph_versions WHERE id LIKE ?',[`GRAPH-${date}.%`])
+    const [counts]=await connection.query("SELECT COALESCE(MAX(CAST(SUBSTRING_INDEX(id,'.',-1) AS UNSIGNED)),0) AS total FROM graph_versions WHERE id LIKE ?",[`GRAPH-${date}.%`])
     const id=`GRAPH-${date}.${Number(counts[0].total)+1}`
     await connection.query("INSERT INTO graph_versions (id,graph_code,graph_name,graph_tag,structure_snapshot,ontology_id,ontology_version,mapping_version,data_range,entity_count,relation_count,event_count,blockers,warnings,status,published_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NULL)",[id,draft.graphCode,draft.graphName,draft.graphTag,json(draft.structureSnapshot),draft.ontologyId,draft.ontologyVersion,draft.mappingVersion,draft.range,0,0,0,0,0,'草稿'])
     await replaceGraphSources(connection,id,draft.sourceIds)
-    await connection.commit()
+    await registerDemoAsset(connection,'graph',id,payload.demoBatch);await connection.commit()
     return await getGraphVersion(pool,id)
   }catch(error){await connection.rollback();throw error}finally{connection.release()}
 }
@@ -809,7 +844,7 @@ async function saveGraphAsDraft(pool,id,payload){
     const draft=graphDraftValues(payload,graph)
     await connection.query("UPDATE graph_versions SET graph_code=?,graph_name=?,graph_tag=?,structure_snapshot=?,ontology_id=?,ontology_version=?,mapping_version=?,data_range=?,entity_count=0,relation_count=0,event_count=0,blockers=0,warnings=0,status='草稿',published_at=NULL WHERE id=?",[draft.graphCode,draft.graphName,draft.graphTag,json(draft.structureSnapshot),draft.ontologyId,draft.ontologyVersion,draft.mappingVersion,draft.range,id])
     await connection.query('DELETE FROM graph_version_mapping_snapshots WHERE graph_id=?',[id])
-    await connection.query('DELETE FROM graph_instance_datasets WHERE graph_id=?',[id])
+    await connection.query('DELETE FROM graph_instance_datasets WHERE graph_id=?',[id]);await connection.query('DELETE FROM graph_quality_issues WHERE graph_id=?',[id]);await connection.query('DELETE FROM graph_governance_tasks WHERE graph_id=?',[id])
     await replaceGraphSources(connection,id,draft.sourceIds)
     await connection.commit()
     return await getGraphVersion(pool,id)
@@ -821,7 +856,7 @@ async function unpublishGraphVersion(pool,id){
     await connection.beginTransaction()
     const [rows]=await connection.query('SELECT * FROM graph_versions WHERE id=? FOR UPDATE',[id])
     if(!rows.length)throw Object.assign(new Error('知识图谱生成结果不存在'),{status:404})
-    if(rows[0].status!=='已发布')throw Object.assign(new Error('只有已发布知识图谱可以取消发布'),{status:409})
+    if(rows[0].status!=='已发布')throw Object.assign(new Error('只有已发布知识图谱可以取消发布'),{status:409});const [ruleRefs]=await connection.query('SELECT COUNT(*) total FROM rule_asset_versions WHERE graph_version=?',[id]);const [sceneRefs]=await connection.query('SELECT COUNT(*) total FROM scene_versions WHERE graph_version=?',[id]);if(Number(ruleRefs[0].total)+Number(sceneRefs[0].total))throw Object.assign(new Error('当前图谱仍被规则或场景引用，请先调整引用后再取消发布'),{status:409})
     await connection.query("UPDATE graph_versions SET status='待发布',published_at=NULL WHERE id=?",[id])
     await connection.commit()
     return await getGraphVersion(pool,id)
@@ -851,29 +886,58 @@ async function updateGraphVersion(pool,id,payload){
     for(const item of dependencies.items){
       await connection.query('INSERT INTO graph_version_sources (graph_id,source_id) VALUES (?,?)',[id,item.sourceId])
       const mappingRows=draftMappingRows(await getGraphEditDraft(connection,id),item.sourceId,ontologyId)
-      await connection.query("INSERT INTO graph_version_mapping_snapshots (graph_id,source_id,ontology_id,mapping_revision,mapping_status,mapping_count,snapshot_json) VALUES (?,?,?,?,?,?,?)",[id,item.sourceId,ontologyId,item.revision,'已绑定',mappingRows.length,json(mappingRows)])
+      await connection.query("INSERT INTO graph_version_mapping_snapshots (graph_id,source_id,ontology_id,mapping_revision,mapping_status,mapping_count,snapshot_json) VALUES (?,?,?,?,?,?,?)",[id,item.sourceId,ontologyId,item.revision,'已绑定',mappingRows.filter(row=>structureSnapshot.some(e=>e.code===row.target_code)).length,json(mappingRows.filter(row=>structureSnapshot.some(e=>e.code===row.target_code)))])
     }
     await saveGraphDataset(connection,id,dataset)
-    for(const item of dataset.sourceStats)await connection.query("UPDATE data_sources SET last_success='刚刚' WHERE id=?",[item.sourceId])
+    for(const item of dataset.sourceStats)await connection.query("UPDATE data_sources SET last_success=DATE_FORMAT(NOW(),'%Y-%m-%d %H:%i:%s') WHERE id=?",[item.sourceId])
     await connection.query('DELETE FROM graph_edit_drafts WHERE graph_id=?',[id])
     await connection.commit();return await getGraphVersion(pool,id)
   }catch(error){await connection.rollback();throw error}finally{connection.release()}
 }
-async function publishGraphVersion(pool,id){const connection=await pool.getConnection();try{await connection.beginTransaction();const [rows]=await connection.query('SELECT * FROM graph_versions WHERE id=? FOR UPDATE',[id]);if(!rows.length)throw Object.assign(new Error('知识图谱生成结果不存在'),{status:404});const graph=rows[0];if(Number(graph.blockers)>0)throw Object.assign(new Error(`存在${graph.blockers}个阻断问题，不能发布`),{status:409});if(graph.status!=='待发布')throw Object.assign(new Error('只有待发布知识图谱可以发布'),{status:409});await validateGraphDependencies(connection,graph);await connection.query("UPDATE graph_versions SET status='已发布',published_at=NOW() WHERE id=?",[id]);await connection.commit();return await getGraphVersion(pool,id)}catch(error){await connection.rollback();throw error}finally{connection.release()}}
+async function publicationChecks(connection,id){
+  const graph=await getGraphVersion(connection,id)
+  if(!graph)throw Object.assign(new Error('知识图谱不存在'),{status:404})
+  const quality=await refreshGraphQuality(connection,id)
+  const [drafts]=await connection.query('SELECT dirty FROM graph_edit_drafts WHERE graph_id=?',[id])
+  let dependencyMessage='模型、数据源和映射快照有效'
+  let dependencies=true
+  try{await validateGraphDependencies(connection,{id,ontology_id:graph.ontologyId})}catch(error){dependencies=false;dependencyMessage=error.message}
+  const checks=[
+    {label:'图谱状态',passed:graph.status==='待发布',message:graph.status==='待发布'?'待发布结果':'请先生成待发布图谱'},
+    {label:'实际实例数据',passed:Boolean(graph.instanceDataset?.nodes.length),message:graph.instanceDataset?quality.entities+' 个实体 · '+quality.relations+' 条关系':'尚未生成实际实例'},
+    {label:'模型与来源依赖',passed:dependencies,message:dependencyMessage},
+    {label:'未保存修改',passed:!drafts.some(row=>row.dirty),message:drafts.some(row=>row.dirty)?'请先保存并重新生成图谱':'没有未保存的映射修改'},
+    {label:'质量阻断',passed:quality.blockers===0,message:quality.blockers+' 个阻断 · '+quality.warnings+' 个警告'},
+  ]
+  return {...quality,checks,ready:checks.every(item=>item.passed)}
+}
+async function checkGraphPublication(pool,id){
+  const db=await pool.getConnection()
+  try{await db.beginTransaction();await db.query('SELECT id FROM graph_versions WHERE id=? FOR UPDATE',[id]);const result=await publicationChecks(db,id);await db.commit();return result}catch(error){await db.rollback();throw error}finally{db.release()}
+}
+async function publishGraphVersion(pool,id){
+  const db=await pool.getConnection()
+  try{await db.beginTransaction();await db.query('SELECT id FROM graph_versions WHERE id=? FOR UPDATE',[id]);const result=await publicationChecks(db,id);if(!result.ready)throw Object.assign(new Error(result.checks.filter(item=>!item.passed).map(item=>item.message).join('；')),{status:409});await db.query("UPDATE graph_versions SET status='已发布',published_at=NOW() WHERE id=?",[id]);await db.commit();return getGraphVersion(pool,id)}catch(error){await db.rollback();throw error}finally{db.release()}
+}
 async function deleteSourceWithReferences(pool,id){const source=await getSource(pool,id);if(!source)throw Object.assign(new Error('数据源不存在'),{status:404});if(source.status==='启用')throw Object.assign(new Error('请先停用数据源，再执行删除'),{status:409});const [graphRefs]=await pool.query('SELECT COUNT(*) AS total FROM graph_version_sources WHERE source_id=?',[id]);if(Number(graphRefs[0].total))throw Object.assign(new Error('该数据源已被知识图谱引用，不能删除'),{status:409});return deleteSource(pool,id)}
 async function syncSource(pool,id){const source=await getSource(pool,id);if(!source)throw Object.assign(new Error('数据源不存在'),{status:404});throw Object.assign(new Error('请在知识图谱中生成或更新数据'),{status:409})}
 async function listSync(pool,sourceId=''){const params=[];let where='';if(sourceId){where='WHERE source_id=?';params.push(sourceId)}const [rows]=await pool.query(`SELECT * FROM sync_records ${where} ORDER BY started_at DESC LIMIT 30`,params);return rows.map(mapSync)}
 async function listGraphs(pool,url){const status=String(url.searchParams.get('status')||'');const params=[];let where='';if(status){where=`WHERE ${graphStatusFilter(status,'status',params)}`}else{where='WHERE status<>?';params.push('已归档')}const [rows]=await pool.query(`SELECT * FROM graph_versions ${where} ORDER BY updated_at DESC,id DESC`,params);return rows.map(mapGraph)}
 async function createGraph(pool,payload){const id=String(payload.id||`GRAPH-${new Date().toISOString().slice(0,10).replaceAll('-','')}.${Math.floor(Math.random()*9)+1}`).trim().toUpperCase();await pool.query('INSERT INTO graph_versions (id,ontology_id,ontology_version,mapping_version,graph_tag,data_range,entity_count,relation_count,event_count,blockers,warnings,status) VALUES (?,?,?,?,?,?,?,?,0,?,?,?)',[id,payload.ontologyId||'ONT-PROC',payload.ontologyVersion||'BASE V1 / PROC V3',payload.mappingVersion||'MAP v3.6',normalizeGraphTag(payload.tag),payload.range||'用于监管穿透分析的知识图谱。',Number(payload.entities||129000)+Number(payload.events||0),Number(payload.relations||311000),Number(payload.blockers||0),Number(payload.warnings||0),'待发布']);return mapGraph((await pool.query('SELECT * FROM graph_versions WHERE id=?',[id]))[0][0])}
 async function publishGraph(pool,id){const connection=await pool.getConnection();try{await connection.beginTransaction();const [rows]=await connection.query('SELECT * FROM graph_versions WHERE id=? FOR UPDATE',[id]);if(!rows.length)throw Object.assign(new Error('知识图谱生成结果不存在'),{status:404});const graph=rows[0];if(Number(graph.blockers)>0)throw Object.assign(new Error(`存在${graph.blockers}个阻断问题，不能发布`),{status:409});if(graph.status!=='待发布')throw Object.assign(new Error('只有待发布知识图谱可以发布'),{status:409});await connection.query("UPDATE graph_versions SET status='已归档' WHERE status='已发布'");await connection.query("UPDATE graph_versions SET status='已发布',published_at=NOW() WHERE id=?",[id]);await connection.commit();return mapGraph((await pool.query('SELECT * FROM graph_versions WHERE id=?',[id]))[0][0])}catch(error){await connection.rollback();throw error}finally{connection.release()}}
-async function resolveIssue(pool,graphId,issueId){await pool.query("UPDATE graph_quality_issues SET status='已处理' WHERE graph_id=? AND id=?",[graphId,issueId]);return{ok:true,message:'生成检查项已处理'}}
-async function govern(pool,graphId,taskId,payload){if(!String(payload.reason||'').trim())throw Object.assign(new Error('处理原因不能为空'),{status:400});await pool.query("UPDATE graph_governance_tasks SET status='已处理',result=?,reason=? WHERE graph_id=? AND id=?",[payload.result||'合并',payload.reason,graphId,taskId]);return{ok:true,message:`实例${payload.result||'合并'}完成，影响记录已生成`}}
+async function resolveIssue(pool,graphId,issueId){
+  await checkGraphPublication(pool,graphId)
+  const [rows]=await pool.query('SELECT status FROM graph_quality_issues WHERE graph_id=? AND id=?',[graphId,issueId])
+  if(rows.length&&rows[0].status!=='已处理')throw Object.assign(new Error('问题仍然存在，请修复来源数据并重新生成或同步后复检'),{status:409})
+  return{ok:true,message:'复检通过，问题已解除'}
+}
+async function govern(pool,graphId,taskId,payload){return governGraph(pool,graphId,taskId,payload)}
 
 async function deleteSource(pool,id){
   const source=await getSource(pool,id)
   if(!source)throw Object.assign(new Error('数据源不存在'),{status:404})
   if(source.status==='启用')throw Object.assign(new Error('请先停用数据源，再执行删除'),{status:409})
-  await pool.query('DELETE FROM data_sources WHERE id=?',[id])
+  const [refs]=await pool.query('SELECT COUNT(*) total FROM graph_version_sources WHERE source_id=?',[id]);if(Number(refs[0].total))throw Object.assign(new Error(`该数据源被 ${refs[0].total} 个知识图谱引用，不能删除`),{status:409});await pool.query('DELETE FROM data_sources WHERE id=?',[id])
   return{ok:true,message:'数据源已删除'}
 }
 async function deleteGraph(pool,id){
@@ -881,8 +945,8 @@ async function deleteGraph(pool,id){
   if(!rows.length)throw Object.assign(new Error('知识图谱生成结果不存在'),{status:404})
   if(!['草稿','待发布'].includes(normalizeGraphStatus(rows[0].status)))throw Object.assign(new Error('已发布知识图谱不能删除'),{status:409})
   const [ruleRefs]=await pool.query('SELECT COUNT(*) AS total FROM rule_asset_versions WHERE graph_version=?',[id])
-  const references=Number(ruleRefs[0].total)
-  if(references>0)throw Object.assign(new Error(`该知识图谱仍被${references}个规则版本引用，不能删除`),{status:409})
+  const [sceneRefs]=await pool.query('SELECT COUNT(*) total FROM scene_versions WHERE graph_version=?',[id]);const references=Number(ruleRefs[0].total)+Number(sceneRefs[0].total)
+  if(references>0)throw Object.assign(new Error(`该知识图谱仍被${references}个规则或场景版本引用，不能删除`),{status:409})
   await pool.query('DELETE FROM graph_versions WHERE id=?',[id])
   return{ok:true,message:'未发布图谱任务已删除'}
 }
@@ -907,6 +971,7 @@ export async function handleDataGraphApi(req,res,url,{pool,sendJson,readBody}){
   if(url.pathname==='/api/graphs/draft'&&req.method==='POST'){sendJson(res,201,await createGraphDraft(pool,await readBody(req)));return true}
   if(url.pathname==='/api/graphs'&&req.method==='GET'){sendJson(res,200,await listGraphVersions(pool,url));return true}
   if(url.pathname==='/api/graphs'&&req.method==='POST'){sendJson(res,201,await createGraphVersion(pool,await readBody(req)));return true}
+  const qualityCheck=url.pathname.match(/^\/api\/graphs\/([^/]+)\/check$/);if(qualityCheck&&req.method==='POST'){sendJson(res,200,await checkGraphPublication(pool,decodeURIComponent(qualityCheck[1])));return true}
   const scopedPublish=url.pathname.match(/^\/api\/graphs\/([^/]+)\/publish$/)
   if(scopedPublish&&req.method==='POST'){sendJson(res,200,await publishGraphVersion(pool,decodeURIComponent(scopedPublish[1])));return true}
   const scopedUnpublish=url.pathname.match(/^\/api\/graphs\/([^/]+)\/unpublish$/)
@@ -945,3 +1010,5 @@ export async function handleDataGraphApi(req,res,url,{pool,sendJson,readBody}){
   return false
 }
 
+
+export { createGraphVersion, createGraphDraft, publishGraphVersion, syncGraphVersion, toggleSource, testSource, parseMetadataForOntology, checkGraphPublication, parseSourceWorkbook }

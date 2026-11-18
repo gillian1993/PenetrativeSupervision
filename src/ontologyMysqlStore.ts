@@ -84,7 +84,7 @@ export const useOntologyStore = create<OntologyState>((set, get) => ({
     try {
       const result = await ontologyApi.delete(id)
       set((state) => ({ ontologies: state.ontologies.filter((row) => row.id !== id) }))
-      return { ok: true, message: result.message || `${ontology?.name || '图谱结构草稿'}已从MySQL删除` }
+      return { ok: true, message: result.message || `${ontology?.name || '图谱模型'}已删除，模型结构和历史审计已保留` }
     } catch (error) {
       return { ok: false, message: errorMessage(error) }
     }

@@ -41,7 +41,7 @@ async function request(pool, path, payload = {}, method = 'POST') {
   return response
 }
 const enable = (pool) => request(pool, 'SRC-TEST/toggle', { enabled: true })
-const successResponse = () => ({ ok: true, status: 200, body: { cancel: async () => {} } })
+const successResponse = () => ({ ok: true, status: 200, json: async () => ({ items: [] }), body: { cancel: async () => {} } })
 const editPayload = (pool, patch = {}) => ({ name: pool.row.name, mode: pool.row.mode, owner: pool.row.owner, range: pool.row.data_range, accessConfig: JSON.parse(pool.row.access_config), ...patch })
 
 test('a draft without a previous test is tested and enabled in one operation', async (t) => {

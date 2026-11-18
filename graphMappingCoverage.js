@@ -1,3 +1,4 @@
+import { mappingGroup } from './graphMappingConfig.js'
 const mappingType = (row) => row.mapping_type || row.type
 const targetCode = (row) => row.target_code || row.targetCode
 const sourceField = (row) => row.source_field || row.sourceField
@@ -18,13 +19,13 @@ export function assessGraphMappingCoverage(structureElements, mappingsBySource) 
     for (const row of entities) {
       const code = targetCode(row)
       mappedEntityCodes.add(code)
-      if (keyField(transformRule(row))) validEntities.add(code)
+      if (keyField(transformRule(row))) validEntities.add(`${code}|${mappingGroup(row)}`)
       else invalidIdentitySources.push(sourceId)
     }
     for (const row of rows) {
       if (!['属性', '节点实例'].includes(mappingType(row)) || !sourceField(row)) continue
       const property = elements.find((item) => item.type === 'property' && item.code === targetCode(row))
-      if (property && validEntities.has(property.ownerCode)) mappedPropertyCodes.add(property.code)
+      if (property && validEntities.has(`${property.ownerCode}|${mappingGroup(row)}`)) mappedPropertyCodes.add(property.code)
     }
   }
 

@@ -194,7 +194,7 @@ export interface GraphVersion {
   events: number
   blockers: number
   warnings: number
-  status: '草稿' | '待发布' | '已发布'
+  status: '草稿' | '待发布' | '已发布' | '已归档'
   generationFailed?: boolean
   publishedAt: string
   structureElements?: GraphStructureElement[]
