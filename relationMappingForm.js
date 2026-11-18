@@ -14,3 +14,22 @@ export function relationFieldSelection(config, relation) {
   if (config.origin.entityCode === relation.ownerCode && (canonical || legacy)) return { kind: 'direct', sourceField: config.end.field, targetField: config.end.match }
   return { kind: 'custom', sourceField: '', targetField: '' }
 }
+
+export function relationUsesLegacyMatching(config, relation) {
+  return relationFieldSelection(config, relation).kind === 'custom'
+    || config.origin.kind === 'table' && (config.start.match !== '$identifier' || config.end.match !== '$identifier')
+}
+
+export function updateRelationAssociation(config, relation, side, value) {
+  const selection = relationFieldSelection(config, relation)
+  if (selection.kind === 'table') {
+    const next = intermediateRelationConfiguration(config.origin.table)
+    if (!relationUsesLegacyMatching(config, relation)) {
+      next.start.field = selection.sourceField
+      next.end.field = selection.targetField
+    }
+    next[side].field = value
+    return next
+  }
+  return directRelationConfiguration(relation, side === 'start' ? value : selection.sourceField, side === 'end' ? value : selection.targetField)
+}

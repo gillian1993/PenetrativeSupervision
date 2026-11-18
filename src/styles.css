@@ -2013,29 +2013,46 @@ tbody tr:last-child td { border-bottom: 0; }
 .mapping-join-item strong { color:#344054; font-size:13px; }
 .mapping-join-item small { color:#667085; font-size:12px; }
 .mapping-join-fields { min-width:0; margin:0; padding:0; border:0; }
-.mapping-source-groups { margin:16px 0 20px; }
-.mapping-source-group-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
-.mapping-source-group-heading strong { color:#344054; font-size:14px; }
-.mapping-source-group-heading small { color:#667085; font-size:12px; font-weight:400; margin-left:8px; }
-.mapping-source-group { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:8px; border:1px solid var(--yb-border-2, #e4ebf5); border-radius:6px; background:#fff; }
-.mapping-source-group.active { border-color:var(--color-primary, #2563eb); background:#f7faff; }
-.mapping-source-group-select { display:flex; align-items:center; flex:1; gap:10px; min-width:0; padding:10px 12px; border:0; background:transparent; text-align:left; cursor:pointer; }
-.mapping-source-group-select > span:nth-child(2) { display:grid; gap:4px; min-width:0; }
-.mapping-source-group-select strong { color:#344054; font-size:13px; overflow-wrap:anywhere; }
-.mapping-source-group-select small { color:#667085; font-size:12px; overflow-wrap:anywhere; }
-.mapping-source-priority { display:grid; place-items:center; flex:0 0 24px; height:24px; border-radius:4px; background:#edf2f8; color:#475467; font-size:12px; }
-.mapping-source-group-actions { display:flex; gap:12px; padding:0 12px; flex-shrink:0; }
 .mapping-inline-link:disabled { opacity:.45; cursor:default; }
-.mapping-new-source { display:grid; gap:14px; padding:16px; border:1px solid var(--yb-border-2, #e4ebf5); border-radius:6px; }
+.mapping-entity-config .mapping-config-header { padding-bottom:0; border-bottom:0; }
+.mapping-entity-config .mapping-inline-link { font-size:13px; font-weight:500; }
+.mapping-source-tabs-bar { display:flex; align-items:center; gap:16px; min-width:0; margin:10px 0 20px; border-bottom:1px solid var(--yb-border-2, #e4ebf5); }
+.mapping-source-tabs { display:flex; min-width:0; overflow-x:auto; }
+.mapping-source-tab { display:flex; align-items:center; gap:4px; flex:0 0 auto; max-width:260px; padding:0 8px 0 12px; border-bottom:2px solid transparent; }
+.mapping-source-tab.active { border-bottom-color:var(--blue); }
+.mapping-source-tab > [role="tab"] { display:flex; align-items:center; gap:6px; min-width:0; min-height:42px; padding:0; border:0; background:transparent; color:#475467; font-size:13px; cursor:pointer; }
+.mapping-source-tab > [role="tab"] > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mapping-source-tab.active > [role="tab"] { color:var(--blue); font-weight:600; }
+.mapping-source-tab > [role="tab"] > i { width:6px; height:6px; flex:0 0 6px; border-radius:50%; background:#f59e0b; }
+.mapping-source-tab-remove, .mapping-join-remove { display:grid; place-items:center; flex-shrink:0; width:24px; height:28px; padding:0; border:0; border-radius:4px; background:transparent; color:#86909c; cursor:pointer; }
+.mapping-source-tab-remove:hover, .mapping-join-remove:hover { color:#b42318; background:#fff2f0; }
+.mapping-source-tab button:disabled, .mapping-join-remove:disabled { cursor:default; opacity:.45; }
+.mapping-add-source, .mapping-add-property, .mapping-add-join { display:inline-flex; align-items:center; gap:4px; flex-shrink:0; white-space:nowrap; }
+.mapping-new-source { display:grid; gap:14px; }
+.mapping-new-source-heading { display:flex; align-items:center; justify-content:space-between; color:#475467; font-size:13px; }
+.mapping-inline-join-section { padding:18px 0 0; margin-top:20px; border:0; border-top:1px solid var(--yb-border-2, #e4ebf5); border-radius:0; }
+.mapping-inline-join-section .mapping-join-heading small { margin-left:0; }
+.mapping-inline-joins { display:grid; gap:10px; margin-top:14px; }
+.mapping-inline-join-head, .mapping-inline-join-row { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)) 24px; align-items:center; gap:16px; }
+.mapping-inline-join-head { color:#344054; font-size:13px; font-weight:500; }
+.mapping-inline-join-row select { width:100%; min-width:0; min-height:36px; text-overflow:ellipsis; }
+.mapping-join-draft-actions { display:flex; align-items:center; flex-wrap:wrap; gap:12px; min-height:26px; margin-top:8px; color:#667085; font-size:12px; }
+.mapping-simple-property-table table { min-width:0; }
+.mapping-simple-property-table th:first-child { width:38%; }
+.mapping-simple-property-table th:nth-child(2) { width:62%; }
+.mapping-entity-properties .mapping-simple-property-table tbody tr { height:48px; }
+.mapping-simple-property-table td strong { font-size:13px; font-weight:500; }
+.mapping-required { margin-right:5px; color:#b42318; font-style:normal; }
+.mapping-property-select { position:relative; min-width:0; }
+.mapping-property-select select { padding-right:58px; text-overflow:ellipsis; }
+.mapping-property-clear { position:absolute; top:50%; right:27px; display:grid; place-items:center; width:24px; height:26px; padding:0; transform:translateY(-50%); border:0; border-radius:4px; background:#fff; color:#86909c; cursor:pointer; }
+.mapping-property-clear:hover { color:#475467; background:#f2f3f5; }
+.mapping-property-clear:disabled { cursor:default; opacity:.45; }
 .mapping-unified-endpoints { display:grid; gap:16px; margin-top:18px; }
 .mapping-unified-endpoint { display:grid; gap:12px; border:1px solid var(--yb-border-2, #e4ebf5); border-radius:6px; padding:16px; }
 .mapping-unified-endpoint > header { color:#344054; font-size:13px; }
 .mapping-simple-relation-fields { margin-top:0; }
 .mapping-simple-relation-fields label small { color:#667085; font-size:12px; font-weight:400; }
-.mapping-advanced-matching { margin-top:16px; padding-top:12px; border-top:1px solid var(--yb-border-2, #e4ebf5); }
-.mapping-advanced-matching > summary { width:fit-content; color:#475467; font-size:13px; cursor:pointer; }
-.mapping-advanced-matching > .mapping-relation-attribute-fields { margin-top:14px; }
-.mapping-advanced-endpoint { display:grid; gap:12px; }
 .mapping-relation-undo { margin-top:12px; }
 .mapping-relation-mode { display:flex; align-items:center; gap:24px; margin:0 0 18px; }
 .mapping-relation-mode label { display:flex; align-items:center; gap:6px; color:#344054; font-size:13px; cursor:pointer; }

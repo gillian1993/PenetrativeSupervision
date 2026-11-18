@@ -3,7 +3,7 @@ import test from 'node:test'
 import mysql from 'mysql2/promise'
 import { buildGraphDataset } from '../graphDataSync.js'
 import { relationConfiguration, relationConfigurationIssue } from '../graphMappingConfig.js'
-import { directRelationConfiguration, intermediateRelationConfiguration, relationFieldSelection } from '../relationMappingForm.js'
+import { directRelationConfiguration, intermediateRelationConfiguration, relationFieldSelection, relationUsesLegacyMatching, updateRelationAssociation } from '../relationMappingForm.js'
 
 const relation = { type: 'relation', code: 'Contact', name: '联系', ownerCode: 'Supplier', targetCode: 'Person' }
 const elements = [
@@ -68,10 +68,11 @@ test('custom table matching survives compact projection and generates the same r
   assert.equal(JSON.stringify(config), original)
   assert.equal((await generate(t, config)).relations.length, 2)
 })
-test('nonstandard entity-origin configurations remain intact in advanced settings', async (t) => {
+test('legacy entity-origin configurations remain intact without an editing entry', async (t) => {
   const config = { origin: { kind: 'entity', entityCode: 'Person' }, start: { field: 'Person.supplierId', match: '$identifier' }, end: { field: '$identifier', match: '$identifier' } }
   const original = JSON.stringify(config)
   assert.equal(relationFieldSelection(config, relation).kind, 'custom')
+  assert.equal(relationUsesLegacyMatching(config, relation), true)
   assert.equal(JSON.stringify(config), original)
   assert.equal((await generate(t, config)).relations.length, 3)
 })
@@ -80,4 +81,37 @@ test('legacy intermediate table rules retain the original columns and identifier
   const config = relationConfiguration(legacy, relation)
   assert.equal(relationFieldSelection(config, relation).kind, 'table')
   assert.deepEqual((await generate(t, config)).relations, (await generate(t, null, legacy)).relations)
+})
+
+test('editing ordinary intermediate columns keeps fixed identifier matching and the other endpoint', async (t) => {
+  const config = intermediateRelationConfiguration('links')
+  config.start.field = 'supplier'; config.end.field = 'person'
+  const updated = updateRelationAssociation(config, relation, 'end', 'person')
+  assert.equal(updated.start.field, 'supplier')
+  assert.equal(updated.start.match, '$identifier'); assert.equal(updated.end.match, '$identifier')
+  assert.equal(relationUsesLegacyMatching(updated, relation), false)
+  assert.equal((await generate(t, updated)).relations.length, 2)
+})
+test('editing a legacy table rule clears the other endpoint and cannot silently retain custom matches', async (t) => {
+  const legacy = { origin: { kind: 'table', table: 'phone_links' }, start: { field: 'supplier_phone', match: 'Supplier.phone' }, end: { field: 'person_phone', match: 'Person.phone' } }
+  const original = JSON.stringify(legacy)
+  assert.equal((await generate(t, legacy)).relations.length, 2)
+  const started = updateRelationAssociation(legacy, relation, 'start', 'supplier_phone')
+  assert.equal(started.end.field, '')
+  assert.equal(started.start.match, '$identifier'); assert.equal(started.end.match, '$identifier')
+  assert.match(relationConfigurationIssue(started, relation, elements, ['Supplier', 'Person'], ['Supplier.phone', 'Person.phone'], []), /请选择两端/)
+  const completed = updateRelationAssociation(started, relation, 'end', 'person_phone')
+  assert.equal(relationUsesLegacyMatching(completed, relation), false)
+  await assert.rejects(generate(t, completed), /关联实体不存在/)
+  assert.equal(JSON.stringify(legacy), original)
+})
+test('legacy entity rules can be replaced with two explicitly selected fields while the original remains intact', async (t) => {
+  const legacy = { origin: { kind: 'entity', entityCode: 'Person' }, start: { field: 'Person.supplierId', match: '$identifier' }, end: { field: '$identifier', match: '$identifier' } }
+  const original = JSON.stringify(legacy)
+  const started = updateRelationAssociation(legacy, relation, 'start', 'Supplier.phone')
+  assert.equal(started.end.match, '')
+  const completed = updateRelationAssociation(started, relation, 'end', 'Person.phone')
+  assert.equal(relationUsesLegacyMatching(completed, relation), false)
+  assert.equal((await generate(t, completed)).relations.length, 3)
+  assert.equal(JSON.stringify(legacy), original)
 })

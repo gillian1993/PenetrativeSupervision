@@ -227,9 +227,9 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
     }
   }
 
-  const removeMapping = async (mapping: MappingItem | null | undefined, label: string, confirmText?: string) => {
+  const removeMapping = async (mapping: MappingItem | null | undefined, label: string, confirmText?: string, confirm = true) => {
     if (!mapping) return
-    if (!window.confirm(confirmText || `确认移除${label}吗？`)) return
+    if (confirm && !window.confirm(confirmText || `确认移除${label}吗？`)) return
     setSavingKey(`delete:${mapping.id}`)
     try {
       await dataGraphApi.deleteMapping(mapping.sourceId, mapping.id, ontologyId, graphId)
@@ -389,7 +389,7 @@ export function GraphMappingPanel({ ontologyId, ontologyName, ontologyStatus, on
     if (!activeEntityType) return <EmptyState title="暂无实体类型" description="先新增实体类型，再配置来源表。" action={<Button variant="primary" icon="plus" onClick={() => openStructureEditor('class')}>新增实体类型</Button>}/>
     return <div className="mapping-config-layout">
       <aside className="mapping-type-list"><header className="mapping-type-list-header"><div><h3>实体类型</h3><small>共 {targetEntityTypes.length} 项</small></div><button type="button" className="mapping-structure-icon" title="新增实体类型" aria-label="新增实体类型" onClick={() => openStructureEditor('class')}><Icon name="plus" size={16}/></button></header><label className="mapping-type-search"><Icon name="search" size={14}/><input value={typeKeyword} onChange={(event) => setTypeKeyword(event.target.value)} placeholder="搜索实体类型" aria-label="搜索实体类型"/></label>{renderListFilter()}<div className="mapping-type-items">{visibleEntityTypes.map((target) => <div className={`mapping-type-item${target.code === activeEntityType.code ? ' active' : ''}`} key={target.id}><button type="button" className="mapping-type-select" onClick={() => focusEntity(target.code)}><Icon name="file" size={16}/><span><strong>{target.name}</strong><small>{target.code}</small></span><StatusTag>{mappingListStatus(target, null, 'entityTypes')}</StatusTag></button>{renderStructureActions(target, 'class')}</div>)}{!visibleEntityTypes.length && <p className="mapping-list-empty">未找到匹配的实体类型</p>}</div></aside>
-      <EntitySourcesConfig key={activeEntityType.code} entity={activeEntityType} properties={activeEntityProperties} mappings={allMappings} sources={eligibleSources} metadata={metadataBySource} disabled={Boolean(savingKey) || autoApplying} onSave={saveInlineMapping} onRemove={(mapping, label) => void removeMapping(mapping, label)} onRemoveSource={(mapping) => void removeEntitySourceMapping(mapping)} onAddProperty={() => openStructureEditor('property', undefined, { ownerCode: activeEntityType.code })} onPendingChange={setPendingConfig}/>
+      <EntitySourcesConfig key={activeEntityType.code} entity={activeEntityType} properties={activeEntityProperties} mappings={allMappings} sources={eligibleSources} metadata={metadataBySource} disabled={Boolean(savingKey) || autoApplying} onSave={saveInlineMapping} onRemove={(mapping, label) => void removeMapping(mapping, label, undefined, false)} onRemoveSource={(mapping) => void removeEntitySourceMapping(mapping)} onAddProperty={() => openStructureEditor('property', undefined, { ownerCode: activeEntityType.code })} onPendingChange={setPendingConfig}/>
     </div>
   }
 
